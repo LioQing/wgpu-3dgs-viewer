@@ -1,0 +1,17 @@
+[package]
+name = "wgpu-3dgs-viewer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytemuck = "1.21.0"
+glam = { version = "0.29.2", features = ["bytemuck"] }
+log = "0.4.25"
+thiserror = "2.0.11"
+wgpu = "24.0.0"
+
+[dev-dependencies]
+clap = { version = "4.5.27", features = ["derive"] }
+env_logger = "0.11.6"
+futures = "0.3.31"
+winit = "0.30.8"
