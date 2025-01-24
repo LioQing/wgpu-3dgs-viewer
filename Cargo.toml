@@ -2,16 +2,33 @@
 name = "wgpu-3dgs-viewer"
 version = "0.1.0"
 edition = "2021"
+authors = ["Lio Qing"]
+license = "MIT OR Apache-2.0"
+description = "A 3D Gaussian splatting viewer written in Rust using wgpu."
+readme = "README.md"
+repository = "https://github.com/LioQing/wgpu-3dgs-viewer"
+keywords = ["gaussian-splatting", "point-cloud", "wgpu", "graphics", "ply"]
+
+[lib]
+name = "wgpu_3dgs_viewer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wgpu-3dgs-viewer"
+path = "src/bin.rs"
+required-features = ["bin"]
+
+[features]
+bin = ["dep:clap", "dep:env_logger", "dep:futures", "dep:winit"]
 
 [dependencies]
 bytemuck = "1.21.0"
 glam = { version = "0.29.2", features = ["bytemuck"] }
 log = "0.4.25"
 thiserror = "2.0.11"
-wgpu = "24.0.0"
+wgpu = "24.0.1"
 
-[dev-dependencies]
-clap = { version = "4.5.27", features = ["derive"] }
-env_logger = "0.11.6"
-futures = "0.3.31"
-winit = "0.30.8"
+clap = { version = "4.5.27", features = ["derive"], optional = true }
+env_logger = { version = "0.11.6", optional = true }
+futures = { version = "0.3.31", optional = true }
+winit = { version = "0.30.8", optional = true }
