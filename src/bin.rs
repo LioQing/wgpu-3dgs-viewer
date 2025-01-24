@@ -107,7 +107,7 @@ impl ApplicationHandler for App {
         self.window = Some(Arc::new(
             event_loop
                 .create_window(Window::default_attributes())
-                .unwrap(),
+                .expect("window"),
         ));
 
         log::debug!("Creating system");
@@ -130,7 +130,7 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::RedrawRequested => {
                 // Capture frame rate
-                let delta_time = self.timer.elapsed().unwrap().as_secs_f32();
+                let delta_time = self.timer.elapsed().expect("elapsed time").as_secs_f32();
                 self.timer = std::time::SystemTime::now();
 
                 // Update system
@@ -178,23 +178,7 @@ struct System {
 
     camera: gs::Camera,
     gaussians: gs::Gaussians,
-
-    #[allow(dead_code)]
-    camera_buffer: gs::CameraBuffer,
-    #[allow(dead_code)]
-    gaussians_buffer: gs::GaussiansBuffer,
-    #[allow(dead_code)]
-    indirect_args_buffer: gs::IndirectArgsBuffer,
-    #[allow(dead_code)]
-    radix_sort_indirect_args_buffer: gs::RadixSortIndirectArgsBuffer,
-    #[allow(dead_code)]
-    indirect_indices_buffer: gs::IndirectIndicesBuffer,
-    #[allow(dead_code)]
-    gaussians_depth_buffer: gs::GaussiansDepthBuffer,
-
-    preprocessor: gs::Preprocessor,
-    radix_sorter: gs::RadixSorter,
-    renderer: gs::Renderer,
+    viewer: gs::Viewer,
 }
 
 impl System {
@@ -205,7 +189,7 @@ impl System {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 
         log::debug!("Creating window surface");
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance.create_surface(window.clone()).expect("surface");
 
         log::debug!("Requesting adapter");
         let adapter = instance
@@ -215,7 +199,7 @@ impl System {
                 force_fallback_adapter: false,
             })
             .await
-            .expect("request adapter");
+            .expect("adapter");
 
         log::debug!("Requesting device");
         let (device, queue) = adapter
@@ -229,7 +213,7 @@ impl System {
                 None,
             )
             .await
-            .unwrap();
+            .expect("device");
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -258,52 +242,10 @@ impl System {
         log::debug!("Creating gaussians");
         let f = std::fs::File::open(model_path).expect("ply file");
         let mut reader = std::io::BufReader::new(f);
-        let gaussians = gs::Gaussians::read_ply(&mut reader).unwrap();
+        let gaussians = gs::Gaussians::read_ply(&mut reader).expect("gaussians");
 
-        log::debug!("Creating camera buffer");
-        let camera_buffer = gs::CameraBuffer::new(&device);
-
-        log::debug!("Creating gaussians buffer");
-        let gaussians_buffer = gs::GaussiansBuffer::new(&device, gaussians.gaussians());
-
-        log::debug!("Creating indirect args buffer");
-        let indirect_args_buffer = gs::IndirectArgsBuffer::new(&device);
-
-        log::debug!("Creating radix sort indirect args buffer");
-        let radix_sort_indirect_args_buffer =
-            gs::RadixSortIndirectArgsBuffer::new(&device, 1, 1, 1);
-
-        log::debug!("Creating indirect indices buffer");
-        let indirect_indices_buffer =
-            gs::IndirectIndicesBuffer::new(&device, gaussians.gaussians().len() as u32);
-
-        log::debug!("Creating gaussians depth buffer");
-        let gaussians_depth_buffer =
-            gs::GaussiansDepthBuffer::new(&device, gaussians.gaussians().len() as u32);
-
-        log::debug!("Creating preprocessor");
-        let preprocessor = gs::Preprocessor::new(
-            &device,
-            &camera_buffer,
-            &gaussians_buffer,
-            &indirect_args_buffer,
-            &radix_sort_indirect_args_buffer,
-            &indirect_indices_buffer,
-            &gaussians_depth_buffer,
-        );
-
-        log::debug!("Creating radix sorter");
-        let radix_sorter =
-            gs::RadixSorter::new(&device, &gaussians_depth_buffer, &indirect_indices_buffer);
-
-        log::debug!("Creating renderer");
-        let renderer = gs::Renderer::new(
-            &device,
-            config.format,
-            &camera_buffer,
-            &gaussians_buffer,
-            &indirect_indices_buffer,
-        );
+        log::debug!("Creating viewer");
+        let viewer = gs::Viewer::new(&device, config.format, &gaussians);
 
         log::info!("System initialized");
 
@@ -315,17 +257,7 @@ impl System {
 
             camera,
             gaussians,
-
-            camera_buffer,
-            gaussians_buffer,
-            indirect_args_buffer,
-            radix_sort_indirect_args_buffer,
-            indirect_indices_buffer,
-            gaussians_depth_buffer,
-
-            preprocessor,
-            radix_sorter,
-            renderer,
+            viewer,
         }
     }
 
@@ -370,8 +302,8 @@ impl System {
         self.camera.pitch_by(-pitch);
         self.camera.yaw_by(-yaw);
 
-        // Update camera buffer
-        self.camera_buffer.update(
+        // Update the viewer
+        self.viewer.update(
             &self.queue,
             &self.camera,
             uvec2(self.config.width, self.config.height),
@@ -398,14 +330,11 @@ impl System {
                 label: Some("Command Encoder"),
             });
 
-        self.preprocessor
-            .preprocess(&mut encoder, self.gaussians.gaussians().len() as u32);
-
-        self.radix_sorter
-            .sort(&mut encoder, &self.radix_sort_indirect_args_buffer);
-
-        self.renderer
-            .render(&mut encoder, &texture_view, &self.indirect_args_buffer);
+        self.viewer.render(
+            &mut encoder,
+            &texture_view,
+            self.gaussians.gaussians().len() as u32,
+        );
 
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);

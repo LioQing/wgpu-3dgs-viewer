@@ -33,4 +33,42 @@ Options:
 
 ### Library
 
-To use this viewer as a library, take a look at the [`wgpu-3dgs-viewer` binary](./src/bin.rs) for an example.
+Example:
+
+```rust
+use wgpu_3dgs_viewer::{Camera, Gaussians, Viewer};
+use glam::uvec2;
+
+// ...
+
+// Create the camera
+let camera = Camera::new(1e-4..1e4, 60f32.to_radians());
+
+// Read the Gaussians from the .ply file
+let f = std::fs::File::open(model_path).expect("ply file");
+let mut reader = std::io::BufReader::new(f);
+let gaussians = Gaussians::read_ply(&mut reader).expect("gaussians");
+
+// Create the viewer
+let viewer = Viewer::new(&device, surface_texture_format, &gaussians);
+
+// ...
+
+// Update the viewer's buffers each frame
+viewer.update(
+    &queue,
+    &camera,
+    uvec2(surface_config.width, surface_config.height),
+);
+
+// ...
+
+// Render the viewer each frame
+viewer.render(
+    &mut encoder,
+    &surface_texture_view,
+    gaussians.gaussians().len() as u32,
+);
+```
+
+You may also take a look at [the `wgpu-3dgs-viewer` binary](./src/bin.rs) for an example.

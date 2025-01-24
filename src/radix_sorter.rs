@@ -18,7 +18,10 @@ impl RadixSorter {
         gaussians_depth: &GaussiansDepthBuffer,
         indirect_indices: &IndirectIndicesBuffer,
     ) -> Self {
+        log::debug!("Creating radix sorter");
         let sorter = wgpu_sort::GPUSorter::new(device, 1);
+
+        log::debug!("Creating radix sorter internal sort buffers");
         let internal_sort_buffers = sorter.create_internal_sort_buffers(
             device,
             gaussians_depth.buffer(),

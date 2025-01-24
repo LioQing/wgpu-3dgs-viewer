@@ -62,9 +62,11 @@ impl Renderer {
         gaussians: &GaussiansBuffer,
         indirect_indices: &IndirectIndicesBuffer,
     ) -> Self {
+        log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Self::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
+        log::debug!("Creating renderer bind group");
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Renderer Bind Group"),
             layout: &bind_group_layout,
@@ -87,17 +89,20 @@ impl Renderer {
             ],
         });
 
+        log::debug!("Creating renderer pipeline layout");
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Renderer Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
 
+        log::debug!("Creating renderer shader");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Renderer Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader/render.wgsl").into()),
         });
 
+        log::debug!("Creating renderer pipeline");
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Renderer Pipeline"),
             layout: Some(&pipeline_layout),

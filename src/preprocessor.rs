@@ -105,9 +105,11 @@ impl Preprocessor {
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
     ) -> Self {
+        log::debug!("Creating preprocessor bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Self::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
+        log::debug!("Creating preprocessor bind group");
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Preprocessor Bind Group"),
             layout: &bind_group_layout,
@@ -145,12 +147,14 @@ impl Preprocessor {
             ],
         });
 
+        log::debug!("Creating preprocessor pipeline layout");
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Preprocessor Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
 
+        log::debug!("Creating preprocessor shader module");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Preprocessor Shader"),
             source: wgpu::ShaderSource::Wgsl(
@@ -163,6 +167,7 @@ impl Preprocessor {
             ),
         });
 
+        log::debug!("Creating preprocessor pipeline");
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Preprocessor Pipeline"),
             layout: Some(&pipeline_layout),

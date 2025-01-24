@@ -2,7 +2,7 @@ use glam::*;
 
 use wgpu::util::DeviceExt;
 
-use crate::{wgpu_sort, Gaussian};
+use crate::{wgpu_sort, Camera, Gaussian};
 
 /// The Gaussians storage buffer.
 #[derive(Debug)]
@@ -135,6 +135,60 @@ pub struct PlyGaussianPod {
     pub rotation: [f32; 4],
 }
 
+/// The camera buffer.
+#[derive(Debug)]
+pub struct CameraBuffer(wgpu::Buffer);
+
+impl CameraBuffer {
+    /// Create a new camera buffer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Buffer"),
+            size: std::mem::size_of::<CameraPod>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self(buffer)
+    }
+
+    /// Update the camera buffer.
+    pub fn update(&self, queue: &wgpu::Queue, camera: &Camera, size: UVec2) {
+        queue.write_buffer(
+            &self.0,
+            0,
+            bytemuck::bytes_of(&CameraPod::new(camera, size)),
+        );
+    }
+
+    /// Get the buffer.
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+/// The POD representation of camera.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct CameraPod {
+    pub view: Mat4,
+    pub proj: Mat4,
+    pub size: Vec2,
+    _padding_1: [u32; 2],
+}
+
+impl CameraPod {
+    /// Create a new camera.
+    pub fn new(camera: &Camera, size: UVec2) -> Self {
+        Self {
+            view: camera.view(),
+            proj: camera.projection(size.x as f32 / size.y as f32),
+            size: size.as_vec2(),
+            _padding_1: [0; 2],
+        }
+    }
+}
+
 /// The Gaussians depth storage buffer.
 #[derive(Debug)]
 pub struct GaussiansDepthBuffer(wgpu::Buffer);
@@ -195,10 +249,10 @@ pub struct RadixSortIndirectArgsBuffer(wgpu::Buffer);
 
 impl RadixSortIndirectArgsBuffer {
     /// Create a new dispatch indirect args buffer.
-    pub fn new(device: &wgpu::Device, x: u32, y: u32, z: u32) -> Self {
+    pub fn new(device: &wgpu::Device) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Radix Sort Indirect Args Buffer"),
-            contents: wgpu::util::DispatchIndirectArgs { x, y, z }.as_bytes(),
+            contents: wgpu::util::DispatchIndirectArgs { x: 1, y: 1, z: 1 }.as_bytes(),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT,
         });
 
