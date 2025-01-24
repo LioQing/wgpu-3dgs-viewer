@@ -43,7 +43,7 @@ fn compute_cov2d(gaussian: Gaussian) -> vec3<f32> {
     let w = transpose(mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz));
 
     let cov = transpose(w * j) * vrk * (w * j)
-        + mat3x3(
+        + mat3x3<f32>(
             0.3, 0.0, 0.0,
             0.0, 0.3, 0.0,
             0.0, 0.0, 0.0,
@@ -87,13 +87,14 @@ fn vert_main(
     let minor_axis = min(max_radius * sqrt(lambda_2), 1024.0) * diag_vec_ortho;
     let quad_offset = compute_quad_offset(vert_index) * max_radius;
     let pos_proj = camera.proj * camera.view * vec4<f32>(gaussian.pos, 1.0);
+    let pos_proj_norm = pos_proj.xyz / pos_proj.w;
     let clip_proj = (
-        pos_proj.xy / pos_proj.w
+        pos_proj_norm.xy
         + quad_offset.x * major_axis / camera.size
         + quad_offset.y * minor_axis / camera.size
     );
 
-    out.clip_pos = vec4<f32>(clip_proj, pos_proj.z / pos_proj.w, 1.0);
+    out.clip_pos = vec4<f32>(clip_proj, pos_proj_norm.z, 1.0);
     out.quad_offset = quad_offset;
     out.color = gaussian.color;
 

@@ -6,15 +6,15 @@ use glam::*;
 #[derive(Debug)]
 pub struct Camera {
     /// The position of the camera.
-    pos: Vec3,
+    pub pos: Vec3,
     /// The z range of the camera.
-    z: Range<f32>,
+    pub z: Range<f32>,
     /// The vertical FOV.
-    vertical_fov: f32,
+    pub vertical_fov: f32,
     /// The pitch.
-    pitch: f32,
+    pub pitch: f32,
     /// The yaw.
-    yaw: f32,
+    pub yaw: f32,
 }
 
 impl Camera {
@@ -34,31 +34,6 @@ impl Camera {
             pitch: 0.0,
             yaw: 0.0,
         }
-    }
-
-    /// Get the position.
-    pub fn pos(&self) -> Vec3 {
-        self.pos
-    }
-
-    /// Get the z range.
-    pub fn z(&self) -> &Range<f32> {
-        &self.z
-    }
-
-    /// Get the vertical FOV.
-    pub fn vertical_fov(&self) -> f32 {
-        self.vertical_fov
-    }
-
-    /// Get the current pitch.
-    pub fn pitch(&self) -> f32 {
-        self.pitch
-    }
-
-    /// Get the current yaw.
-    pub fn yaw(&self) -> f32 {
-        self.yaw
     }
 
     /// Move the camera.
@@ -97,16 +72,11 @@ impl Camera {
 
     /// Get the view matrix.
     pub fn view(&self) -> Mat4 {
-        Mat4::look_to_rh(self.pos(), self.get_forward(), Self::UP)
+        Mat4::look_to_rh(self.pos, self.get_forward(), Self::UP)
     }
 
     /// Get the projection matrix.
     pub fn projection(&self, aspect_ratio: f32) -> Mat4 {
-        Mat4::perspective_rh(
-            self.vertical_fov(),
-            aspect_ratio,
-            self.z().start,
-            self.z().end,
-        )
+        Mat4::perspective_rh(self.vertical_fov, aspect_ratio, self.z.start, self.z.end)
     }
 }

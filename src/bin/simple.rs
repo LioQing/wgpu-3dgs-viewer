@@ -236,13 +236,20 @@ impl System {
         log::debug!("Configuring surface");
         surface.configure(&device, &config);
 
-        log::debug!("Creating camera");
-        let camera = gs::Camera::new(1e-4..1e4, 60f32.to_radians());
-
         log::debug!("Creating gaussians");
         let f = std::fs::File::open(model_path).expect("ply file");
         let mut reader = std::io::BufReader::new(f);
         let gaussians = gs::Gaussians::read_ply(&mut reader).expect("gaussians");
+
+        log::debug!("Creating camera");
+        let mut camera = gs::Camera::new(1e-4..1e4, 60f32.to_radians());
+        camera.pos = gaussians.gaussians().iter().map(|g| g.pos).sum::<Vec3>()
+            / gaussians.gaussians().len() as f32;
+        camera.pos.z += gaussians
+            .gaussians()
+            .iter()
+            .map(|g| g.pos.z - camera.pos.z)
+            .fold(f32::INFINITY, |a, b| a.min(b));
 
         log::debug!("Creating viewer");
         let viewer = gs::Viewer::new(&device, config.format, &gaussians);

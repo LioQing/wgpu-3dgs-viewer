@@ -15,7 +15,7 @@ There are two ways to use this viewer:
 To run the standalone application, use the following command:
 
 ```sh
-cargo run --bin wgpu-3dgs-viewer --features="bin" -- -m "path/to/model.ply"
+cargo run --bin simple-wgpu-3dgs-viewer --features="bin-simple" -- -m "path/to/model.ply"
 ```
 
 Usage:
@@ -23,7 +23,7 @@ Usage:
 ```
 A 3D Gaussian splatting viewer written in Rust using wgpu.
 
-Usage: wgpu-3dgs-viewer.exe --model <MODEL>
+Usage: simple-wgpu-3dgs-viewer.exe --model <MODEL>
 
 Options:
   -m, --model <MODEL>  Path to the .ply file
@@ -41,13 +41,13 @@ use glam::uvec2;
 
 // ...
 
-// Create the camera
-let camera = Camera::new(1e-4..1e4, 60f32.to_radians());
-
 // Read the Gaussians from the .ply file
 let f = std::fs::File::open(model_path).expect("ply file");
 let mut reader = std::io::BufReader::new(f);
 let gaussians = Gaussians::read_ply(&mut reader).expect("gaussians");
+
+// Create the camera
+let camera = Camera::new(1e-4..1e4, 60f32.to_radians());
 
 // Create the viewer
 let viewer = Viewer::new(&device, surface_texture_format, &gaussians);
@@ -71,4 +71,4 @@ viewer.render(
 );
 ```
 
-You may also take a look at [the `wgpu-3dgs-viewer` binary](./src/bin.rs) for an example.
+You may also take a look at [the `simple-wgpu-3dgs-viewer` binary](./src/bin/simple.rs) for an example.

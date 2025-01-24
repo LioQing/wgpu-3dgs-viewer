@@ -14,12 +14,12 @@ name = "wgpu_3dgs_viewer"
 path = "src/lib.rs"
 
 [[bin]]
-name = "wgpu-3dgs-viewer"
-path = "src/bin.rs"
-required-features = ["bin"]
+name = "simple-wgpu-3dgs-viewer"
+path = "src/bin/simple.rs"
+required-features = ["bin-simple"]
 
 [features]
-bin = ["dep:clap", "dep:env_logger", "dep:futures", "dep:winit"]
+bin-simple = ["dep:clap", "dep:env_logger", "dep:futures", "dep:winit"]
 
 [dependencies]
 bytemuck = "1.21.0"
