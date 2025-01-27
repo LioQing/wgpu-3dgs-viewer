@@ -6,12 +6,65 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
+struct Transform {
+    pos: vec3<f32>,
+    quat: vec4<f32>,
+    scale: vec3<f32>,
+}
+@group(0) @binding(1)
+var<uniform> transform: Transform;
+
+fn transform_mat() -> mat4x4<f32> {
+    let pos = transform.pos.xyz;
+    let quat = transform.quat;
+    let scale = transform.scale.xyz;
+
+    let x2 = quat.x + quat.x;
+    let y2 = quat.y + quat.y;
+    let z2 = quat.z + quat.z;
+    let xx = quat.x * x2;
+    let xy = quat.x * y2;
+    let xz = quat.x * z2;
+    let yy = quat.y * y2;
+    let yz = quat.y * z2;
+    let zz = quat.z * z2;
+    let wx = quat.w * x2;
+    let wy = quat.w * y2;
+    let wz = quat.w * z2;
+
+    let sx = scale.x;
+    let sy = scale.y;
+    let sz = scale.z;
+
+    return mat4x4<f32>(
+        vec4<f32>(
+            (1.0 - (yy + zz)) * sx,
+            (xy + wz) * sx,
+            (xz - wy) * sx,
+            0.0,
+        ),
+        vec4<f32>(
+            (xy - wz) * sy,
+            (1.0 - (xx + zz)) * sy,
+            (yz + wx) * sy,
+            0.0,
+        ),
+        vec4<f32>(
+            (xz + wy) * sz,
+            (yz - wx) * sz,
+            (1.0 - (xx + yy)) * sz,
+            0.0,
+        ),
+        vec4<f32>(pos, 1.0),
+    );
+}
+
 struct Gaussian {
     pos: vec3<f32>,
     color: u32,
     cov3d: array<f32, 6>,
 }
-@group(0) @binding(1)
+@group(0) @binding(2)
 var<storage, read> gaussians: array<Gaussian>;
 
 struct IndirectArgs {
@@ -20,7 +73,7 @@ struct IndirectArgs {
     first_vertex: u32,
     first_instance: u32,
 }
-@group(0) @binding(2)
+@group(0) @binding(3)
 var<storage, read_write> indirect_args: IndirectArgs;
 
 struct DispatchIndirectArgs {
@@ -28,18 +81,23 @@ struct DispatchIndirectArgs {
     y: u32,
     z: u32,
 }
-@group(0) @binding(3)
+@group(0) @binding(4)
 var<storage, read_write> radix_sort_indirect_args: DispatchIndirectArgs;
 
-@group(0) @binding(4)
+@group(0) @binding(5)
 var<storage, read_write> indirect_indices: array<u32>;
 
-@group(0) @binding(5)
+@group(0) @binding(6)
 var<storage, read_write> gaussians_depth: array<f32>;
 
-fn is_on_frustum(pos_proj: vec4<f32>) -> bool {
-    let pos_ndc = pos_proj.xyz / pos_proj.w;
+fn is_on_frustum(pos_ndc: vec3<f32>) -> bool {
     return all(pos_ndc >= vec3<f32>(-1.0, -1.0, 0.0)) && all(pos_ndc <= vec3<f32>(1.0));
+}
+
+@compute @workgroup_size(1)
+fn pre_main() {
+    // Reset instance count
+    atomicStore(&indirect_args.instance_count, 0u);
 }
 
 @compute @workgroup_size({{workgroup_size}})
@@ -50,33 +108,29 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
 
-    // Reset instance count
-    if index == 0 {
-        atomicStore(&indirect_args.instance_count, 0u);
-    }
-
-    workgroupBarrier();
-
-    // Cull and depth
     let gaussian = gaussians[index];
-    let pos_proj = camera.proj * camera.view * vec4<f32>(gaussian.pos, 1.0);
 
-    if !is_on_frustum(pos_proj) {
-        return;
-    }
+    // Cull
+    let pos_proj = camera.proj * camera.view * transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let pos_ndc = pos_proj.xyz / pos_proj.w;
+    // TODO: Fix culling causing flickering
+    // if !is_on_frustum(pos_ndc) {
+    //     return;
+    // }
 
     let culled_index = atomicAdd(&indirect_args.instance_count, 1u);
     indirect_indices[culled_index] = index;
-    gaussians_depth[culled_index] = pos_proj.z;
 
-    workgroupBarrier();
+    // Depth
+    gaussians_depth[culled_index] = 1.0 - pos_ndc.z;
+}
 
+@compute @workgroup_size(1)
+fn post_main() {
     // Set radix sort indirect args
-    if index == arrayLength(&gaussians) - 1 {
-        const histo_block_kvs = 3840u; // Correspond to wgpu_sort::HISTO_BLOCK_KVS
-        radix_sort_indirect_args.x =
-            (indirect_args.instance_count + histo_block_kvs - 1) / histo_block_kvs;
-        radix_sort_indirect_args.y = 1;
-        radix_sort_indirect_args.z = 1;
-    }
+    const histo_block_kvs = 3840u; // wgpu_sort::HISTO_BLOCK_KVS
+    radix_sort_indirect_args.x =
+        (atomicLoad(&indirect_args.instance_count) + histo_block_kvs - 1) / histo_block_kvs;
+    radix_sort_indirect_args.y = 1u;
+    radix_sort_indirect_args.z = 1u;
 }

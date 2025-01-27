@@ -1,4 +1,6 @@
-use crate::{CameraBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer};
+use crate::{
+    CameraBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer, TransformBuffer,
+};
 
 /// A renderer for Gaussians.
 #[derive(Debug)]
@@ -29,9 +31,20 @@ impl Renderer {
                     },
                     count: None,
                 },
-                // Gaussian storage buffer
+                // Transform uniform buffer
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Gaussian storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -42,7 +55,7 @@ impl Renderer {
                 },
                 // Indirect indices storage buffer
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 3,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -59,6 +72,7 @@ impl Renderer {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         camera: &CameraBuffer,
+        transform: &TransformBuffer,
         gaussians: &GaussiansBuffer,
         indirect_indices: &IndirectIndicesBuffer,
     ) -> Self {
@@ -76,14 +90,19 @@ impl Renderer {
                     binding: 0,
                     resource: camera.buffer().as_entire_binding(),
                 },
-                // Gaussian storage buffer
+                // Transform uniform buffer
                 wgpu::BindGroupEntry {
                     binding: 1,
+                    resource: transform.buffer().as_entire_binding(),
+                },
+                // Gaussian storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 2,
                     resource: gaussians.buffer().as_entire_binding(),
                 },
                 // Indirect indices storage buffer
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 3,
                     resource: indirect_indices.buffer().as_entire_binding(),
                 },
             ],
@@ -119,13 +138,13 @@ impl Renderer {
                     format: texture_format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
-                            dst_factor: wgpu::BlendFactor::One,
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                             operation: wgpu::BlendOperation::Add,
                         },
                         alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
-                            dst_factor: wgpu::BlendFactor::One,
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                             operation: wgpu::BlendOperation::Add,
                         },
                     }),
@@ -162,7 +181,7 @@ impl Renderer {
                 view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -171,8 +190,17 @@ impl Renderer {
             timestamp_writes: None,
         });
 
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
-        render_pass.draw_indirect(indirect_args.buffer(), 0);
+        self.render_with_pass(&mut render_pass, indirect_args);
+    }
+
+    /// Render the scene with a [`wgpu::RenderPass`].
+    pub fn render_with_pass(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        indirect_args: &IndirectArgsBuffer,
+    ) {
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.draw_indirect(indirect_args.buffer(), 0);
     }
 }

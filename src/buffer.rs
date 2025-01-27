@@ -80,10 +80,10 @@ impl GaussianPod {
     /// Convert from Gaussian to Gaussian POD.
     pub fn from_gaussian(gaussian: &Gaussian) -> Self {
         // Covariance
-        let r = Mat3::from_quat(gaussian.rotation).transpose();
+        let r = Mat3::from_quat(gaussian.rotation);
         let s = Mat3::from_diagonal(gaussian.scale);
-        let m = s * r;
-        let sigma = m.transpose() * m;
+        let m = r * s;
+        let sigma = m * m.transpose();
         let cov3d = [
             sigma.x_axis.x,
             sigma.x_axis.y,
@@ -174,7 +174,7 @@ pub struct CameraPod {
     pub view: Mat4,
     pub proj: Mat4,
     pub size: Vec2,
-    _padding_1: [u32; 2],
+    _padding_0: [u32; 2],
 }
 
 impl CameraPod {
@@ -184,7 +184,65 @@ impl CameraPod {
             view: camera.view(),
             proj: camera.projection(size.x as f32 / size.y as f32),
             size: size.as_vec2(),
-            _padding_1: [0; 2],
+            _padding_0: [0; 2],
+        }
+    }
+}
+
+/// The transformation buffer.
+#[derive(Debug)]
+pub struct TransformBuffer(wgpu::Buffer);
+
+impl TransformBuffer {
+    /// Create a new transformation buffer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Transform Buffer"),
+            contents: bytemuck::bytes_of(&TransformPod::IDENTITY),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        Self(buffer)
+    }
+
+    /// Update the transformation buffer.
+    pub fn update(&self, queue: &wgpu::Queue, pos: Vec3, quat: Quat, scale: Vec3) {
+        queue.write_buffer(
+            &self.0,
+            0,
+            bytemuck::bytes_of(&TransformPod::new(pos, quat, scale)),
+        );
+    }
+
+    /// Get the buffer.
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+/// The POD representation of a transformation.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct TransformPod {
+    pub pos: Vec3,
+    _padding_0: f32,
+    pub quat: Quat,
+    pub scale: Vec3,
+    _padding_1: f32,
+}
+
+impl TransformPod {
+    /// The identity transformation.
+    pub const IDENTITY: Self = Self::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE);
+
+    /// Create a new transformation.
+    pub const fn new(pos: Vec3, quat: Quat, scale: Vec3) -> Self {
+        Self {
+            pos,
+            _padding_0: 0.0,
+            quat,
+            scale,
+            _padding_1: 0.0,
         }
     }
 }

@@ -3,7 +3,7 @@ use std::ops::Range;
 use glam::*;
 
 /// A camera.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Camera {
     /// The position of the camera.
     pub pos: Vec3,

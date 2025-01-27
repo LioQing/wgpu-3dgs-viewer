@@ -6,10 +6,10 @@ use glam::*;
 use crate::{Error, PlyGaussianPod};
 
 /// A scene containing Gaussians.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Gaussians {
     /// The Gaussians.
-    gaussians: Vec<Gaussian>,
+    pub gaussians: Vec<Gaussian>,
 }
 
 impl Gaussians {
@@ -23,10 +23,18 @@ impl Gaussians {
 
     /// Read a splat PLY header.
     fn read_ply_header(reader: &mut impl BufRead) -> Result<usize, Error> {
+        let mut line = String::new();
+        reader.read_line(&mut line)?;
+        if line.as_str().trim().to_lowercase() != "ply" {
+            return Err(Error::NotPly);
+        }
+
         let mut count = 0;
         loop {
             let mut line = String::new();
-            reader.read_line(&mut line)?;
+            if reader.read_line(&mut line)? == 0 {
+                return Err(Error::PlyHeaderNotFound);
+            }
 
             if line.starts_with("end_header") {
                 break Ok(count);
@@ -40,7 +48,7 @@ impl Gaussians {
         }
     }
 
-    /// Read the splat PLY Gaussians into [`pod::SplatGaussian`].
+    /// Read the splat PLY Gaussians into [`Gaussian`].
     fn read_ply_gaussians(reader: &mut impl BufRead, count: usize) -> Result<Vec<Gaussian>, Error> {
         std::iter::repeat_n(PlyGaussianPod::zeroed(), count)
             .map(|mut gaussian| {
@@ -48,20 +56,6 @@ impl Gaussians {
                 Ok(gaussian.into())
             })
             .collect()
-    }
-
-    /// Get the Gaussians.
-    pub fn gaussians(&self) -> &[Gaussian] {
-        &self.gaussians
-    }
-
-    /// Sort the Gaussians by distance to the camera.
-    pub fn sort(&mut self, camera_pos: Vec3) {
-        self.gaussians.sort_by(|a, b| {
-            let a_dist = (a.pos - camera_pos).length_squared();
-            let b_dist = (b.pos - camera_pos).length_squared();
-            a_dist.partial_cmp(&b_dist).unwrap()
-        });
     }
 }
 
@@ -77,19 +71,16 @@ pub struct Gaussian {
 impl Gaussian {
     /// Convert from PLY Gaussian to Gaussian.
     pub fn from_ply(ply: &PlyGaussianPod) -> Self {
-        let adjust = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
-
         // Position
-        let pos = Mat3::from_quat(adjust) * Vec3::from_array(ply.pos);
+        let pos = Vec3::from_array(ply.pos);
 
         // Rotation
-        let rotation = (adjust
-            * Quat::from_xyzw(
-                ply.rotation[1],
-                ply.rotation[2],
-                ply.rotation[3],
-                ply.rotation[0],
-            ))
+        let rotation = Quat::from_xyzw(
+            ply.rotation[1],
+            ply.rotation[2],
+            ply.rotation[3],
+            ply.rotation[0],
+        )
         .normalize();
 
         // Scale

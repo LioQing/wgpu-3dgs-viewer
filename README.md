@@ -67,7 +67,7 @@ viewer.update(
 viewer.render(
     &mut encoder,
     &surface_texture_view,
-    gaussians.gaussians().len() as u32,
+    gaussians.gaussians.len() as u32,
 );
 ```
 

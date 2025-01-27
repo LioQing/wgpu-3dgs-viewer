@@ -2,10 +2,14 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("IO error: {0}")]
+    #[error("{0}")]
     Io(#[from] std::io::Error),
-    #[error("Vertex count not found in PLY header")]
+    #[error("vertex count not found in PLY header")]
     PlyVertexCountNotFound,
-    #[error("Failed to parse vertex count")]
+    #[error("failed to parse vertex count")]
     PlyVertexCountParseFailed(#[from] std::num::ParseIntError),
+    #[error("not a PLY file")]
+    NotPly,
+    #[error("PLY header not found")]
+    PlyHeaderNotFound,
 }

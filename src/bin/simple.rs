@@ -186,7 +186,7 @@ impl System {
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
 
         log::debug!("Creating window surface");
         let surface = instance.create_surface(window.clone()).expect("surface");
@@ -216,12 +216,7 @@ impl System {
             .expect("device");
 
         let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_caps.formats[0]);
+        let surface_format = surface_caps.formats[0];
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
@@ -229,7 +224,7 @@ impl System {
             height: size.height.max(1),
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![surface_format.add_srgb_suffix()],
+            view_formats: vec![surface_format.remove_srgb_suffix()],
             desired_maximum_frame_latency: 2,
         };
 
@@ -242,17 +237,23 @@ impl System {
         let gaussians = gs::Gaussians::read_ply(&mut reader).expect("gaussians");
 
         log::debug!("Creating camera");
+        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
         let mut camera = gs::Camera::new(1e-4..1e4, 60f32.to_radians());
-        camera.pos = gaussians.gaussians().iter().map(|g| g.pos).sum::<Vec3>()
-            / gaussians.gaussians().len() as f32;
-        camera.pos.z += gaussians
-            .gaussians()
+        camera.pos = gaussians
+            .gaussians
             .iter()
-            .map(|g| g.pos.z - camera.pos.z)
+            .map(|g| adjust_quat * g.pos)
+            .sum::<Vec3>()
+            / gaussians.gaussians.len() as f32;
+        camera.pos.z += gaussians
+            .gaussians
+            .iter()
+            .map(|g| (adjust_quat * g.pos).z - camera.pos.z)
             .fold(f32::INFINITY, |a, b| a.min(b));
 
         log::debug!("Creating viewer");
-        let viewer = gs::Viewer::new(&device, config.format, &gaussians);
+        let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians);
+        viewer.update_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
 
         log::info!("System initialized");
 
@@ -310,7 +311,7 @@ impl System {
         self.camera.yaw_by(-yaw);
 
         // Update the viewer
-        self.viewer.update(
+        self.viewer.update_camera(
             &self.queue,
             &self.camera,
             uvec2(self.config.width, self.config.height),
@@ -327,7 +328,7 @@ impl System {
         };
         let texture_view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Texture View"),
-            format: Some(self.config.format),
+            format: Some(self.config.view_formats[0]),
             ..Default::default()
         });
 
@@ -340,7 +341,7 @@ impl System {
         self.viewer.render(
             &mut encoder,
             &texture_view,
-            self.gaussians.gaussians().len() as u32,
+            self.gaussians.gaussians.len() as u32,
         );
 
         self.queue.submit(std::iter::once(encoder.finish()));

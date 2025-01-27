@@ -19,22 +19,17 @@ pub use renderer::*;
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]
 pub struct Viewer {
-    #[allow(dead_code)]
-    camera_buffer: CameraBuffer,
-    #[allow(dead_code)]
-    gaussians_buffer: GaussiansBuffer,
-    #[allow(dead_code)]
-    indirect_args_buffer: IndirectArgsBuffer,
-    #[allow(dead_code)]
-    radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
-    #[allow(dead_code)]
-    indirect_indices_buffer: IndirectIndicesBuffer,
-    #[allow(dead_code)]
-    gaussians_depth_buffer: GaussiansDepthBuffer,
+    pub camera_buffer: CameraBuffer,
+    pub transform_buffer: TransformBuffer,
+    pub gaussians_buffer: GaussiansBuffer,
+    pub indirect_args_buffer: IndirectArgsBuffer,
+    pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
+    pub indirect_indices_buffer: IndirectIndicesBuffer,
+    pub gaussians_depth_buffer: GaussiansDepthBuffer,
 
-    preprocessor: Preprocessor,
-    radix_sorter: RadixSorter,
-    renderer: Renderer,
+    pub preprocessor: Preprocessor,
+    pub radix_sorter: RadixSorter,
+    pub renderer: Renderer,
 }
 
 impl Viewer {
@@ -47,8 +42,11 @@ impl Viewer {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 
+        log::debug!("Creating transform buffer");
+        let transform_buffer = TransformBuffer::new(device);
+
         log::debug!("Creating gaussians buffer");
-        let gaussians_buffer = GaussiansBuffer::new(device, gaussians.gaussians());
+        let gaussians_buffer = GaussiansBuffer::new(device, &gaussians.gaussians);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
@@ -58,16 +56,17 @@ impl Viewer {
 
         log::debug!("Creating indirect indices buffer");
         let indirect_indices_buffer =
-            IndirectIndicesBuffer::new(device, gaussians.gaussians().len() as u32);
+            IndirectIndicesBuffer::new(device, gaussians.gaussians.len() as u32);
 
         log::debug!("Creating gaussians depth buffer");
         let gaussians_depth_buffer =
-            GaussiansDepthBuffer::new(device, gaussians.gaussians().len() as u32);
+            GaussiansDepthBuffer::new(device, gaussians.gaussians.len() as u32);
 
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new(
             device,
             &camera_buffer,
+            &transform_buffer,
             &gaussians_buffer,
             &indirect_args_buffer,
             &radix_sort_indirect_args_buffer,
@@ -84,6 +83,7 @@ impl Viewer {
             device,
             texture_format,
             &camera_buffer,
+            &transform_buffer,
             &gaussians_buffer,
             &indirect_indices_buffer,
         );
@@ -92,6 +92,7 @@ impl Viewer {
 
         Self {
             camera_buffer,
+            transform_buffer,
             gaussians_buffer,
             indirect_args_buffer,
             radix_sort_indirect_args_buffer,
@@ -104,11 +105,14 @@ impl Viewer {
         }
     }
 
-    /// Update the viewer.
-    ///
-    /// Call this function before every render, the buffers are updated from the CPU to the GPU.
-    pub fn update(&mut self, queue: &wgpu::Queue, camera: &Camera, texture_size: UVec2) {
+    /// Update the camera.
+    pub fn update_camera(&mut self, queue: &wgpu::Queue, camera: &Camera, texture_size: UVec2) {
         self.camera_buffer.update(queue, camera, texture_size);
+    }
+
+    /// Update the transform.
+    pub fn update_transform(&mut self, queue: &wgpu::Queue, pos: Vec3, quat: Quat, scale: Vec3) {
+        self.transform_buffer.update(queue, pos, quat, scale);
     }
 
     /// Render the viewer.
