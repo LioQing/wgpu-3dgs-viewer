@@ -1,6 +1,6 @@
 use crate::{
     CameraBuffer, GaussiansBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    RadixSortIndirectArgsBuffer, TransformBuffer,
+    ModelTransformBuffer, RadixSortIndirectArgsBuffer,
 };
 
 /// Preprocessor to preprocess the Gaussians.
@@ -41,7 +41,7 @@ impl Preprocessor {
                     },
                     count: None,
                 },
-                // Transform uniform buffer
+                // Model transform uniform buffer
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -115,7 +115,7 @@ impl Preprocessor {
     pub fn new(
         device: &wgpu::Device,
         camera: &CameraBuffer,
-        transform: &TransformBuffer,
+        model_transform: &ModelTransformBuffer,
         gaussians: &GaussiansBuffer,
         indirect_args: &IndirectArgsBuffer,
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
@@ -136,10 +136,10 @@ impl Preprocessor {
                     binding: 0,
                     resource: camera.buffer().as_entire_binding(),
                 },
-                // Transform uniform buffer
+                // Model transform uniform buffer
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: transform.buffer().as_entire_binding(),
+                    resource: model_transform.buffer().as_entire_binding(),
                 },
                 // Gaussian storage buffer
                 wgpu::BindGroupEntry {

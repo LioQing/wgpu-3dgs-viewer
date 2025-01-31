@@ -1,6 +1,7 @@
 // Vertex
 
 const max_radius = 2.0;
+const point_size = 0.01;
 
 struct Camera {
     view: mat4x4<f32>,
@@ -10,18 +11,18 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-struct Transform {
+struct ModelTransform {
     pos: vec3<f32>,
     quat: vec4<f32>,
     scale: vec3<f32>,
 }
 @group(0) @binding(1)
-var<uniform> transform: Transform;
+var<uniform> model_transform: ModelTransform;
 
-fn transform_mat() -> mat4x4<f32> {
-    let pos = transform.pos;
-    let quat = transform.quat;
-    let scale = transform.scale;
+fn model_transform_mat() -> mat4x4<f32> {
+    let pos = model_transform.pos;
+    let quat = model_transform.quat;
+    let scale = model_transform.scale;
 
     let x2 = quat.x + quat.x;
     let y2 = quat.y + quat.y;
@@ -63,8 +64,9 @@ fn transform_mat() -> mat4x4<f32> {
     );
 }
 
-fn rotation_mat() -> mat3x3<f32> {
-    let quat = transform.quat;
+fn model_scale_rotation_mat() -> mat3x3<f32> {
+    let quat = model_transform.quat;
+    let scale = model_transform.scale;
 
     let x2 = quat.x + quat.x;
     let y2 = quat.y + quat.y;
@@ -79,39 +81,54 @@ fn rotation_mat() -> mat3x3<f32> {
     let wy = quat.w * y2;
     let wz = quat.w * z2;
 
+    let sx = scale.x;
+    let sy = scale.y;
+    let sz = scale.z;
+
     return mat3x3<f32>(
         vec3<f32>(
-            1.0 - (yy + zz),
-            xy + wz,
-            xz - wy,
+            (1.0 - (yy + zz)) * sx,
+            (xy + wz) * sx,
+            (xz - wy) * sx,
         ),
         vec3<f32>(
-            xy - wz,
-            1.0 - (xx + zz),
-            yz + wx,
+            (xy - wz) * sy,
+            (1.0 - (xx + zz)) * sy,
+            (yz + wx) * sy,
         ),
         vec3<f32>(
-            xz + wy,
-            yz - wx,
-            1.0 - (xx + yy),
+            (xz + wy) * sz,
+            (yz - wx) * sz,
+            (1.0 - (xx + yy)) * sz,
         ),
     );
 }
+
+struct GaussianTransform {
+    size: f32,
+    display_mode: u32,
+}
+@group(0) @binding(2)
+var<uniform> gaussian_transform: GaussianTransform;
+
+const gaussian_display_mode_splat = 0u;
+const gaussian_display_mode_ellipse = 1u;
+const gaussian_display_mode_point = 2u;
 
 struct Gaussian {
     pos: vec3<f32>,
     color: u32,
     cov3d: array<f32, 6>,
 }
-@group(0) @binding(2)
+@group(0) @binding(3)
 var<storage, read> gaussians: array<Gaussian>;
 
-@group(0) @binding(3)
+@group(0) @binding(4)
 var<storage, read> indirect_indices: array<u32>;
 
 fn compute_cov2d(gaussian: Gaussian) -> vec3<f32> {
     let cov3d = gaussian.cov3d;
-    let r = rotation_mat();
+    let sr = model_scale_rotation_mat();
 
     let vrk = mat3x3<f32>(
         cov3d[0], cov3d[1], cov3d[2],
@@ -121,7 +138,7 @@ fn compute_cov2d(gaussian: Gaussian) -> vec3<f32> {
 
     let focal = vec2<f32>(camera.proj[0][0], camera.proj[1][1]) * camera.size;
 
-    let t = camera.view * transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let t = camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
     let j = transpose(mat3x3<f32>(
         focal.x / t.z, 0.0, -(focal.x * t.x) / (t.z * t.z),
         0.0, focal.y / t.z, -(focal.y * t.y) / (t.z * t.z),
@@ -129,7 +146,7 @@ fn compute_cov2d(gaussian: Gaussian) -> vec3<f32> {
     ));
     let w = mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz);
 
-    let cov2d = (j * w * r) * vrk * transpose(j * w * r);
+    let cov2d = (j * w * sr) * vrk * transpose(j * w * sr);
 
     return vec3<f32>(cov2d[0][0], cov2d[0][1], cov2d[1][1]);
 }
@@ -154,6 +171,22 @@ fn vert_main(
 
     let gaussian_index = indirect_indices[instance_index];
     let gaussian = gaussians[gaussian_index];
+
+    if gaussian_transform.display_mode == gaussian_display_mode_point {
+        let quad_offset = compute_quad_offset(vert_index) * point_size * gaussian_transform.size;
+        let pos_view = camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+        let pos_proj = camera.proj * pos_view;
+        let aspect_ratio = camera.size.y / camera.size.x;
+        let clip_proj = pos_proj.xy
+            + quad_offset * pos_proj.w * vec2<f32>(aspect_ratio, 1.0) / length(pos_view.xyz);
+
+        out.clip_pos = vec4<f32>(clip_proj, pos_proj.zw);
+        out.quad_offset = quad_offset;
+        out.color = unpack4x8unorm(gaussian.color);
+        out.display_mode = gaussian_transform.display_mode;
+        
+        return out;
+    }
     
     let cov2d = compute_cov2d(gaussian);
     let mid = 0.5 * (cov2d.x + cov2d.z);
@@ -171,17 +204,17 @@ fn vert_main(
     let major_axis = min(max_radius * sqrt(lambda_1), 1024.0) * diag_vec;
     let minor_axis = min(max_radius * sqrt(lambda_2), 1024.0) * diag_vec_ortho;
     let quad_offset = compute_quad_offset(vert_index) * max_radius;
-    let pos_proj = camera.proj * camera.view * transform_mat() * vec4<f32>(gaussian.pos, 1.0);
-    let pos_ndc = pos_proj.xyz / pos_proj.w;
+    let pos_proj = camera.proj * camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
     let clip_proj = (
-        pos_ndc.xy
-        + quad_offset.x * major_axis / camera.size
-        + quad_offset.y * minor_axis / camera.size
+        pos_proj.xy
+        + quad_offset.x * pos_proj.w * major_axis * gaussian_transform.size / camera.size
+        + quad_offset.y * pos_proj.w * minor_axis * gaussian_transform.size / camera.size
     );
 
-    out.clip_pos = vec4<f32>(clip_proj, pos_ndc.z, 1.0);
+    out.clip_pos = vec4<f32>(clip_proj, pos_proj.zw);
     out.quad_offset = quad_offset;
     out.color = unpack4x8unorm(gaussian.color);
+    out.display_mode = gaussian_transform.display_mode;
 
     return out;
 }
@@ -191,17 +224,33 @@ fn vert_main(
 struct FragmentInput {
     @location(0) quad_offset: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) @interpolate(flat) display_mode: u32,
 
     @builtin(position) clip_pos: vec4<f32>,
 }
 
 @fragment
 fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    let radius_sqr = dot(in.quad_offset, in.quad_offset);
-    if radius_sqr > max_radius * max_radius {
-        discard;
+    if in.display_mode == gaussian_display_mode_splat {
+        let radius_sqr = dot(in.quad_offset, in.quad_offset);
+        if radius_sqr > max_radius * max_radius {
+            discard;
+        }
+
+        let alpha = in.color.a * exp(-radius_sqr);
+        return vec4<f32>(in.color.rgb, 1.0) * alpha;
+    } else if in.display_mode == gaussian_display_mode_ellipse {
+        let radius_sqr = dot(in.quad_offset, in.quad_offset);
+        if radius_sqr > max_radius * max_radius {
+            discard;
+        }
+
+        let is_outline = radius_sqr > (max_radius - 0.1) * (max_radius - 0.1);
+        let alpha = in.color.a + (1.0 - in.color.a) * f32(is_outline);
+        return vec4<f32>(in.color.rgb, 1.0) * alpha;
+    } else if in.display_mode == gaussian_display_mode_point {
+        return vec4<f32>(in.color.rgb, 1.0);
     }
-    
-    let alpha = in.color.a * exp(-radius_sqr);
-    return vec4<f32>(in.color.rgb, 1.0) * alpha;
+
+    return vec4<f32>(in.color.rgb, 1.0);
 }

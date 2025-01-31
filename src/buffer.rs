@@ -189,28 +189,28 @@ impl CameraPod {
     }
 }
 
-/// The transformation buffer.
+/// The model transformation buffer.
 #[derive(Debug)]
-pub struct TransformBuffer(wgpu::Buffer);
+pub struct ModelTransformBuffer(wgpu::Buffer);
 
-impl TransformBuffer {
-    /// Create a new transformation buffer.
+impl ModelTransformBuffer {
+    /// Create a new model transformation buffer.
     pub fn new(device: &wgpu::Device) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Transform Buffer"),
-            contents: bytemuck::bytes_of(&TransformPod::IDENTITY),
+            label: Some("Model transform Buffer"),
+            contents: bytemuck::bytes_of(&ModelTransformPod::default()),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         Self(buffer)
     }
 
-    /// Update the transformation buffer.
+    /// Update the model transformation buffer.
     pub fn update(&self, queue: &wgpu::Queue, pos: Vec3, quat: Quat, scale: Vec3) {
         queue.write_buffer(
             &self.0,
             0,
-            bytemuck::bytes_of(&TransformPod::new(pos, quat, scale)),
+            bytemuck::bytes_of(&ModelTransformPod::new(pos, quat, scale)),
         );
     }
 
@@ -220,10 +220,10 @@ impl TransformBuffer {
     }
 }
 
-/// The POD representation of a transformation.
+/// The POD representation of a model transformation.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct TransformPod {
+pub struct ModelTransformPod {
     pub pos: Vec3,
     _padding_0: f32,
     pub quat: Quat,
@@ -231,11 +231,8 @@ pub struct TransformPod {
     _padding_1: f32,
 }
 
-impl TransformPod {
-    /// The identity transformation.
-    pub const IDENTITY: Self = Self::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE);
-
-    /// Create a new transformation.
+impl ModelTransformPod {
+    /// Create a new model transformation.
     pub const fn new(pos: Vec3, quat: Quat, scale: Vec3) -> Self {
         Self {
             pos,
@@ -244,6 +241,74 @@ impl TransformPod {
             scale,
             _padding_1: 0.0,
         }
+    }
+}
+
+impl Default for ModelTransformPod {
+    fn default() -> Self {
+        Self::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE)
+    }
+}
+
+/// The Gaussian display modes.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GaussianDisplayMode {
+    Splat = 0,
+    Ellipse = 1,
+    Point = 2,
+}
+
+/// The Gaussian transform buffer.
+#[derive(Debug)]
+pub struct GaussianTransformBuffer(wgpu::Buffer);
+
+impl GaussianTransformBuffer {
+    /// Create a new Gaussian transform buffer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Gaussian transform Buffer"),
+            contents: bytemuck::bytes_of(&GaussianTransformPod::default()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        Self(buffer)
+    }
+
+    /// Update the Gaussian transformation buffer.
+    pub fn update(&self, queue: &wgpu::Queue, size: f32, display_mode: GaussianDisplayMode) {
+        queue.write_buffer(
+            &self.0,
+            0,
+            bytemuck::bytes_of(&GaussianTransformPod::new(size, display_mode)),
+        );
+    }
+
+    /// Get the buffer.
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+/// The POD representation of a Gaussian transformation.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GaussianTransformPod {
+    pub size: f32,
+    pub display_mode: u32,
+}
+
+impl GaussianTransformPod {
+    /// Create a new Gaussian transformation.
+    pub const fn new(size: f32, display_mode: GaussianDisplayMode) -> Self {
+        let display_mode = display_mode as u32;
+        Self { size, display_mode }
+    }
+}
+
+impl Default for GaussianTransformPod {
+    fn default() -> Self {
+        Self::new(1.0, GaussianDisplayMode::Splat)
     }
 }
 

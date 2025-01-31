@@ -1,5 +1,6 @@
 use crate::{
-    CameraBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer, TransformBuffer,
+    CameraBuffer, GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer,
+    IndirectIndicesBuffer, ModelTransformBuffer,
 };
 
 /// A renderer for Gaussians.
@@ -31,7 +32,7 @@ impl Renderer {
                     },
                     count: None,
                 },
-                // Transform uniform buffer
+                // Model transform uniform buffer
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::VERTEX,
@@ -42,9 +43,20 @@ impl Renderer {
                     },
                     count: None,
                 },
-                // Gaussian storage buffer
+                // Gaussian transform uniform buffer
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Gaussian storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -55,7 +67,7 @@ impl Renderer {
                 },
                 // Indirect indices storage buffer
                 wgpu::BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 4,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -72,7 +84,8 @@ impl Renderer {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         camera: &CameraBuffer,
-        transform: &TransformBuffer,
+        model_transform: &ModelTransformBuffer,
+        gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer,
         indirect_indices: &IndirectIndicesBuffer,
     ) -> Self {
@@ -90,19 +103,24 @@ impl Renderer {
                     binding: 0,
                     resource: camera.buffer().as_entire_binding(),
                 },
-                // Transform uniform buffer
+                // Model transform uniform buffer
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: transform.buffer().as_entire_binding(),
+                    resource: model_transform.buffer().as_entire_binding(),
+                },
+                // Gaussian transform uniform buffer
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: gaussian_transform.buffer().as_entire_binding(),
                 },
                 // Gaussian storage buffer
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 3,
                     resource: gaussians.buffer().as_entire_binding(),
                 },
                 // Indirect indices storage buffer
                 wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 4,
                     resource: indirect_indices.buffer().as_entire_binding(),
                 },
             ],

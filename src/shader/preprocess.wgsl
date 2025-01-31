@@ -6,18 +6,18 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-struct Transform {
+struct ModelTransform {
     pos: vec3<f32>,
     quat: vec4<f32>,
     scale: vec3<f32>,
 }
 @group(0) @binding(1)
-var<uniform> transform: Transform;
+var<uniform> model_transform: ModelTransform;
 
-fn transform_mat() -> mat4x4<f32> {
-    let pos = transform.pos.xyz;
-    let quat = transform.quat;
-    let scale = transform.scale.xyz;
+fn model_transform_mat() -> mat4x4<f32> {
+    let pos = model_transform.pos.xyz;
+    let quat = model_transform.quat;
+    let scale = model_transform.scale.xyz;
 
     let x2 = quat.x + quat.x;
     let y2 = quat.y + quat.y;
@@ -111,7 +111,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let gaussian = gaussians[index];
 
     // Cull
-    let pos_proj = camera.proj * camera.view * transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let pos_proj = camera.proj * camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
     let pos_ndc = pos_proj.xyz / pos_proj.w;
     // TODO: Fix culling causing flickering
     // if !is_on_frustum(pos_ndc) {

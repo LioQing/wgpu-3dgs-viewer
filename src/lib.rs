@@ -20,7 +20,8 @@ pub use renderer::*;
 #[derive(Debug)]
 pub struct Viewer {
     pub camera_buffer: CameraBuffer,
-    pub transform_buffer: TransformBuffer,
+    pub model_transform_buffer: ModelTransformBuffer,
+    pub gaussian_transform_buffer: GaussianTransformBuffer,
     pub gaussians_buffer: GaussiansBuffer,
     pub indirect_args_buffer: IndirectArgsBuffer,
     pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
@@ -42,8 +43,11 @@ impl Viewer {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 
-        log::debug!("Creating transform buffer");
-        let transform_buffer = TransformBuffer::new(device);
+        log::debug!("Creating model transform buffer");
+        let model_transform_buffer = ModelTransformBuffer::new(device);
+
+        log::debug!("Creating gaussian transform buffer");
+        let gaussian_transform_buffer = GaussianTransformBuffer::new(device);
 
         log::debug!("Creating gaussians buffer");
         let gaussians_buffer = GaussiansBuffer::new(device, &gaussians.gaussians);
@@ -66,7 +70,7 @@ impl Viewer {
         let preprocessor = Preprocessor::new(
             device,
             &camera_buffer,
-            &transform_buffer,
+            &model_transform_buffer,
             &gaussians_buffer,
             &indirect_args_buffer,
             &radix_sort_indirect_args_buffer,
@@ -83,7 +87,8 @@ impl Viewer {
             device,
             texture_format,
             &camera_buffer,
-            &transform_buffer,
+            &model_transform_buffer,
+            &gaussian_transform_buffer,
             &gaussians_buffer,
             &indirect_indices_buffer,
         );
@@ -92,7 +97,8 @@ impl Viewer {
 
         Self {
             camera_buffer,
-            transform_buffer,
+            model_transform_buffer,
+            gaussian_transform_buffer,
             gaussians_buffer,
             indirect_args_buffer,
             radix_sort_indirect_args_buffer,
@@ -110,9 +116,26 @@ impl Viewer {
         self.camera_buffer.update(queue, camera, texture_size);
     }
 
-    /// Update the transform.
-    pub fn update_transform(&mut self, queue: &wgpu::Queue, pos: Vec3, quat: Quat, scale: Vec3) {
-        self.transform_buffer.update(queue, pos, quat, scale);
+    /// Update the model transform.
+    pub fn update_model_transform(
+        &mut self,
+        queue: &wgpu::Queue,
+        pos: Vec3,
+        quat: Quat,
+        scale: Vec3,
+    ) {
+        self.model_transform_buffer.update(queue, pos, quat, scale);
+    }
+
+    /// Update the Gaussian transform.
+    pub fn update_gaussian_transform(
+        &mut self,
+        queue: &wgpu::Queue,
+        size: f32,
+        display_mode: GaussianDisplayMode,
+    ) {
+        self.gaussian_transform_buffer
+            .update(queue, size, display_mode);
     }
 
     /// Render the viewer.
