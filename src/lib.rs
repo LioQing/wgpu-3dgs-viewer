@@ -3,6 +3,7 @@ mod camera;
 mod error;
 mod gaussian;
 mod preprocessor;
+pub mod query;
 mod radix_sorter;
 mod renderer;
 
@@ -27,6 +28,9 @@ pub struct Viewer {
     pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
+    pub query_buffer: QueryBuffer,
+    pub query_result_count_buffer: QueryResultCountBuffer,
+    pub query_results_buffer: QueryResultsBuffer,
 
     pub preprocessor: Preprocessor,
     pub radix_sorter: RadixSorter,
@@ -66,6 +70,16 @@ impl Viewer {
         let gaussians_depth_buffer =
             GaussiansDepthBuffer::new(device, gaussians.gaussians.len() as u32);
 
+        log::debug!("Creating query buffer");
+        let query_buffer = QueryBuffer::new(device);
+
+        log::debug!("Creating query result count buffer");
+        let query_result_count_buffer = QueryResultCountBuffer::new(device);
+
+        log::debug!("Creating query results buffer");
+        let query_results_buffer =
+            QueryResultsBuffer::new(device, gaussians.gaussians.len() as u32);
+
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new(
             device,
@@ -76,6 +90,8 @@ impl Viewer {
             &radix_sort_indirect_args_buffer,
             &indirect_indices_buffer,
             &gaussians_depth_buffer,
+            &query_buffer,
+            &query_result_count_buffer,
         );
 
         log::debug!("Creating radix sorter");
@@ -91,6 +107,9 @@ impl Viewer {
             &gaussian_transform_buffer,
             &gaussians_buffer,
             &indirect_indices_buffer,
+            &query_buffer,
+            &query_result_count_buffer,
+            &query_results_buffer,
         );
 
         log::info!("Viewer created");
@@ -104,6 +123,9 @@ impl Viewer {
             radix_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
+            query_buffer,
+            query_result_count_buffer,
+            query_results_buffer,
 
             preprocessor,
             radix_sorter,
@@ -114,6 +136,11 @@ impl Viewer {
     /// Update the camera.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera: &Camera, texture_size: UVec2) {
         self.camera_buffer.update(queue, camera, texture_size);
+    }
+
+    /// Update the query.
+    pub fn update_query(&mut self, queue: &wgpu::Queue, query: &QueryPod) {
+        self.query_buffer.update(queue, query);
     }
 
     /// Update the model transform.
@@ -152,5 +179,20 @@ impl Viewer {
 
         self.renderer
             .render(encoder, texture_view, &self.indirect_args_buffer);
+    }
+
+    /// Download the query results from the GPU.
+    pub async fn download_query_results(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<QueryResultPod>, Error> {
+        query::download(
+            device,
+            queue,
+            &self.query_result_count_buffer,
+            &self.query_results_buffer,
+        )
+        .await
     }
 }

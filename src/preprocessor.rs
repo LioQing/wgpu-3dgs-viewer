@@ -1,6 +1,6 @@
 use crate::{
     CameraBuffer, GaussiansBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    ModelTransformBuffer, RadixSortIndirectArgsBuffer,
+    ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, RadixSortIndirectArgsBuffer,
 };
 
 /// Preprocessor to preprocess the Gaussians.
@@ -107,6 +107,28 @@ impl Preprocessor {
                     },
                     count: None,
                 },
+                // Query uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Query result count storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 
@@ -121,6 +143,8 @@ impl Preprocessor {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
+        query: &QueryBuffer,
+        query_result_count: &QueryResultCountBuffer,
     ) -> Self {
         log::debug!("Creating preprocessor bind group layout");
         let bind_group_layout =
@@ -165,6 +189,16 @@ impl Preprocessor {
                 wgpu::BindGroupEntry {
                     binding: 6,
                     resource: gaussians_depth.buffer().as_entire_binding(),
+                },
+                // Query uniform buffer
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: query.buffer().as_entire_binding(),
+                },
+                // Query result count storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: query_result_count.buffer().as_entire_binding(),
                 },
             ],
         });

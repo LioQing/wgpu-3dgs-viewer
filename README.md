@@ -23,12 +23,21 @@ Usage:
 ```
 A 3D Gaussian splatting viewer written in Rust using wgpu.
 
+In default mode, move the camera with W, A, S, D, Space, Shift, and rotate with mouse.
+In selectio mode, click anywhere on the model to select the nearest Gaussian.
+Use C to toggle between default and selection mode.
+
 Usage: simple-wgpu-3dgs-viewer.exe --model <MODEL>
 
 Options:
-  -m, --model <MODEL>  Path to the .ply file
-  -h, --help           Print help
-  -V, --version        Print version
+  -m, --model <MODEL>
+          Path to the .ply file
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ### Library

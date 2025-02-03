@@ -126,6 +126,26 @@ var<storage, read> gaussians: array<Gaussian>;
 @group(0) @binding(4)
 var<storage, read> indirect_indices: array<u32>;
 
+struct Query {
+    content_u32: vec4<u32>,
+    content_f32: vec4<f32>,
+}
+@group(0) @binding(5)
+var<uniform> query: Query;
+
+const query_type_none = 0u;
+const query_type_hit = 1u;
+
+@group(0) @binding(6)
+var<storage, read_write> query_result_count: atomic<u32>;
+
+struct QueryResult {
+    content_u32: vec4<u32>,
+    content_f32: vec4<f32>,
+}
+@group(0) @binding(7)
+var<storage, read_write> query_results: array<QueryResult>;
+
 fn compute_cov2d(gaussian: Gaussian) -> vec3<f32> {
     let cov3d = gaussian.cov3d;
     let sr = model_scale_rotation_mat();
@@ -184,6 +204,10 @@ fn vert_main(
         out.quad_offset = quad_offset;
         out.color = unpack4x8unorm(gaussian.color);
         out.display_mode = gaussian_transform.display_mode;
+        out.index = gaussian_index;
+        out.coords = (clip_proj / pos_proj.w * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0))
+            * camera.size * 0.5;
+        out.depth = pos_proj.z / pos_proj.w;
         
         return out;
     }
@@ -215,6 +239,10 @@ fn vert_main(
     out.quad_offset = quad_offset;
     out.color = unpack4x8unorm(gaussian.color);
     out.display_mode = gaussian_transform.display_mode;
+    out.index = gaussian_index;
+    out.coords = (clip_proj / pos_proj.w * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0))
+        * camera.size * 0.5;
+    out.depth = pos_proj.z / pos_proj.w;
 
     return out;
 }
@@ -225,32 +253,68 @@ struct FragmentInput {
     @location(0) quad_offset: vec2<f32>,
     @location(1) color: vec4<f32>,
     @location(2) @interpolate(flat) display_mode: u32,
+    @location(3) @interpolate(flat) index: u32,
+    @location(4) coords: vec2<f32>,
+    @location(5) @interpolate(flat) depth: f32,
 
     @builtin(position) clip_pos: vec4<f32>,
 }
 
-@fragment
-fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    if in.display_mode == gaussian_display_mode_splat {
-        let radius_sqr = dot(in.quad_offset, in.quad_offset);
-        if radius_sqr > max_radius * max_radius {
-            discard;
-        }
-
-        let alpha = in.color.a * exp(-radius_sqr);
-        return vec4<f32>(in.color.rgb, 1.0) * alpha;
-    } else if in.display_mode == gaussian_display_mode_ellipse {
-        let radius_sqr = dot(in.quad_offset, in.quad_offset);
-        if radius_sqr > max_radius * max_radius {
-            discard;
-        }
-
-        let is_outline = radius_sqr > (max_radius - 0.1) * (max_radius - 0.1);
-        let alpha = in.color.a + (1.0 - in.color.a) * f32(is_outline);
-        return vec4<f32>(in.color.rgb, 1.0) * alpha;
-    } else if in.display_mode == gaussian_display_mode_point {
-        return vec4<f32>(in.color.rgb, 1.0);
+fn splat(in: FragmentInput) -> vec4<f32> {
+    let radius_sqr = dot(in.quad_offset, in.quad_offset);
+    if radius_sqr > max_radius * max_radius {
+        discard;
     }
 
+    let alpha = in.color.a * exp(-radius_sqr);
+    return vec4<f32>(in.color.rgb, alpha);
+}
+
+fn ellipse(in: FragmentInput) -> vec4<f32> {
+    let radius_sqr = dot(in.quad_offset, in.quad_offset);
+    if radius_sqr > max_radius * max_radius {
+        discard;
+    }
+
+    let is_outline = radius_sqr > (max_radius - 0.1) * (max_radius - 0.1);
+    let alpha = in.color.a + (1.0 - in.color.a) * f32(is_outline);
+    return vec4<f32>(in.color.rgb, alpha);
+}
+
+fn point(in: FragmentInput) -> vec4<f32> {
     return vec4<f32>(in.color.rgb, 1.0);
+}
+
+fn query_hit(in: FragmentInput, color: vec4<f32>) {
+    let coords = query.content_f32.xy;
+    let diff = coords - in.coords;
+
+    if dot(diff, diff) >= 1.0 {
+        return;
+    }
+
+    let index = atomicAdd(&query_result_count, 1u);
+    query_results[index] = QueryResult(
+        vec4<u32>(in.index, vec3<u32>(0u)),
+        vec4<f32>(in.depth, color.a, in.coords),
+    );
+}
+
+@fragment
+fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
+    var color: vec4<f32>;
+
+    if in.display_mode == gaussian_display_mode_splat {
+        color = splat(in);
+    } else if in.display_mode == gaussian_display_mode_ellipse {
+        color = ellipse(in);
+    } else if in.display_mode == gaussian_display_mode_point {
+        color = point(in);
+    }
+
+    if query.content_u32.x == query_type_hit {
+        query_hit(in, color);
+    }
+
+    return color;
 }

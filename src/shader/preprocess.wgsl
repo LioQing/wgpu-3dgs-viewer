@@ -90,6 +90,19 @@ var<storage, read_write> indirect_indices: array<u32>;
 @group(0) @binding(6)
 var<storage, read_write> gaussians_depth: array<f32>;
 
+struct Query {
+    content_u32: vec4<u32>,
+    content_f32: vec4<f32>,
+}
+@group(0) @binding(7)
+var<uniform> query: Query;
+
+const query_type_none = 0u;
+const query_type_hit = 1u;
+
+@group(0) @binding(8)
+var<storage, read_write> query_result_count: u32;
+
 fn is_on_frustum(pos_ndc: vec3<f32>) -> bool {
     return all(pos_ndc >= vec3<f32>(-1.0, -1.0, 0.0)) && all(pos_ndc <= vec3<f32>(1.0));
 }
@@ -98,6 +111,11 @@ fn is_on_frustum(pos_ndc: vec3<f32>) -> bool {
 fn pre_main() {
     // Reset instance count
     atomicStore(&indirect_args.instance_count, 0u);
+
+    // Reset query result count
+    if query.content_u32.x != query_type_none {
+        query_result_count = 0u;
+    }
 }
 
 @compute @workgroup_size({{workgroup_size}})
@@ -113,10 +131,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     // Cull
     let pos_proj = camera.proj * camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
     let pos_ndc = pos_proj.xyz / pos_proj.w;
-    // TODO: Fix culling causing flickering
-    // if !is_on_frustum(pos_ndc) {
-    //     return;
-    // }
+    if !is_on_frustum(pos_ndc) {
+        return;
+    }
 
     let culled_index = atomicAdd(&indirect_args.instance_count, 1u);
     indirect_indices[culled_index] = index;
@@ -127,10 +144,20 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 @compute @workgroup_size(1)
 fn post_main() {
+    let instance_count = atomicLoad(&indirect_args.instance_count);
+
     // Set radix sort indirect args
     const histo_block_kvs = 3840u; // wgpu_sort::HISTO_BLOCK_KVS
-    radix_sort_indirect_args.x =
-        (atomicLoad(&indirect_args.instance_count) + histo_block_kvs - 1) / histo_block_kvs;
+    radix_sort_indirect_args.x = (instance_count + histo_block_kvs - 1) / histo_block_kvs;
     radix_sort_indirect_args.y = 1u;
     radix_sort_indirect_args.z = 1u;
+
+    // Set the padded depths
+    let padded_count = min(
+        radix_sort_indirect_args.x * histo_block_kvs,
+        arrayLength(&gaussians_depth),
+    );
+    for (var i = instance_count; i < padded_count; i += 1u) {
+        gaussians_depth[i] = 2.0;
+    }
 }

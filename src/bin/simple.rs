@@ -5,7 +5,7 @@ use glam::*;
 use winit::{
     application::ApplicationHandler,
     error::EventLoopError,
-    event::{DeviceEvent, DeviceId, ElementState, WindowEvent},
+    event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
@@ -13,9 +13,19 @@ use winit::{
 
 use wgpu_3dgs_viewer as gs;
 
-/// Example viewer to visualize the 3D Gaussian splatting.
+/// The command line arguments.
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(
+    version,
+    about,
+    long_about = "\
+    A 3D Gaussian splatting viewer written in Rust using wgpu.\n\
+    \n\
+    In default mode, move the camera with W, A, S, D, Space, Shift, and rotate with mouse.\n\
+    In selectio mode, click anywhere on the model to select the nearest Gaussian.\n\
+    Use C to toggle between default and selection mode.\
+    "
+)]
 struct Args {
     /// Path to the .ply file.
     #[arg(short, long)]
@@ -37,7 +47,9 @@ fn main() -> Result<(), EventLoopError> {
 struct Input {
     pub pressed_keys: HashSet<KeyCode>,
     pub held_keys: HashSet<KeyCode>,
+    pub pressed_mouse: HashSet<MouseButton>,
     pub mouse_diff: Vec2,
+    pub mouse_pos: Vec2,
 }
 
 impl Input {
@@ -45,12 +57,14 @@ impl Input {
         Self {
             pressed_keys: HashSet::new(),
             held_keys: HashSet::new(),
+            pressed_mouse: HashSet::new(),
             mouse_diff: Vec2::ZERO,
+            mouse_pos: Vec2::ZERO,
         }
     }
 
     /// Update the input state based on [`DeviceEvent`].
-    fn update(&mut self, event: DeviceEvent) {
+    fn device_event(&mut self, event: &DeviceEvent) {
         match event {
             DeviceEvent::Key(input) => match input.physical_key {
                 PhysicalKey::Unidentified(..) => {}
@@ -67,7 +81,22 @@ impl Input {
                 },
             },
             DeviceEvent::MouseMotion { delta: (x, y) } => {
-                self.mouse_diff += vec2(x as f32, y as f32);
+                self.mouse_diff += vec2(*x as f32, *y as f32);
+            }
+            _ => {}
+        }
+    }
+
+    /// Update the input state based on [`WindowEvent`].
+    fn window_event(&mut self, event: &WindowEvent) {
+        match event {
+            WindowEvent::MouseInput { state, button, .. } => {
+                if *state == ElementState::Pressed {
+                    self.pressed_mouse.insert(*button);
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_pos = vec2(position.x as f32, position.y as f32);
             }
             _ => {}
         }
@@ -76,6 +105,7 @@ impl Input {
     /// Clear states for a new frame.
     fn new_frame(&mut self) {
         self.pressed_keys.clear();
+        self.pressed_mouse.clear();
         self.mouse_diff = Vec2::ZERO;
     }
 }
@@ -127,6 +157,8 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        self.input.window_event(&event);
+
         match event {
             WindowEvent::RedrawRequested => {
                 // Capture frame rate
@@ -165,7 +197,7 @@ impl ApplicationHandler for App {
         _device_id: DeviceId,
         event: DeviceEvent,
     ) {
-        self.input.update(event);
+        self.input.device_event(&event);
     }
 }
 
@@ -179,6 +211,12 @@ struct System {
     camera: gs::Camera,
     gaussians: gs::Gaussians,
     viewer: gs::Viewer,
+
+    is_selecting: bool,
+    query: gs::QueryPod,
+    selection_buffer: wgpu::Buffer,
+    selection_bind_group: wgpu::BindGroup,
+    selection_pipeline: wgpu::RenderPipeline,
 }
 
 impl System {
@@ -254,7 +292,97 @@ impl System {
         log::debug!("Creating viewer");
         let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians);
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
-        viewer.update_gaussian_transform(&queue, 1.0, gs::GaussianDisplayMode::Point);
+
+        log::debug!("Creating selection buffer");
+        let selection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Selection Buffer"),
+            size: std::mem::size_of::<Vec4>() as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        log::debug!("Creating selection bind group layout");
+        let selection_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Selection Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
+        log::debug!("Creating selection bind group");
+        let selection_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Selection Bind Group"),
+            layout: &selection_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: selection_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: viewer.camera_buffer.buffer().as_entire_binding(),
+                },
+            ],
+        });
+
+        log::debug!("Creating selection pipeline");
+        let selection_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Selection Pipeline Layout"),
+                bind_group_layouts: &[&selection_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let selection_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Selection Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("selection.wgsl").into()),
+        });
+
+        let selection_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Selection Pipeline"),
+            layout: Some(&selection_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &selection_shader,
+                entry_point: Some("vert_main"),
+                buffers: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &selection_shader,
+                entry_point: Some("frag_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.view_formats[0],
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
 
         log::info!("System initialized");
 
@@ -267,49 +395,68 @@ impl System {
             camera,
             gaussians,
             viewer,
+
+            is_selecting: false,
+            query: gs::QueryPod::none(),
+            selection_buffer,
+            selection_bind_group,
+            selection_pipeline,
         }
     }
 
     pub fn update(&mut self, input: &Input, delta_time: f32) {
-        // Camera movement
-        const SPEED: f32 = 1.0;
-
-        let mut forward = 0.0;
-        if input.held_keys.contains(&KeyCode::KeyW) {
-            forward += SPEED * delta_time;
-        }
-        if input.held_keys.contains(&KeyCode::KeyS) {
-            forward -= SPEED * delta_time;
+        if input.pressed_keys.contains(&KeyCode::KeyC) {
+            self.is_selecting = !self.is_selecting;
         }
 
-        let mut right = 0.0;
-        if input.held_keys.contains(&KeyCode::KeyD) {
-            right += SPEED * delta_time;
+        self.query = gs::QueryPod::none();
+
+        if self.is_selecting {
+            // Selection
+            if input.pressed_mouse.contains(&MouseButton::Left) {
+                self.query = gs::QueryPod::hit(input.mouse_pos);
+            }
+        } else {
+            // Camera movement
+            const SPEED: f32 = 1.0;
+
+            let mut forward = 0.0;
+            if input.held_keys.contains(&KeyCode::KeyW) {
+                forward += SPEED * delta_time;
+            }
+            if input.held_keys.contains(&KeyCode::KeyS) {
+                forward -= SPEED * delta_time;
+            }
+
+            let mut right = 0.0;
+            if input.held_keys.contains(&KeyCode::KeyD) {
+                right += SPEED * delta_time;
+            }
+            if input.held_keys.contains(&KeyCode::KeyA) {
+                right -= SPEED * delta_time;
+            }
+
+            self.camera.move_by(forward, right);
+
+            let mut up = 0.0;
+            if input.held_keys.contains(&KeyCode::Space) {
+                up += SPEED * delta_time;
+            }
+            if input.held_keys.contains(&KeyCode::ShiftLeft) {
+                up -= SPEED * delta_time;
+            }
+
+            self.camera.move_up(up);
+
+            // Camera rotation
+            const SENSITIVITY: f32 = 0.3;
+
+            let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
+            let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
+
+            self.camera.pitch_by(-pitch);
+            self.camera.yaw_by(-yaw);
         }
-        if input.held_keys.contains(&KeyCode::KeyA) {
-            right -= SPEED * delta_time;
-        }
-
-        self.camera.move_by(forward, right);
-
-        let mut up = 0.0;
-        if input.held_keys.contains(&KeyCode::Space) {
-            up += SPEED * delta_time;
-        }
-        if input.held_keys.contains(&KeyCode::ShiftLeft) {
-            up -= SPEED * delta_time;
-        }
-
-        self.camera.move_up(up);
-
-        // Camera rotation
-        const SENSITIVITY: f32 = 0.3;
-
-        let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
-        let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
-
-        self.camera.pitch_by(-pitch);
-        self.camera.yaw_by(-yaw);
 
         // Update the viewer
         self.viewer.update_camera(
@@ -317,6 +464,7 @@ impl System {
             &self.camera,
             uvec2(self.config.width, self.config.height),
         );
+        self.viewer.update_query(&self.queue, &self.query);
     }
 
     pub fn render(&mut self) {
@@ -345,9 +493,60 @@ impl System {
             self.gaussians.gaussians.len() as u32,
         );
 
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Selection Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_pipeline(&self.selection_pipeline);
+            render_pass.set_bind_group(0, &self.selection_bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
+        }
+
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
         texture.present();
+
+        // Download the selection result
+        if self.query.query_type() == gs::QueryType::Hit {
+            futures::executor::block_on(async move {
+                let mut query_results = self
+                    .viewer
+                    .download_query_results(&self.device, &self.queue)
+                    .await
+                    .expect("query results")
+                    .into_iter()
+                    .map(gs::QueryHitResultPod::from)
+                    .collect::<Vec<_>>();
+
+                let (_, _, hit_pos) = match gs::query::hit_pos_by_most_alpha(
+                    self.query.as_hit(),
+                    &mut query_results,
+                    &self.camera,
+                    uvec2(self.config.width, self.config.height),
+                ) {
+                    Some(pos) => pos,
+                    None => return,
+                };
+
+                self.queue.write_buffer(
+                    &self.selection_buffer,
+                    0,
+                    bytemuck::cast_slice(&[hit_pos.extend(1.0)]),
+                );
+            });
+        }
     }
 
     pub fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {

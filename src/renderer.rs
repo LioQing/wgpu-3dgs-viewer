@@ -1,6 +1,7 @@
 use crate::{
     CameraBuffer, GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer,
-    IndirectIndicesBuffer, ModelTransformBuffer,
+    IndirectIndicesBuffer, ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer,
+    QueryResultsBuffer,
 };
 
 /// A renderer for Gaussians.
@@ -76,10 +77,44 @@ impl Renderer {
                     },
                     count: None,
                 },
+                // Query uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Query result count storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Query results storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 
     /// Create a new renderer.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
@@ -88,6 +123,9 @@ impl Renderer {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer,
         indirect_indices: &IndirectIndicesBuffer,
+        query: &QueryBuffer,
+        query_result_count: &QueryResultCountBuffer,
+        query_results: &QueryResultsBuffer,
     ) -> Self {
         log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
@@ -123,6 +161,21 @@ impl Renderer {
                     binding: 4,
                     resource: indirect_indices.buffer().as_entire_binding(),
                 },
+                // Query uniform buffer
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: query.buffer().as_entire_binding(),
+                },
+                // Query result count storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: query_result_count.buffer().as_entire_binding(),
+                },
+                // Query results storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: query_results.buffer().as_entire_binding(),
+                },
             ],
         });
 
@@ -154,18 +207,7 @@ impl Renderer {
                 entry_point: Some("frag_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: texture_format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                    }),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),

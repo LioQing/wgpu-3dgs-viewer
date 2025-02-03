@@ -6,10 +6,14 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("vertex count not found in PLY header")]
     PlyVertexCountNotFound,
-    #[error("failed to parse vertex count")]
+    #[error("{0}")]
     PlyVertexCountParseFailed(#[from] std::num::ParseIntError),
     #[error("not a PLY file")]
     NotPly,
     #[error("PLY header not found")]
     PlyHeaderNotFound,
+    #[error("{0}")]
+    BufferDownloadOneShotReceive(#[from] oneshot::RecvError),
+    #[error("{0}")]
+    BufferDownloadAsync(#[from] wgpu::BufferAsyncError),
 }
