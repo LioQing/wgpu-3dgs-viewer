@@ -2,6 +2,8 @@
 
 ...written in Rust using [wgpu](https://wgpu.rs/).
 
+This crate is built for [3D Gaussian Splatting Viewer App](https://lioqing.com/wgpu-3dgs-viewer-app) which is also made by me.
+
 ## Usage
 
 There are two ways to use this viewer:

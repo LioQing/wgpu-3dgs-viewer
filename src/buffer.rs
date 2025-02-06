@@ -2,7 +2,7 @@ use glam::*;
 
 use wgpu::util::DeviceExt;
 
-use crate::{wgpu_sort, Camera, Error, Gaussian};
+use crate::{wgpu_sort, CameraTrait, Error, Gaussian};
 
 /// The Gaussians storage buffer.
 #[derive(Debug)]
@@ -153,7 +153,7 @@ impl CameraBuffer {
     }
 
     /// Update the camera buffer.
-    pub fn update(&self, queue: &wgpu::Queue, camera: &Camera, size: UVec2) {
+    pub fn update(&self, queue: &wgpu::Queue, camera: &impl CameraTrait, size: UVec2) {
         queue.write_buffer(
             &self.0,
             0,
@@ -179,7 +179,7 @@ pub struct CameraPod {
 
 impl CameraPod {
     /// Create a new camera.
-    pub fn new(camera: &Camera, size: UVec2) -> Self {
+    pub fn new(camera: &impl CameraTrait, size: UVec2) -> Self {
         Self {
             view: camera.view(),
             proj: camera.projection(size.x as f32 / size.y as f32),

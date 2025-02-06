@@ -1,7 +1,7 @@
 use glam::*;
 
 use crate::{
-    Camera, Error, QueryHitPod, QueryHitResultPod, QueryResultCountBuffer, QueryResultPod,
+    CameraTrait, Error, QueryHitPod, QueryHitResultPod, QueryResultCountBuffer, QueryResultPod,
     QueryResultsBuffer,
 };
 
@@ -26,7 +26,7 @@ pub async fn download(
 pub fn hit_pos_by_closest(
     query: &QueryHitPod,
     results: &[QueryHitResultPod],
-    camera: &Camera,
+    camera: &impl CameraTrait,
     texture_size: UVec2,
 ) -> Option<(usize, Vec3)> {
     let (index, hit) = results.iter().enumerate().min_by(|(_, a), (_, b)| {
@@ -51,7 +51,7 @@ pub fn hit_pos_by_closest(
 pub fn hit_pos_by_most_alpha(
     query: &QueryHitPod,
     results: &mut [QueryHitResultPod],
-    camera: &Camera,
+    camera: &impl CameraTrait,
     texture_size: UVec2,
 ) -> Option<(usize, f32, Vec3)> {
     results.sort_by(|a, b| {
@@ -84,7 +84,7 @@ pub fn hit_pos_by_most_alpha(
 
 /// Gets the world position from the texture coordinates and the normalized depth.
 fn coords_and_depth_to_world(
-    camera: &Camera,
+    camera: &impl CameraTrait,
     coords: Vec2,
     depth: f32,
     texture_size: UVec2,

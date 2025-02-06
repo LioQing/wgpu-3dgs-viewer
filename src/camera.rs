@@ -2,6 +2,17 @@ use std::ops::Range;
 
 use glam::*;
 
+/// A camera trait.
+///
+/// This exists to allow for different camera implementations.
+pub trait CameraTrait {
+    /// Get the view matrix.
+    fn view(&self) -> Mat4;
+
+    /// Get the projection matrix.
+    fn projection(&self, aspect_ratio: f32) -> Mat4;
+}
+
 /// A camera.
 #[derive(Debug, Clone)]
 pub struct Camera {
@@ -69,14 +80,14 @@ impl Camera {
     pub fn get_right(&self) -> Vec3 {
         self.get_forward().cross(Self::UP).normalize()
     }
+}
 
-    /// Get the view matrix.
-    pub fn view(&self) -> Mat4 {
+impl CameraTrait for Camera {
+    fn view(&self) -> Mat4 {
         Mat4::look_to_rh(self.pos, self.get_forward(), Self::UP)
     }
 
-    /// Get the projection matrix.
-    pub fn projection(&self, aspect_ratio: f32) -> Mat4 {
+    fn projection(&self, aspect_ratio: f32) -> Mat4 {
         Mat4::perspective_rh(self.vertical_fov, aspect_ratio, self.z.start, self.z.end)
     }
 }

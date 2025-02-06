@@ -134,7 +134,12 @@ impl Viewer {
     }
 
     /// Update the camera.
-    pub fn update_camera(&mut self, queue: &wgpu::Queue, camera: &Camera, texture_size: UVec2) {
+    pub fn update_camera(
+        &mut self,
+        queue: &wgpu::Queue,
+        camera: &impl CameraTrait,
+        texture_size: UVec2,
+    ) {
         self.camera_buffer.update(queue, camera, texture_size);
     }
 
