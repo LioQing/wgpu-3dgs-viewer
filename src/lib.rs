@@ -165,9 +165,11 @@ impl Viewer {
         queue: &wgpu::Queue,
         size: f32,
         display_mode: GaussianDisplayMode,
+        sh_deg: GaussianShDegree,
+        no_sh0: bool,
     ) {
         self.gaussian_transform_buffer
-            .update(queue, size, display_mode);
+            .update(queue, size, display_mode, sh_deg, no_sh0);
     }
 
     /// Render the viewer.

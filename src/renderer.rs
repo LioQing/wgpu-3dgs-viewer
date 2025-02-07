@@ -189,7 +189,32 @@ impl Renderer {
         log::debug!("Creating renderer shader");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Renderer Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader/render.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shader/render.wgsl")
+                    .replace(
+                        "{{gaussian_sh}}",
+                        include_str!("shader/gaussians/high.wgsl")
+                            .lines()
+                            .nth(0)
+                            .expect("Gaussian SH field"),
+                    )
+                    .replace(
+                        "{{gaussian_cov3d}}",
+                        include_str!("shader/gaussians/high.wgsl")
+                            .lines()
+                            .nth(1)
+                            .expect("Gaussian Cov3D field"),
+                    )
+                    .replace(
+                        "{{gaussian_unpack}}",
+                        include_str!("shader/gaussians/high.wgsl")
+                            .lines()
+                            .skip(2)
+                            .collect::<String>()
+                            .as_str(),
+                    )
+                    .into(),
+            ),
         });
 
         log::debug!("Creating renderer pipeline");

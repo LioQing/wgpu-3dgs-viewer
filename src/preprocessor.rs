@@ -219,6 +219,20 @@ impl Preprocessor {
                         "{{workgroup_size}}",
                         Self::WORKGROUP_SIZE.to_string().as_str(),
                     )
+                    .replace(
+                        "{{gaussian_sh}}",
+                        include_str!("shader/gaussians/high.wgsl")
+                            .lines()
+                            .nth(0)
+                            .expect("Gaussian SH field"),
+                    )
+                    .replace(
+                        "{{gaussian_cov3d}}",
+                        include_str!("shader/gaussians/high.wgsl")
+                            .lines()
+                            .nth(1)
+                            .expect("Gaussian Cov3D field"),
+                    )
                     .into(),
             ),
         });

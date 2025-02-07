@@ -276,7 +276,7 @@ impl System {
 
         log::debug!("Creating camera");
         let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
-        let mut camera = gs::Camera::new(1e-4..1e4, 60f32.to_radians());
+        let mut camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
         camera.pos = gaussians
             .gaussians
             .iter()
@@ -292,6 +292,13 @@ impl System {
         log::debug!("Creating viewer");
         let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians);
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
+        viewer.update_gaussian_transform(
+            &queue,
+            1.0,
+            gs::GaussianDisplayMode::Splat,
+            gs::GaussianShDegree::new(3).expect("SH degree"),
+            false,
+        );
 
         log::debug!("Creating selection buffer");
         let selection_buffer = device.create_buffer(&wgpu::BufferDescriptor {

@@ -72,8 +72,9 @@ impl GaussiansBuffer {
 pub struct GaussianPod {
     pub pos: Vec3,
     pub color: U8Vec4,
+    pub sh: [Vec3; 15],
     pub cov3d: [f32; 6],
-    _padding: [f32; 2],
+    _padding: f32,
 }
 
 impl GaussianPod {
@@ -96,14 +97,18 @@ impl GaussianPod {
         // Color
         let color = gaussian.color;
 
+        // Spherical harmonics
+        let sh = gaussian.sh;
+
         // Position
         let pos = gaussian.pos;
 
         Self {
             pos,
             color,
+            sh,
             cov3d,
-            _padding: [0.0; 2],
+            _padding: 0.0,
         }
     }
 }
@@ -128,8 +133,9 @@ impl From<&Gaussian> for GaussianPod {
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PlyGaussianPod {
     pub pos: [f32; 3],
-    pub n: [f32; 3],
-    pub color: [f32; 3 * 16],
+    pub normal: [f32; 3],
+    pub color: [f32; 3],
+    pub sh: [f32; 3 * 15],
     pub alpha: f32,
     pub scale: [f32; 3],
     pub rotation: [f32; 4],
@@ -251,12 +257,34 @@ impl Default for ModelTransformPod {
 }
 
 /// The Gaussian display modes.
-#[repr(u32)]
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GaussianDisplayMode {
     Splat = 0,
     Ellipse = 1,
     Point = 2,
+}
+
+/// The Gaussian spherical harmonics degrees.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GaussianShDegree(u8);
+
+impl GaussianShDegree {
+    /// Create a new Gaussian SH degree.
+    ///
+    /// Returns `None` if the degree is not in the range of \[0, 3\].
+    pub const fn new(sh_deg: u8) -> Option<Self> {
+        match sh_deg {
+            0..=3 => Some(Self(sh_deg)),
+            _ => None,
+        }
+    }
+
+    /// Create a new Gaussian SH degree without checking.
+    pub const fn new_unchecked(sh_deg: u8) -> Self {
+        Self(sh_deg)
+    }
 }
 
 /// The Gaussian transform buffer.
@@ -276,11 +304,23 @@ impl GaussianTransformBuffer {
     }
 
     /// Update the Gaussian transformation buffer.
-    pub fn update(&self, queue: &wgpu::Queue, size: f32, display_mode: GaussianDisplayMode) {
+    pub fn update(
+        &self,
+        queue: &wgpu::Queue,
+        size: f32,
+        display_mode: GaussianDisplayMode,
+        sh_deg: GaussianShDegree,
+        no_sh0: bool,
+    ) {
         queue.write_buffer(
             &self.0,
             0,
-            bytemuck::bytes_of(&GaussianTransformPod::new(size, display_mode)),
+            bytemuck::bytes_of(&GaussianTransformPod::new(
+                size,
+                display_mode,
+                sh_deg,
+                no_sh0,
+            )),
         );
     }
 
@@ -295,20 +335,38 @@ impl GaussianTransformBuffer {
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GaussianTransformPod {
     pub size: f32,
-    pub display_mode: u32,
+
+    /// (display_mode, sh_deg, no_sh0, padding)
+    pub flags: U8Vec4,
 }
 
 impl GaussianTransformPod {
     /// Create a new Gaussian transformation.
-    pub const fn new(size: f32, display_mode: GaussianDisplayMode) -> Self {
-        let display_mode = display_mode as u32;
-        Self { size, display_mode }
+    pub const fn new(
+        size: f32,
+        display_mode: GaussianDisplayMode,
+        sh_deg: GaussianShDegree,
+        no_sh0: bool,
+    ) -> Self {
+        let display_mode = display_mode as u8;
+        let sh_deg = sh_deg.0;
+        let no_sh0 = no_sh0 as u8;
+
+        Self {
+            size,
+            flags: u8vec4(display_mode, sh_deg, no_sh0, 0),
+        }
     }
 }
 
 impl Default for GaussianTransformPod {
     fn default() -> Self {
-        Self::new(1.0, GaussianDisplayMode::Splat)
+        Self::new(
+            1.0,
+            GaussianDisplayMode::Splat,
+            GaussianShDegree::new_unchecked(3),
+            false,
+        )
     }
 }
 
@@ -793,11 +851,6 @@ impl QueryHitResultPod {
     /// Get the alpha of the hit Gaussian mutably.
     pub fn alpha_mut(&mut self) -> &mut f32 {
         &mut self.0.content_f32.y
-    }
-
-    /// Get the difference from the coordinates to the hit Gaussian.
-    pub fn diff(&self) -> Vec2 {
-        self.0.content_f32.zw()
     }
 }
 
