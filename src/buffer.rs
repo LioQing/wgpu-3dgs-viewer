@@ -476,6 +476,11 @@ impl GaussianShDegree {
     pub const fn new_unchecked(sh_deg: u8) -> Self {
         Self(sh_deg)
     }
+
+    /// Get the degree.
+    pub const fn degree(&self) -> u8 {
+        self.0
+    }
 }
 
 /// The Gaussian transform buffer.
