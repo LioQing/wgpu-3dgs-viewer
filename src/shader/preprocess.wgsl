@@ -15,9 +15,9 @@ struct ModelTransform {
 var<uniform> model_transform: ModelTransform;
 
 fn model_transform_mat() -> mat4x4<f32> {
-    let pos = model_transform.pos.xyz;
+    let pos = model_transform.pos;
     let quat = model_transform.quat;
-    let scale = model_transform.scale.xyz;
+    let scale = model_transform.scale;
 
     let x2 = quat.x + quat.x;
     let y2 = quat.y + quat.y;
@@ -62,7 +62,8 @@ fn model_transform_mat() -> mat4x4<f32> {
 struct Gaussian {
     pos: vec3<f32>,
     color: u32,
-    cov3d: array<f32, 6>,
+    {{gaussian_sh_field}}
+    {{gaussian_cov3d_field}}
 }
 @group(0) @binding(2)
 var<storage, read> gaussians: array<Gaussian>;
@@ -103,8 +104,8 @@ const query_type_hit = 1u;
 @group(0) @binding(8)
 var<storage, read_write> query_result_count: u32;
 
-fn is_on_frustum(pos_ndc: vec3<f32>) -> bool {
-    return all(pos_ndc >= vec3<f32>(-1.0, -1.0, 0.0)) && all(pos_ndc <= vec3<f32>(1.0));
+fn is_on_frustum(ndc_pos: vec3<f32>) -> bool {
+    return all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0));
 }
 
 @compute @workgroup_size(1)
@@ -129,9 +130,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let gaussian = gaussians[index];
 
     // Cull
-    let pos_proj = camera.proj * camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
-    let pos_ndc = pos_proj.xyz / pos_proj.w;
-    if !is_on_frustum(pos_ndc) {
+    let proj_pos = camera.proj * camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let ndc_pos = proj_pos.xyz / proj_pos.w;
+    if !is_on_frustum(ndc_pos) {
         return;
     }
 
@@ -139,7 +140,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     indirect_indices[culled_index] = index;
 
     // Depth
-    gaussians_depth[culled_index] = 1.0 - pos_ndc.z;
+    gaussians_depth[culled_index] = 1.0 - ndc_pos.z;
 }
 
 @compute @workgroup_size(1)

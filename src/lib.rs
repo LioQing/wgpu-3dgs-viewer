@@ -19,11 +19,11 @@ pub use renderer::*;
 
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]
-pub struct Viewer {
+pub struct Viewer<G: GaussianPod = GaussianPodWithShMinMaxNormCov3dHalfConfigs> {
     pub camera_buffer: CameraBuffer,
     pub model_transform_buffer: ModelTransformBuffer,
     pub gaussian_transform_buffer: GaussianTransformBuffer,
-    pub gaussians_buffer: GaussiansBuffer,
+    pub gaussians_buffer: GaussiansBuffer<G>,
     pub indirect_args_buffer: IndirectArgsBuffer,
     pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
@@ -37,13 +37,13 @@ pub struct Viewer {
     pub renderer: Renderer,
 }
 
-impl Viewer {
+impl<G: GaussianPod> Viewer<G> {
     /// Create a new viewer.
     pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         gaussians: &Gaussians,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 
@@ -92,7 +92,7 @@ impl Viewer {
             &gaussians_depth_buffer,
             &query_buffer,
             &query_result_count_buffer,
-        );
+        )?;
 
         log::debug!("Creating radix sorter");
         let radix_sorter =
@@ -110,11 +110,11 @@ impl Viewer {
             &query_buffer,
             &query_result_count_buffer,
             &query_results_buffer,
-        );
+        )?;
 
         log::info!("Viewer created");
 
-        Self {
+        Ok(Self {
             camera_buffer,
             model_transform_buffer,
             gaussian_transform_buffer,
@@ -130,7 +130,7 @@ impl Viewer {
             preprocessor,
             radix_sorter,
             renderer,
-        }
+        })
     }
 
     /// Update the camera.
@@ -165,9 +165,11 @@ impl Viewer {
         queue: &wgpu::Queue,
         size: f32,
         display_mode: GaussianDisplayMode,
+        sh_deg: GaussianShDegree,
+        no_sh0: bool,
     ) {
         self.gaussian_transform_buffer
-            .update(queue, size, display_mode);
+            .update(queue, size, display_mode, sh_deg, no_sh0);
     }
 
     /// Render the viewer.

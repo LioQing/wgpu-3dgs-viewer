@@ -65,6 +65,7 @@ pub struct Gaussian {
     pub rotation: Quat,
     pub pos: Vec3,
     pub color: U8Vec4,
+    pub sh: [Vec3; 15],
     pub scale: Vec3,
 }
 
@@ -87,16 +88,20 @@ impl Gaussian {
         let scale = Vec3::from_array(ply.scale).exp();
 
         // Color
-        const SH: f32 = 0.2820948;
-        let color = ((Vec3::splat(0.5) + Vec3::from_slice(&ply.color[..3]) * SH) * 255.0)
+        const SH_C0: f32 = 0.2820948;
+        let color = ((Vec3::splat(0.5) + Vec3::from_array(ply.color) * SH_C0) * 255.0)
             .extend((1.0 / (1.0 + (-ply.alpha).exp())) * 255.0)
             .clamp(Vec4::splat(0.0), Vec4::splat(255.0))
             .as_u8vec4();
+
+        // Spherical harmonics
+        let sh = std::array::from_fn(|i| Vec3::new(ply.sh[i], ply.sh[i + 15], ply.sh[i + 30]));
 
         Self {
             rotation,
             pos,
             color,
+            sh,
             scale,
         }
     }
