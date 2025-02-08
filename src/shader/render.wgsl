@@ -311,15 +311,28 @@ fn vert_main(
 
     if gaussian_transform_display_mode() == gaussian_display_mode_point {
         let quad_offset = quad_offset(vert_index) * point_size * gaussian_transform.size;
-        let view_pos = camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+        let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+        let view_pos = camera.view * world_pos;
         let proj_pos = camera.proj * view_pos;
         let aspect_ratio = camera.size.y / camera.size.x;
         let clip_pos = proj_pos.xy
             + quad_offset * proj_pos.w * vec2<f32>(aspect_ratio, 1.0) / length(view_pos.xyz);
+        let world_camera_pos = -(transpose(mat3x3<f32>(
+            camera.view[0].xyz,
+            camera.view[1].xyz,
+            camera.view[2].xyz
+        )) * camera.view[3].xyz);
+        let world_view_dir = world_camera_pos - world_pos.xyz;
+        let model_view_dir = model_transform_inv_sr_mat() * world_view_dir;
 
         out.clip_pos = vec4<f32>(clip_pos, proj_pos.zw);
         out.quad_offset = quad_offset;
-        out.color = unpack4x8unorm(gaussian.color);
+        out.color = gaussian_color(
+            gaussian_index,
+            -normalize(model_view_dir),
+            gaussian_transform_sh_deg(),
+            gaussian_transform_no_sh0(),
+        );
         out.display_mode = gaussian_transform_display_mode();
         out.index = gaussian_index;
         out.coords = (clip_pos / proj_pos.w * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0))
