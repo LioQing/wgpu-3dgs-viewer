@@ -61,7 +61,7 @@ let gaussians = Gaussians::read_ply(&mut reader).expect("gaussians");
 let camera = Camera::new(1e-4..1e4, 60f32.to_radians());
 
 // Create the viewer
-let viewer = Viewer::new(&device, surface_texture_format, &gaussians);
+let viewer = Viewer::new(&device, surface_texture_format, &gaussians).expect("viewer");
 
 // ...
 

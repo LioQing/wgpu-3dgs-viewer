@@ -290,7 +290,8 @@ impl System {
             .fold(f32::INFINITY, |a, b| a.min(b));
 
         log::debug!("Creating viewer");
-        let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians);
+        let mut viewer =
+            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
         viewer.update_gaussian_transform(
             &queue,

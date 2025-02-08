@@ -62,8 +62,8 @@ fn model_transform_mat() -> mat4x4<f32> {
 struct Gaussian {
     pos: vec3<f32>,
     color: u32,
-    {{gaussian_sh}}
-    {{gaussian_cov3d}}
+    {{gaussian_sh_field}}
+    {{gaussian_cov3d_field}}
 }
 @group(0) @binding(2)
 var<storage, read> gaussians: array<Gaussian>;

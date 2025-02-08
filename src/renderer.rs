@@ -1,7 +1,7 @@
 use crate::{
-    CameraBuffer, GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer,
-    IndirectIndicesBuffer, ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer,
-    QueryResultsBuffer,
+    CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig,
+    GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
+    ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer,
 };
 
 /// A renderer for Gaussians.
@@ -115,18 +115,25 @@ impl Renderer {
 
     /// Create a new renderer.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new<G: GaussianPod>(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
         gaussian_transform: &GaussianTransformBuffer,
-        gaussians: &GaussiansBuffer,
+        gaussians: &GaussiansBuffer<G>,
         indirect_indices: &IndirectIndicesBuffer,
         query: &QueryBuffer,
         query_result_count: &QueryResultCountBuffer,
         query_results: &QueryResultsBuffer,
-    ) -> Self {
+    ) -> Result<Self, Error> {
+        if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
+            return Err(Error::ModelSizeExceedsDeviceLimit {
+                model_size: gaussians.buffer().size(),
+                device_limit: device.limits().max_storage_buffer_binding_size,
+            });
+        }
+
         log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Self::BIND_GROUP_LAYOUT_DESCRIPTOR);
@@ -191,28 +198,10 @@ impl Renderer {
             label: Some("Renderer Shader"),
             source: wgpu::ShaderSource::Wgsl(
                 include_str!("shader/render.wgsl")
-                    .replace(
-                        "{{gaussian_sh}}",
-                        include_str!("shader/gaussians/high.wgsl")
-                            .lines()
-                            .nth(0)
-                            .expect("Gaussian SH field"),
-                    )
-                    .replace(
-                        "{{gaussian_cov3d}}",
-                        include_str!("shader/gaussians/high.wgsl")
-                            .lines()
-                            .nth(1)
-                            .expect("Gaussian Cov3D field"),
-                    )
-                    .replace(
-                        "{{gaussian_unpack}}",
-                        include_str!("shader/gaussians/high.wgsl")
-                            .lines()
-                            .skip(2)
-                            .collect::<String>()
-                            .as_str(),
-                    )
+                    .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
+                    .replace("{{gaussian_sh_unpack}}", G::ShConfig::sh_unpack())
+                    .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
+                    .replace("{{gaussian_cov3d_unpack}}", G::Cov3dConfig::cov3d_unpack())
                     .into(),
             ),
         });
@@ -246,11 +235,11 @@ impl Renderer {
 
         log::info!("Renderer created");
 
-        Self {
+        Ok(Self {
             bind_group_layout,
             bind_group,
             pipeline,
-        }
+        })
     }
 
     /// Render the scene.

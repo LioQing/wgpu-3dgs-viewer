@@ -2066,6 +2066,7 @@ dependencies = [
  "half",
  "log",
  "oneshot",
+ "paste",
  "thiserror 2.0.11",
  "wgpu",
  "winit",

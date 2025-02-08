@@ -1,6 +1,7 @@
 use crate::{
-    CameraBuffer, GaussiansBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, RadixSortIndirectArgsBuffer,
+    CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig, GaussiansBuffer,
+    GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer, ModelTransformBuffer,
+    QueryBuffer, QueryResultCountBuffer, RadixSortIndirectArgsBuffer,
 };
 
 /// Preprocessor to preprocess the Gaussians.
@@ -134,18 +135,25 @@ impl Preprocessor {
 
     /// Create a new preprocessor.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new<G: GaussianPod>(
         device: &wgpu::Device,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
-        gaussians: &GaussiansBuffer,
+        gaussians: &GaussiansBuffer<G>,
         indirect_args: &IndirectArgsBuffer,
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
         query: &QueryBuffer,
         query_result_count: &QueryResultCountBuffer,
-    ) -> Self {
+    ) -> Result<Self, Error> {
+        if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
+            return Err(Error::ModelSizeExceedsDeviceLimit {
+                model_size: gaussians.buffer().size(),
+                device_limit: device.limits().max_storage_buffer_binding_size,
+            });
+        }
+
         log::debug!("Creating preprocessor bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Self::BIND_GROUP_LAYOUT_DESCRIPTOR);
@@ -219,20 +227,8 @@ impl Preprocessor {
                         "{{workgroup_size}}",
                         Self::WORKGROUP_SIZE.to_string().as_str(),
                     )
-                    .replace(
-                        "{{gaussian_sh}}",
-                        include_str!("shader/gaussians/high.wgsl")
-                            .lines()
-                            .nth(0)
-                            .expect("Gaussian SH field"),
-                    )
-                    .replace(
-                        "{{gaussian_cov3d}}",
-                        include_str!("shader/gaussians/high.wgsl")
-                            .lines()
-                            .nth(1)
-                            .expect("Gaussian Cov3D field"),
-                    )
+                    .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
+                    .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
                     .into(),
             ),
         });
@@ -269,13 +265,13 @@ impl Preprocessor {
 
         log::info!("Preprocessor created");
 
-        Self {
+        Ok(Self {
             bind_group_layout,
             bind_group,
             pre_pipeline,
             pipeline,
             post_pipeline,
-        }
+        })
     }
 
     /// Preprocess the Gaussians.

@@ -32,6 +32,7 @@ half = { version = "2.4.1", features = ["bytemuck"] }
 glam = { version = "0.29.2", features = ["bytemuck"] }
 log = "0.4.25"
 oneshot = "0.1.8"
+paste = "1.0.15"
 thiserror = "2.0.11"
 wgpu = "23.0.1"
 
