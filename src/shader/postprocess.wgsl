@@ -16,13 +16,14 @@ var<uniform> query: Query;
 const query_type_none = 0u << 24u;
 const query_type_hit = 1u << 24u;
 const query_type_rect = 2u << 24u;
+const query_type_brush = 3u << 24u;
 
 fn query_type() -> u32 {
     return query.content_u32.x & 0xFF000000;
 }
 
 const query_selection_op_none = 0u << 16u;
-const query_selection_op_replace = 1u << 16u;
+const query_selection_op_set = 1u << 16u;
 const query_selection_op_remove = 2u << 16u;
 const query_selection_op_add = 3u << 16u;
 
@@ -69,8 +70,8 @@ fn pre_main(@builtin(global_invocation_id) id: vec3<u32>) {
         indirect_args.z = 1u;
     }
 
-    // Reset selection if the query selection op is replace
-    if index < arrayLength(&selection) && query_selection_op() == query_selection_op_replace {
+    // Reset selection if the query selection op is set
+    if index < arrayLength(&selection) && query_selection_op() == query_selection_op_set {
         atomicStore(&selection[index], 0u);
     }
 }
@@ -92,7 +93,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
 
-    if (query_selection_op & (1u << 16u)) != 0u { // Replace or Add
+    if (query_selection_op & (1u << 16u)) != 0u { // Set or Add
         selection_set(gaussian_index);
     } else { // Remove
         selection_clear(gaussian_index);

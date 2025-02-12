@@ -22,7 +22,8 @@ use wgpu_3dgs_viewer as gs;
     A 3D Gaussian splatting viewer written in Rust using wgpu.\n\
     \n\
     In default mode, move the camera with W, A, S, D, Space, Shift, and rotate with mouse.\n\
-    In selectio mode, click anywhere on the model to select the nearest Gaussian.\n\
+    In selection mode, use left mouse button to brush select, \
+    use right mouse button to box select.\n\
     Use C to toggle between default and selection mode.\
     "
 )]
@@ -50,6 +51,7 @@ struct Input {
     pub pressed_mouse: HashSet<MouseButton>,
     pub held_mouse: HashSet<MouseButton>,
     pub released_mouse: HashSet<MouseButton>,
+    pub scroll_diff: f32,
     pub mouse_diff: Vec2,
     pub mouse_pos: Vec2,
 }
@@ -62,6 +64,7 @@ impl Input {
             pressed_mouse: HashSet::new(),
             held_mouse: HashSet::new(),
             released_mouse: HashSet::new(),
+            scroll_diff: 0.0,
             mouse_diff: Vec2::ZERO,
             mouse_pos: Vec2::ZERO,
         }
@@ -102,6 +105,14 @@ impl Input {
                 ElementState::Released => {
                     self.released_mouse.insert(*button);
                     self.held_mouse.remove(button);
+                }
+            },
+            WindowEvent::MouseWheel { delta, .. } => match delta {
+                winit::event::MouseScrollDelta::LineDelta(_, y) => {
+                    self.scroll_diff += y;
+                }
+                winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                    self.scroll_diff += pos.y as f32;
                 }
             },
             WindowEvent::CursorMoved { position, .. } => {
@@ -225,7 +236,7 @@ struct System {
     is_selecting: bool,
     query: gs::QueryPod,
     selection_rect_start: Vec2,
-    selection_buffer: wgpu::Buffer,
+    selection_brush_radius: u32,
     selection_bind_group: wgpu::BindGroup,
     selection_pipeline: wgpu::RenderPipeline,
 }
@@ -312,14 +323,6 @@ impl System {
             false,
         );
 
-        log::debug!("Creating selection buffer");
-        let selection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Selection Buffer"),
-            size: std::mem::size_of::<Vec4>() as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         log::debug!("Creating selection bind group layout");
         let selection_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -355,7 +358,7 @@ impl System {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: selection_buffer.as_entire_binding(),
+                    resource: viewer.query_buffer.buffer().as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -417,7 +420,7 @@ impl System {
             is_selecting: false,
             query: gs::QueryPod::none(),
             selection_rect_start: Vec2::ZERO,
-            selection_buffer,
+            selection_brush_radius: 40,
             selection_bind_group,
             selection_pipeline,
         }
@@ -430,32 +433,58 @@ impl System {
         }
 
         if self.is_selecting {
-            // Selection rect
-            if input.pressed_mouse.contains(&MouseButton::Left) {
-                self.selection_rect_start = input.mouse_pos;
+            // Selection brush
+            if self.query.query_type() == gs::QueryType::None
+                && input.pressed_mouse.contains(&MouseButton::Left)
+            {
+                self.query = gs::QueryPod::brush(
+                    self.selection_brush_radius,
+                    input.mouse_pos,
+                    input.mouse_pos,
+                )
+                .with_selection_op(gs::QuerySelectionOp::Set);
+            } else if self.query.query_type() == gs::QueryType::Brush
+                && input.held_mouse.contains(&MouseButton::Left)
+            {
+                self.query = gs::QueryPod::brush(
+                    self.selection_brush_radius,
+                    self.query.as_brush().end(),
+                    input.mouse_pos,
+                )
+                .with_selection_op(gs::QuerySelectionOp::Add);
             }
 
-            if input.held_mouse.contains(&MouseButton::Left) {
+            if input.scroll_diff != 0.0 {
+                self.selection_brush_radius =
+                    (self.selection_brush_radius as i32 + input.scroll_diff as i32).max(1) as u32;
+            }
+
+            // Selection rect
+            if self.query.query_type() == gs::QueryType::None
+                && input.pressed_mouse.contains(&MouseButton::Right)
+            {
+                self.selection_rect_start = input.mouse_pos;
+                self.query =
+                    gs::QueryPod::rect(self.selection_rect_start, self.selection_rect_start)
+                        .with_selection_op(gs::QuerySelectionOp::Set);
+            } else if self.query.query_type() == gs::QueryType::Rect
+                && input.held_mouse.contains(&MouseButton::Right)
+            {
                 let top_left = self.selection_rect_start.min(input.mouse_pos);
                 let bottom_right = self.selection_rect_start.max(input.mouse_pos);
 
                 self.query = gs::QueryPod::rect(top_left, bottom_right)
-                    .with_selection_op(gs::QuerySelectionOp::Replace);
+                    .with_selection_op(gs::QuerySelectionOp::Set);
             }
 
-            if input.released_mouse.contains(&MouseButton::Left) {
+            // Clear query
+            if input.held_mouse.is_empty() {
                 self.query = gs::QueryPod::none();
-            }
 
-            if self.query.query_type() == gs::QueryType::Rect {
-                self.queue.write_buffer(
-                    &self.selection_buffer,
-                    0,
-                    bytemuck::cast_slice(&[
-                        self.query.as_rect().top_left(),
-                        self.query.as_rect().bottom_right(),
-                    ]),
-                );
+                // For selection cursor
+                self.query.content_u32.y = self.selection_brush_radius;
+                self.query.content_f32.z = input.mouse_pos.x;
+                self.query.content_f32.w = input.mouse_pos.y;
             }
         } else {
             // Camera movement
@@ -534,9 +563,9 @@ impl System {
             self.gaussians.gaussians.len() as u32,
         );
 
-        if self.query.query_type() == gs::QueryType::Rect {
+        if self.is_selecting {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Selection Rect Render Pass"),
+                label: Some("Selection Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &texture_view,
                     resolve_target: None,

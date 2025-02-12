@@ -105,13 +105,14 @@ var<uniform> query: Query;
 const query_type_none = 0u << 24u;
 const query_type_hit = 1u << 24u;
 const query_type_rect = 2u << 24u;
+const query_type_brush = 3u << 24u;
 
 fn query_type() -> u32 {
     return query.content_u32.x & 0xFF000000;
 }
 
 const query_selection_op_none = 0u << 16u;
-const query_selection_op_replace = 1u << 16u;
+const query_selection_op_set = 1u << 16u;
 const query_selection_op_remove = 2u << 16u;
 const query_selection_op_add = 3u << 16u;
 
@@ -160,6 +161,31 @@ fn query_rect(gaussian_index: u32, ndc_pos: vec2<f32>) {
     );
 }
 
+fn query_brush(gaussian_index: u32, ndc_pos: vec2<f32>) {
+    let radius = f32(query.content_u32.y);
+    let start = query.content_f32.xy;
+    let end = query.content_f32.zw;
+    let coords = camera_coords(ndc_pos);
+
+    let start_to_end = end - start;
+    let start_to_coords = coords - start;
+    
+    let factor = saturate(dot(start_to_coords, start_to_end) / dot(start_to_end, start_to_end));
+    let start_to_proj = start_to_end * factor;
+
+    let perp = start_to_coords - start_to_proj;
+
+    if dot(perp, perp) > radius * radius {
+        return;
+    }
+
+    let index = atomicAdd(&query_result_count, 1u);
+    query_results[index] = QueryResult(
+        vec4<u32>(gaussian_index, vec3<u32>(0u)),
+        vec4<f32>(0.0, 0.0, 0.0, 0.0),
+    );
+}
+
 @compute @workgroup_size({{workgroup_size}})
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let index = id.x;
@@ -181,8 +207,11 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     indirect_indices[culled_index] = index;
     
     // Query
-    if query_type() == query_type_rect {
+    let query_type = query_type();
+    if query_type == query_type_rect {
         query_rect(index, ndc_pos.xy);
+    } else if query_type == query_type_brush {
+        query_brush(index, ndc_pos.xy);
     }
 
     // Depth

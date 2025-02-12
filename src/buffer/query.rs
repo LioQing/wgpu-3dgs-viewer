@@ -45,6 +45,9 @@ pub enum QueryType {
 
     /// Query centroids by a rectangle. Done by preprocess shader.
     Rect = 2 << 24,
+
+    /// Query centroids by a brush. Done by preprocess shader.
+    Brush = 3 << 24,
 }
 
 /// The selection operations.
@@ -57,7 +60,7 @@ pub enum QuerySelectionOp {
     None = 0 << 16,
 
     /// Discards previous selection and selects the new one.
-    Replace = 1 << 16,
+    Set = 1 << 16,
 
     /// Removes the new selection from the previous selection.
     Remove = 2 << 16,
@@ -93,6 +96,7 @@ impl QueryPod {
             x if x == QueryType::None as u32 => QueryType::None,
             x if x == QueryType::Hit as u32 => QueryType::Hit,
             x if x == QueryType::Rect as u32 => QueryType::Rect,
+            x if x == QueryType::Brush as u32 => QueryType::Brush,
             _ => panic!("Unknown query type"),
         }
     }
@@ -101,7 +105,7 @@ impl QueryPod {
     pub fn query_selection_op(&self) -> QuerySelectionOp {
         match self.content_u32.x & 0x00FF_0000 {
             x if x == QuerySelectionOp::None as u32 => QuerySelectionOp::None,
-            x if x == QuerySelectionOp::Replace as u32 => QuerySelectionOp::Replace,
+            x if x == QuerySelectionOp::Set as u32 => QuerySelectionOp::Set,
             x if x == QuerySelectionOp::Add as u32 => QuerySelectionOp::Add,
             x if x == QuerySelectionOp::Remove as u32 => QuerySelectionOp::Remove,
             _ => panic!("Unknown query selection operation"),
@@ -169,6 +173,28 @@ impl QueryPod {
         bytemuck::cast_mut(self)
     }
 
+    /// Create a new [`QueryType::Brush`] query.
+    ///
+    /// - `radius` is the radius of the brush.
+    /// - `start` is the starting point of the brush path.
+    /// - `end` is the ending point of the brush path.
+    pub const fn brush(radius: u32, start: Vec2, end: Vec2) -> Self {
+        Self::new(
+            uvec4(QueryType::Brush as u32, radius, 0, 0),
+            vec4(start.x, start.y, end.x, end.y),
+        )
+    }
+
+    /// Get as a reference of [`QueryType::Brush`] query.
+    pub fn as_brush(&self) -> &QueryBrushPod {
+        bytemuck::cast_ref(self)
+    }
+
+    /// Get as a mutable reference of [`QueryType::Brush`] query.
+    pub fn as_brush_mut(&mut self) -> &mut QueryBrushPod {
+        bytemuck::cast_mut(self)
+    }
+
     /// Set the selection operation.
     pub fn with_selection_op(mut self, selection_op: QuerySelectionOp) -> Self {
         self.content_u32.x |= selection_op as u32;
@@ -196,6 +222,12 @@ impl From<QueryHitPod> for QueryPod {
 
 impl From<QueryRectPod> for QueryPod {
     fn from(query: QueryRectPod) -> Self {
+        query.0
+    }
+}
+
+impl From<QueryBrushPod> for QueryPod {
+    fn from(query: QueryBrushPod) -> Self {
         query.0
     }
 }
@@ -300,6 +332,49 @@ impl QueryRectPod {
 }
 
 impl From<QueryPod> for QueryRectPod {
+    fn from(query: QueryPod) -> Self {
+        Self(query)
+    }
+}
+
+/// The POD representation of the [`QueryType::Brush`].
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct QueryBrushPod(QueryPod);
+
+impl QueryBrushPod {
+    /// Create a new query.
+    pub const fn new(radius: u32, start: Vec2, end: Vec2) -> Self {
+        Self(QueryPod::brush(radius, start, end))
+    }
+
+    /// Get the radius of the brush.
+    pub fn radius(&self) -> u32 {
+        self.0.content_u32.y
+    }
+
+    /// Get the starting point of the brush path.
+    pub fn start(&self) -> Vec2 {
+        self.0.content_f32.xy()
+    }
+
+    /// Get the ending point of the brush path.
+    pub fn end(&self) -> Vec2 {
+        self.0.content_f32.zw()
+    }
+
+    /// Get a reference to the query.
+    pub fn as_query(&self) -> &QueryPod {
+        &self.0
+    }
+
+    /// Get a mutable reference to the query.
+    pub fn as_query_mut(&mut self) -> &mut QueryPod {
+        &mut self.0
+    }
+}
+
+impl From<QueryPod> for QueryBrushPod {
     fn from(query: QueryPod) -> Self {
         Self(query)
     }
