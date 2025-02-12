@@ -224,8 +224,7 @@ struct System {
 
     is_selecting: bool,
     query: gs::QueryPod,
-    selection_start: Vec2,
-    selection_mask: wgpu::Texture,
+    selection_rect_start: Vec2,
     selection_buffer: wgpu::Buffer,
     selection_bind_group: wgpu::BindGroup,
     selection_pipeline: wgpu::RenderPipeline,
@@ -403,22 +402,6 @@ impl System {
             multiview: None,
             cache: None,
         });
-
-        let selection_mask = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Selection Mask"),
-            size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            view_formats: &[],
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R8Uint,
-            usage: wgpu::TextureUsages::STORAGE_BINDING,
-        });
-
         log::info!("System initialized");
 
         Self {
@@ -433,8 +416,7 @@ impl System {
 
             is_selecting: false,
             query: gs::QueryPod::none(),
-            selection_start: Vec2::ZERO,
-            selection_mask,
+            selection_rect_start: Vec2::ZERO,
             selection_buffer,
             selection_bind_group,
             selection_pipeline,
@@ -448,14 +430,14 @@ impl System {
         }
 
         if self.is_selecting {
-            // Selection
+            // Selection rect
             if input.pressed_mouse.contains(&MouseButton::Left) {
-                self.selection_start = input.mouse_pos;
+                self.selection_rect_start = input.mouse_pos;
             }
 
             if input.held_mouse.contains(&MouseButton::Left) {
-                let top_left = self.selection_start.min(input.mouse_pos);
-                let bottom_right = self.selection_start.max(input.mouse_pos);
+                let top_left = self.selection_rect_start.min(input.mouse_pos);
+                let bottom_right = self.selection_rect_start.max(input.mouse_pos);
 
                 self.query = gs::QueryPod::rect(top_left, bottom_right)
                     .with_selection_op(gs::QuerySelectionOp::Replace);
@@ -554,7 +536,7 @@ impl System {
 
         if self.query.query_type() == gs::QueryType::Rect {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Selection Render Pass"),
+                label: Some("Selection Rect Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &texture_view,
                     resolve_target: None,
@@ -583,21 +565,6 @@ impl System {
             self.config.width = size.width;
             self.config.height = size.height;
             self.surface.configure(&self.device, &self.config);
-
-            self.selection_mask = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Selection Mask"),
-                size: wgpu::Extent3d {
-                    width: self.config.width,
-                    height: self.config.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                view_formats: &[],
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::R8Uint,
-                usage: wgpu::TextureUsages::STORAGE_BINDING,
-            });
         }
     }
 }
