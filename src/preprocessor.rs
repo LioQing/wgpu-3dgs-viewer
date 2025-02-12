@@ -1,12 +1,13 @@
 use crate::{
     CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig, GaussiansBuffer,
     GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer, ModelTransformBuffer,
-    QueryBuffer, QueryResultCountBuffer, RadixSortIndirectArgsBuffer,
+    QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer, RadixSortIndirectArgsBuffer,
 };
 
 /// Preprocessor to preprocess the Gaussians.
 ///
-/// It computes the depth for [`RadixSorter`](crate::RadixSorter) and do frustum culling.
+/// It computes the depth for [`RadixSorter`](crate::RadixSorter), do frustum culling,
+/// and process selection query.
 #[derive(Debug)]
 pub struct Preprocessor {
     /// The bind group layout.
@@ -130,6 +131,17 @@ impl Preprocessor {
                     },
                     count: None,
                 },
+                // Query results storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 
@@ -146,6 +158,7 @@ impl Preprocessor {
         gaussians_depth: &GaussiansDepthBuffer,
         query: &QueryBuffer,
         query_result_count: &QueryResultCountBuffer,
+        query_results: &QueryResultsBuffer,
     ) -> Result<Self, Error> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
             return Err(Error::ModelSizeExceedsDeviceLimit {
@@ -207,6 +220,11 @@ impl Preprocessor {
                 wgpu::BindGroupEntry {
                     binding: 8,
                     resource: query_result_count.buffer().as_entire_binding(),
+                },
+                // Query results storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: query_results.buffer().as_entire_binding(),
                 },
             ],
         });

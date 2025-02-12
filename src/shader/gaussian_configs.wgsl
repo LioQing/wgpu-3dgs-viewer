@@ -39,11 +39,11 @@ fn gaussian_unpack_sh(gaussian_index: u32, sh_index: u32) -> vec3<f32> {
 }
 // sh unpack - half
 
-// sh field - min max norm
+// sh field - norm 8
 sh: array<u32, (1 + (3 * 15 + 3) / 4)>,
-// sh field - min max norm
+// sh field - norm 8
 
-// sh unpack - min max norm
+// sh unpack - norm 8
 fn gaussian_unpack_sh(gaussian_index: u32, sh_index: u32) -> vec3<f32> {
     let minmax = unpack2x16float(gaussians[gaussian_index].sh[0]);
 
@@ -63,7 +63,7 @@ fn gaussian_unpack_sh(gaussian_index: u32, sh_index: u32) -> vec3<f32> {
 
     return minmax.x + norm * (minmax.y - minmax.x);
 }
-// sh unpack - min max norm
+// sh unpack - norm 8
 
 // sh field - none
 // sh field - none

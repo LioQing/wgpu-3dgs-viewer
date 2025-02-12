@@ -134,11 +134,11 @@ impl GaussianShConfig for GaussianShHalfConfig {
     }
 }
 
-/// The min max normalized SH configuration of Gaussian.
-pub struct GaussianShMinMaxNormConfig;
+/// The min max 8 bit normalized SH configuration of Gaussian.
+pub struct GaussianShNorm8Config;
 
-impl GaussianShConfig for GaussianShMinMaxNormConfig {
-    const NAME: &'static str = "min max norm";
+impl GaussianShConfig for GaussianShNorm8Config {
+    const NAME: &'static str = "norm 8";
 
     type Field = [u8; 4 + (3 * 15 + 3)]; // ([f16; 2], [U8Vec4; (3 * 15 + 3) / 4])
 
@@ -311,8 +311,8 @@ gaussian_pod!(sh = Single, cov3d = Single, padding_size = 1);
 gaussian_pod!(sh = Single, cov3d = Half, padding_size = 0);
 gaussian_pod!(sh = Half, cov3d = Single, padding_size = 3);
 gaussian_pod!(sh = Half, cov3d = Half, padding_size = 2);
-gaussian_pod!(sh = MinMaxNorm, cov3d = Single, padding_size = 1);
-gaussian_pod!(sh = MinMaxNorm, cov3d = Half, padding_size = 0);
+gaussian_pod!(sh = Norm8, cov3d = Single, padding_size = 1);
+gaussian_pod!(sh = Norm8, cov3d = Half, padding_size = 0);
 gaussian_pod!(sh = None, cov3d = Single, padding_size = 2);
 gaussian_pod!(sh = None, cov3d = Half, padding_size = 1);
 
@@ -682,6 +682,8 @@ impl QueryBuffer {
     }
 
     /// Update the query buffer.
+    ///
+    /// There can only be one query at a time.
     pub fn update(&self, queue: &wgpu::Queue, query: &QueryPod) {
         queue.write_buffer(&self.0, 0, bytemuck::bytes_of(query));
     }
@@ -696,15 +698,44 @@ impl QueryBuffer {
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum QueryType {
-    None = 0,
-    Hit = 1,
+    /// Do not query anything.
+    None = 0 << 24,
+
+    /// Query a single pixel hit. Done by render shader.
+    Hit = 1 << 24,
+
+    /// Query centroids by a rectangle. Done by preprocess shader.
+    Rect = 2 << 24,
+}
+
+/// The selection operations.
+///
+/// It will operate on the selection buffer using the query result.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum QuerySelectionOp {
+    /// Do nothing.
+    None = 0 << 16,
+
+    /// Discards previous selection and selects the new one.
+    Replace = 1 << 16,
+
+    /// Removes the new selection from the previous selection.
+    Remove = 2 << 16,
+
+    /// Adds the new selection to the previous selection.
+    Add = 3 << 16,
 }
 
 /// The POD representation of a query.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct QueryPod {
+    /// X: \[Type (8), SelectOp (8), Padding (16), ...\].
+    /// Y-W: Additional content.
     pub content_u32: UVec4,
+
+    /// Any additional content.
     pub content_f32: Vec4,
 }
 
@@ -719,10 +750,22 @@ impl QueryPod {
 
     /// Get the type of the query.
     pub fn query_type(&self) -> QueryType {
-        match self.content_u32.x {
+        match self.content_u32.x & 0xFF00_0000 {
             x if x == QueryType::None as u32 => QueryType::None,
             x if x == QueryType::Hit as u32 => QueryType::Hit,
+            x if x == QueryType::Rect as u32 => QueryType::Rect,
             _ => panic!("Unknown query type"),
+        }
+    }
+
+    /// Get the selection operation of the query.
+    pub fn query_selection_op(&self) -> QuerySelectionOp {
+        match self.content_u32.x & 0x00FF_0000 {
+            x if x == QuerySelectionOp::None as u32 => QuerySelectionOp::None,
+            x if x == QuerySelectionOp::Replace as u32 => QuerySelectionOp::Replace,
+            x if x == QuerySelectionOp::Add as u32 => QuerySelectionOp::Add,
+            x if x == QuerySelectionOp::Remove as u32 => QuerySelectionOp::Remove,
+            _ => panic!("Unknown query selection operation"),
         }
     }
 
@@ -746,7 +789,7 @@ impl QueryPod {
 
     /// Create a new [`QueryType::Hit`] query.
     ///
-    /// `coords` are the surface texture coordinates.
+    /// - `coords` are the surface texture coordinates.
     pub const fn hit(coords: Vec2) -> Self {
         Self::new(
             uvec4(QueryType::Hit as u32, 0, 0, 0),
@@ -762,6 +805,35 @@ impl QueryPod {
     /// Get as a mutable reference of [`QueryType::Hit`] query.
     pub fn as_hit_mut(&mut self) -> &mut QueryHitPod {
         bytemuck::cast_mut(self)
+    }
+
+    /// Create a new [`QueryType::Rect`] query.
+    ///
+    /// - `top_left` are the top left coordinates of the selection rectangle.
+    /// - `bottom_right` are the bottom right coordinates of the selection rectangle.
+    ///
+    /// *Note*: No result if `top_left.x < bottom_right.x` or `top_left.y < bottom_right.y`.
+    pub const fn rect(top_left: Vec2, bottom_right: Vec2) -> Self {
+        Self::new(
+            uvec4(QueryType::Rect as u32, 0, 0, 0),
+            vec4(top_left.x, top_left.y, bottom_right.x, bottom_right.y),
+        )
+    }
+
+    /// Get as a reference of [`QueryType::Rect`] query.
+    pub fn as_rect(&self) -> &QueryRectPod {
+        bytemuck::cast_ref(self)
+    }
+
+    /// Get as a mutable reference of [`QueryType::Rect`] query.
+    pub fn as_rect_mut(&mut self) -> &mut QueryRectPod {
+        bytemuck::cast_mut(self)
+    }
+
+    /// Set the selection operation.
+    pub fn with_selection_op(mut self, selection_op: QuerySelectionOp) -> Self {
+        self.content_u32.x |= selection_op as u32;
+        self
     }
 }
 
@@ -784,7 +856,7 @@ impl From<QueryHitPod> for QueryPod {
 }
 
 /// The POD representation of the [`QueryType::None`].
-#[repr(transparent)]
+#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct QueryNonePod(QueryPod);
 
@@ -840,6 +912,39 @@ impl From<QueryPod> for QueryHitPod {
     }
 }
 
+/// The POD representation of the [`QueryType::Rect`].
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct QueryRectPod(QueryPod);
+
+impl QueryRectPod {
+    /// Create a new query.
+    pub const fn new(top_left: Vec2, bottom_right: Vec2) -> Self {
+        Self(QueryPod::rect(top_left, bottom_right))
+    }
+
+    /// Get the top left coordinates of the selection rectangle.
+    pub fn top_left(&self) -> Vec2 {
+        self.0.content_f32.xy()
+    }
+
+    /// Get the bottom right coordinates of the selection rectangle.
+    pub fn bottom_right(&self) -> Vec2 {
+        self.0.content_f32.zw()
+    }
+
+    /// Get a reference to the query.
+    pub fn as_query(&self) -> &QueryPod {
+        &self.0
+    }
+}
+
+impl From<QueryPod> for QueryRectPod {
+    fn from(query: QueryPod) -> Self {
+        Self(query)
+    }
+}
+
 /// The query result count storage buffer for [`Renderer`](crate::Renderer).
 #[derive(Debug)]
 pub struct QueryResultCountBuffer {
@@ -852,14 +957,14 @@ impl QueryResultCountBuffer {
     pub fn new(device: &wgpu::Device) -> Self {
         let data = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Query Result Count Buffer"),
-            size: std::mem::size_of::<u32>() as u64,
+            size: std::mem::size_of::<u32>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
         let download = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Query Result Count Download buffer"),
-            size: data.size(),
+            size: std::mem::size_of::<u32>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -880,7 +985,7 @@ impl QueryResultCountBuffer {
 
     /// Prepare for downloading the query result count.
     pub fn prepare_download(&self, encoder: &mut wgpu::CommandEncoder) {
-        encoder.copy_buffer_to_buffer(self.buffer(), 0, &self.download, 0, self.buffer().size());
+        encoder.copy_buffer_to_buffer(self.buffer(), 0, &self.download, 0, self.download.size());
     }
 
     /// Map the download buffer to read the query result count.
@@ -1053,5 +1158,52 @@ impl QueryHitResultPod {
 impl From<QueryResultPod> for QueryHitResultPod {
     fn from(result: QueryResultPod) -> Self {
         Self(result)
+    }
+}
+
+/// The dipsatch indirect args storage buffer for [`Postprocessor`](crate::Postprocessor).
+#[derive(Debug)]
+pub struct PostprocessIndirectArgsBuffer(wgpu::Buffer);
+
+impl PostprocessIndirectArgsBuffer {
+    /// Create a new postprocessor indirect args buffer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Postprocessor Indirect Args Buffer"),
+            size: std::mem::size_of::<wgpu::util::DispatchIndirectArgs>() as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT,
+            mapped_at_creation: false,
+        });
+
+        Self(buffer)
+    }
+
+    /// Get the buffer.
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+/// The selection storage buffer for storing selected Gaussians as a bitvec.
+#[derive(Debug)]
+pub struct SelectionBuffer(wgpu::Buffer);
+
+impl SelectionBuffer {
+    /// Create a new selection buffer.
+    pub fn new(device: &wgpu::Device, gaussian_count: u32) -> Self {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Selection Buffer"),
+            size: (gaussian_count.div_ceil(32) * std::mem::size_of::<u32>() as u32)
+                as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+
+        Self(buffer)
+    }
+
+    /// Get the buffer.
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
     }
 }

@@ -2,6 +2,7 @@ mod buffer;
 mod camera;
 mod error;
 mod gaussian;
+mod postprocessor;
 mod preprocessor;
 pub mod query;
 mod radix_sorter;
@@ -13,13 +14,14 @@ pub use buffer::*;
 pub use camera::*;
 pub use error::*;
 pub use gaussian::*;
+pub use postprocessor::*;
 pub use preprocessor::*;
 pub use radix_sorter::*;
 pub use renderer::*;
 
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]
-pub struct Viewer<G: GaussianPod = GaussianPodWithShMinMaxNormCov3dHalfConfigs> {
+pub struct Viewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
     pub camera_buffer: CameraBuffer,
     pub model_transform_buffer: ModelTransformBuffer,
     pub gaussian_transform_buffer: GaussianTransformBuffer,
@@ -31,10 +33,13 @@ pub struct Viewer<G: GaussianPod = GaussianPodWithShMinMaxNormCov3dHalfConfigs> 
     pub query_buffer: QueryBuffer,
     pub query_result_count_buffer: QueryResultCountBuffer,
     pub query_results_buffer: QueryResultsBuffer,
+    pub postprocess_indirect_args_buffer: PostprocessIndirectArgsBuffer,
+    pub selection_buffer: SelectionBuffer,
 
     pub preprocessor: Preprocessor,
     pub radix_sorter: RadixSorter,
     pub renderer: Renderer,
+    pub postprocessor: Postprocessor,
 }
 
 impl<G: GaussianPod> Viewer<G> {
@@ -80,6 +85,12 @@ impl<G: GaussianPod> Viewer<G> {
         let query_results_buffer =
             QueryResultsBuffer::new(device, gaussians.gaussians.len() as u32);
 
+        log::debug!("Creating postprocess indirect args buffer");
+        let postprocess_indirect_args_buffer = PostprocessIndirectArgsBuffer::new(device);
+
+        log::debug!("Creating selection buffer");
+        let selection_buffer = SelectionBuffer::new(device, gaussians.gaussians.len() as u32);
+
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new(
             device,
@@ -92,6 +103,7 @@ impl<G: GaussianPod> Viewer<G> {
             &gaussians_depth_buffer,
             &query_buffer,
             &query_result_count_buffer,
+            &query_results_buffer,
         )?;
 
         log::debug!("Creating radix sorter");
@@ -110,7 +122,18 @@ impl<G: GaussianPod> Viewer<G> {
             &query_buffer,
             &query_result_count_buffer,
             &query_results_buffer,
+            &selection_buffer,
         )?;
+
+        log::debug!("Creating postprocessor");
+        let postprocessor = Postprocessor::new(
+            device,
+            &postprocess_indirect_args_buffer,
+            &query_buffer,
+            &query_result_count_buffer,
+            &query_results_buffer,
+            &selection_buffer,
+        );
 
         log::info!("Viewer created");
 
@@ -126,10 +149,13 @@ impl<G: GaussianPod> Viewer<G> {
             query_buffer,
             query_result_count_buffer,
             query_results_buffer,
+            postprocess_indirect_args_buffer,
+            selection_buffer,
 
             preprocessor,
             radix_sorter,
             renderer,
+            postprocessor,
         })
     }
 
@@ -144,6 +170,8 @@ impl<G: GaussianPod> Viewer<G> {
     }
 
     /// Update the query.
+    ///
+    /// There can only be one query at a time.
     pub fn update_query(&mut self, queue: &wgpu::Queue, query: &QueryPod) {
         self.query_buffer.update(queue, query);
     }
@@ -186,6 +214,12 @@ impl<G: GaussianPod> Viewer<G> {
 
         self.renderer
             .render(encoder, texture_view, &self.indirect_args_buffer);
+
+        self.postprocessor.postprocess(
+            encoder,
+            gaussian_count,
+            &self.postprocess_indirect_args_buffer,
+        );
     }
 
     /// Download the query results from the GPU.

@@ -1,7 +1,7 @@
 use crate::{
     CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig,
     GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer,
+    ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer, SelectionBuffer,
 };
 
 /// A renderer for Gaussians.
@@ -110,6 +110,17 @@ impl Renderer {
                     },
                     count: None,
                 },
+                // Selection storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 
@@ -126,6 +137,7 @@ impl Renderer {
         query: &QueryBuffer,
         query_result_count: &QueryResultCountBuffer,
         query_results: &QueryResultsBuffer,
+        selection: &SelectionBuffer,
     ) -> Result<Self, Error> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
             return Err(Error::ModelSizeExceedsDeviceLimit {
@@ -182,6 +194,11 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 7,
                     resource: query_results.buffer().as_entire_binding(),
+                },
+                // Selection storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: selection.buffer().as_entire_binding(),
                 },
             ],
         });

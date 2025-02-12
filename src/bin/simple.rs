@@ -48,6 +48,8 @@ struct Input {
     pub pressed_keys: HashSet<KeyCode>,
     pub held_keys: HashSet<KeyCode>,
     pub pressed_mouse: HashSet<MouseButton>,
+    pub held_mouse: HashSet<MouseButton>,
+    pub released_mouse: HashSet<MouseButton>,
     pub mouse_diff: Vec2,
     pub mouse_pos: Vec2,
 }
@@ -58,6 +60,8 @@ impl Input {
             pressed_keys: HashSet::new(),
             held_keys: HashSet::new(),
             pressed_mouse: HashSet::new(),
+            held_mouse: HashSet::new(),
+            released_mouse: HashSet::new(),
             mouse_diff: Vec2::ZERO,
             mouse_pos: Vec2::ZERO,
         }
@@ -90,11 +94,16 @@ impl Input {
     /// Update the input state based on [`WindowEvent`].
     fn window_event(&mut self, event: &WindowEvent) {
         match event {
-            WindowEvent::MouseInput { state, button, .. } => {
-                if *state == ElementState::Pressed {
+            WindowEvent::MouseInput { state, button, .. } => match *state {
+                ElementState::Pressed => {
                     self.pressed_mouse.insert(*button);
+                    self.held_mouse.insert(*button);
                 }
-            }
+                ElementState::Released => {
+                    self.released_mouse.insert(*button);
+                    self.held_mouse.remove(button);
+                }
+            },
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_pos = vec2(position.x as f32, position.y as f32);
             }
@@ -106,6 +115,7 @@ impl Input {
     fn new_frame(&mut self) {
         self.pressed_keys.clear();
         self.pressed_mouse.clear();
+        self.released_mouse.clear();
         self.mouse_diff = Vec2::ZERO;
     }
 }
@@ -214,6 +224,8 @@ struct System {
 
     is_selecting: bool,
     query: gs::QueryPod,
+    selection_start: Vec2,
+    selection_mask: wgpu::Texture,
     selection_buffer: wgpu::Buffer,
     selection_bind_group: wgpu::BindGroup,
     selection_pipeline: wgpu::RenderPipeline,
@@ -316,7 +328,7 @@ impl System {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -392,6 +404,21 @@ impl System {
             cache: None,
         });
 
+        let selection_mask = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Selection Mask"),
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            view_formats: &[],
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R8Uint,
+            usage: wgpu::TextureUsages::STORAGE_BINDING,
+        });
+
         log::info!("System initialized");
 
         Self {
@@ -406,6 +433,8 @@ impl System {
 
             is_selecting: false,
             query: gs::QueryPod::none(),
+            selection_start: Vec2::ZERO,
+            selection_mask,
             selection_buffer,
             selection_bind_group,
             selection_pipeline,
@@ -415,14 +444,36 @@ impl System {
     pub fn update(&mut self, input: &Input, delta_time: f32) {
         if input.pressed_keys.contains(&KeyCode::KeyC) {
             self.is_selecting = !self.is_selecting;
+            self.query = gs::QueryPod::none();
         }
-
-        self.query = gs::QueryPod::none();
 
         if self.is_selecting {
             // Selection
             if input.pressed_mouse.contains(&MouseButton::Left) {
-                self.query = gs::QueryPod::hit(input.mouse_pos);
+                self.selection_start = input.mouse_pos;
+            }
+
+            if input.held_mouse.contains(&MouseButton::Left) {
+                let top_left = self.selection_start.min(input.mouse_pos);
+                let bottom_right = self.selection_start.max(input.mouse_pos);
+
+                self.query = gs::QueryPod::rect(top_left, bottom_right)
+                    .with_selection_op(gs::QuerySelectionOp::Replace);
+            }
+
+            if input.released_mouse.contains(&MouseButton::Left) {
+                self.query = gs::QueryPod::none();
+            }
+
+            if self.query.query_type() == gs::QueryType::Rect {
+                self.queue.write_buffer(
+                    &self.selection_buffer,
+                    0,
+                    bytemuck::cast_slice(&[
+                        self.query.as_rect().top_left(),
+                        self.query.as_rect().bottom_right(),
+                    ]),
+                );
             }
         } else {
             // Camera movement
@@ -501,7 +552,7 @@ impl System {
             self.gaussians.gaussians.len() as u32,
         );
 
-        {
+        if self.query.query_type() == gs::QueryType::Rect {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Selection Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -519,42 +570,12 @@ impl System {
 
             render_pass.set_pipeline(&self.selection_pipeline);
             render_pass.set_bind_group(0, &self.selection_bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
+            render_pass.draw(0..6, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
         texture.present();
-
-        // Download the selection result
-        if self.query.query_type() == gs::QueryType::Hit {
-            futures::executor::block_on(async move {
-                let mut query_results = self
-                    .viewer
-                    .download_query_results(&self.device, &self.queue)
-                    .await
-                    .expect("query results")
-                    .into_iter()
-                    .map(gs::QueryHitResultPod::from)
-                    .collect::<Vec<_>>();
-
-                let (_, _, hit_pos) = match gs::query::hit_pos_by_most_alpha(
-                    self.query.as_hit(),
-                    &mut query_results,
-                    &self.camera,
-                    uvec2(self.config.width, self.config.height),
-                ) {
-                    Some(pos) => pos,
-                    None => return,
-                };
-
-                self.queue.write_buffer(
-                    &self.selection_buffer,
-                    0,
-                    bytemuck::cast_slice(&[hit_pos.extend(1.0)]),
-                );
-            });
-        }
     }
 
     pub fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
@@ -562,6 +583,21 @@ impl System {
             self.config.width = size.width;
             self.config.height = size.height;
             self.surface.configure(&self.device, &self.config);
+
+            self.selection_mask = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Selection Mask"),
+                size: wgpu::Extent3d {
+                    width: self.config.width,
+                    height: self.config.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                view_formats: &[],
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::R8Uint,
+                usage: wgpu::TextureUsages::STORAGE_BINDING,
+            });
         }
     }
 }
