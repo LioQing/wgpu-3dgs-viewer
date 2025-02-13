@@ -97,27 +97,3 @@ impl PostprocessIndirectArgsBuffer {
         &self.0
     }
 }
-
-/// The selection storage buffer for storing selected Gaussians as a bitvec.
-#[derive(Debug)]
-pub struct SelectionBuffer(wgpu::Buffer);
-
-impl SelectionBuffer {
-    /// Create a new selection buffer.
-    pub fn new(device: &wgpu::Device, gaussian_count: u32) -> Self {
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Selection Buffer"),
-            size: (gaussian_count.div_ceil(32) * std::mem::size_of::<u32>() as u32)
-                as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::STORAGE,
-            mapped_at_creation: false,
-        });
-
-        Self(buffer)
-    }
-
-    /// Get the buffer.
-    pub fn buffer(&self) -> &wgpu::Buffer {
-        &self.0
-    }
-}

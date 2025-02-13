@@ -125,6 +125,7 @@ impl Input {
     /// Clear states for a new frame.
     fn new_frame(&mut self) {
         self.pressed_keys.clear();
+        self.scroll_diff = 0.0;
         self.pressed_mouse.clear();
         self.released_mouse.clear();
         self.mouse_diff = Vec2::ZERO;
@@ -322,6 +323,7 @@ impl System {
             gs::GaussianShDegree::new(3).expect("SH degree"),
             false,
         );
+        viewer.update_selection_highlight(&queue, vec4(1.0, 1.0, 0.0, 0.5));
 
         log::debug!("Creating selection bind group layout");
         let selection_bind_group_layout =
@@ -437,44 +439,77 @@ impl System {
             if self.query.query_type() == gs::QueryType::None
                 && input.pressed_mouse.contains(&MouseButton::Left)
             {
+                let selection_op = if input.held_keys.contains(&KeyCode::ShiftLeft) {
+                    gs::QuerySelectionOp::Add
+                } else if input.held_keys.contains(&KeyCode::ControlLeft) {
+                    gs::QuerySelectionOp::Remove
+                } else {
+                    gs::QuerySelectionOp::Set
+                };
+
                 self.query = gs::QueryPod::brush(
                     self.selection_brush_radius,
                     input.mouse_pos,
                     input.mouse_pos,
                 )
-                .with_selection_op(gs::QuerySelectionOp::Set);
+                .with_selection_op(selection_op);
             } else if self.query.query_type() == gs::QueryType::Brush
                 && input.held_mouse.contains(&MouseButton::Left)
             {
+                let selection_op = match self.query.query_selection_op() {
+                    gs::QuerySelectionOp::Add | gs::QuerySelectionOp::Set => {
+                        gs::QuerySelectionOp::Add
+                    }
+                    gs::QuerySelectionOp::Remove => gs::QuerySelectionOp::Remove,
+                    gs::QuerySelectionOp::None => gs::QuerySelectionOp::Set,
+                };
+
                 self.query = gs::QueryPod::brush(
                     self.selection_brush_radius,
                     self.query.as_brush().end(),
                     input.mouse_pos,
                 )
-                .with_selection_op(gs::QuerySelectionOp::Add);
+                .with_selection_op(selection_op);
             }
 
             if input.scroll_diff != 0.0 {
-                self.selection_brush_radius =
-                    (self.selection_brush_radius as i32 + input.scroll_diff as i32).max(1) as u32;
+                self.selection_brush_radius = (self.selection_brush_radius as i32
+                    + input.scroll_diff as i32 * 5)
+                    .max(1) as u32;
             }
 
             // Selection rect
             if self.query.query_type() == gs::QueryType::None
                 && input.pressed_mouse.contains(&MouseButton::Right)
             {
+                let selection_op = if input.held_keys.contains(&KeyCode::ShiftLeft) {
+                    gs::QuerySelectionOp::Add
+                } else if input.held_keys.contains(&KeyCode::ControlLeft) {
+                    gs::QuerySelectionOp::Remove
+                } else {
+                    gs::QuerySelectionOp::Set
+                };
+
                 self.selection_rect_start = input.mouse_pos;
                 self.query =
                     gs::QueryPod::rect(self.selection_rect_start, self.selection_rect_start)
-                        .with_selection_op(gs::QuerySelectionOp::Set);
+                        .with_selection_op(selection_op);
             } else if self.query.query_type() == gs::QueryType::Rect
                 && input.held_mouse.contains(&MouseButton::Right)
             {
+                let selection_op = match self.query.query_selection_op() {
+                    gs::QuerySelectionOp::Add | gs::QuerySelectionOp::Set => {
+                        gs::QuerySelectionOp::Add
+                    }
+                    gs::QuerySelectionOp::Remove => gs::QuerySelectionOp::Remove,
+                    gs::QuerySelectionOp::None => gs::QuerySelectionOp::Set,
+                };
+
                 let top_left = self.selection_rect_start.min(input.mouse_pos);
                 let bottom_right = self.selection_rect_start.max(input.mouse_pos);
 
-                self.query = gs::QueryPod::rect(top_left, bottom_right)
-                    .with_selection_op(gs::QuerySelectionOp::Set);
+                self.query =
+                    gs::QueryPod::rect(top_left, bottom_right).with_selection_op(selection_op);
             }
 
             // Clear query

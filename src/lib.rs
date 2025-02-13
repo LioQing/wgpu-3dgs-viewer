@@ -34,6 +34,7 @@ pub struct Viewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
     pub query_result_count_buffer: QueryResultCountBuffer,
     pub query_results_buffer: QueryResultsBuffer,
     pub postprocess_indirect_args_buffer: PostprocessIndirectArgsBuffer,
+    pub selection_highlight_buffer: SelectionHighlightBuffer,
     pub selection_buffer: SelectionBuffer,
 
     pub preprocessor: Preprocessor,
@@ -88,6 +89,9 @@ impl<G: GaussianPod> Viewer<G> {
         log::debug!("Creating postprocess indirect args buffer");
         let postprocess_indirect_args_buffer = PostprocessIndirectArgsBuffer::new(device);
 
+        log::debug!("Creating selection highlight buffer");
+        let selection_highlight_buffer = SelectionHighlightBuffer::new(device);
+
         log::debug!("Creating selection buffer");
         let selection_buffer = SelectionBuffer::new(device, gaussians.gaussians.len() as u32);
 
@@ -122,6 +126,7 @@ impl<G: GaussianPod> Viewer<G> {
             &query_buffer,
             &query_result_count_buffer,
             &query_results_buffer,
+            &selection_highlight_buffer,
             &selection_buffer,
         )?;
 
@@ -150,6 +155,7 @@ impl<G: GaussianPod> Viewer<G> {
             query_result_count_buffer,
             query_results_buffer,
             postprocess_indirect_args_buffer,
+            selection_highlight_buffer,
             selection_buffer,
 
             preprocessor,
@@ -198,6 +204,11 @@ impl<G: GaussianPod> Viewer<G> {
     ) {
         self.gaussian_transform_buffer
             .update(queue, size, display_mode, sh_deg, no_sh0);
+    }
+
+    /// Update the selection highlight.
+    pub fn update_selection_highlight(&mut self, queue: &wgpu::Queue, color: Vec4) {
+        self.selection_highlight_buffer.update(queue, color);
     }
 
     /// Render the viewer.

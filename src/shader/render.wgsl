@@ -301,7 +301,13 @@ struct QueryResult {
 @group(0) @binding(7)
 var<storage, read_write> query_results: array<QueryResult>;
 
+struct SelectionHighlight {
+    color: vec4<f32>,
+}
 @group(0) @binding(8)
+var<uniform> selection_highlight: SelectionHighlight;
+
+@group(0) @binding(9)
 var<storage, read> selection: array<u32>;
 
 fn selection_at(index: u32) -> bool {
@@ -323,9 +329,11 @@ fn quad_offset(vert_index: u32) -> vec2<f32> {
 }
 
 fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {
-    if selection_at(gaussian_index) {
+    let selected = selection_at(gaussian_index);
+
+    if selected && selection_highlight.color.a == 1.0 {
         let color = unpack4x8unorm(gaussians[gaussian_index].color);
-        return vec4<f32>(1.0, 1.0, 0.0, color.a);
+        return vec4<f32>(selection_highlight.color.rgb, color.a);
     }
 
     let world_camera_pos = -(transpose(mat3x3<f32>(
@@ -336,12 +344,21 @@ fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {
     let world_view_dir = world_camera_pos - world_pos;
     let model_view_dir = model_transform_inv_sr_mat() * world_view_dir;
 
-    return gaussian_color(
+    let color = gaussian_color(
         gaussian_index,
         -normalize(model_view_dir),
         gaussian_transform_sh_deg(),
         gaussian_transform_no_sh0(),
     );
+
+    if selected && selection_highlight.color.a > 0.0 {
+        return vec4<f32>(
+            mix(color.rgb, selection_highlight.color.rgb, selection_highlight.color.a),
+            color.a,
+        );
+    }
+
+    return color;
 }
 
 @vertex
