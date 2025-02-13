@@ -208,27 +208,36 @@ impl Default for QueryPod {
     }
 }
 
-impl From<QueryNonePod> for QueryPod {
-    fn from(query: QueryNonePod) -> Self {
-        query.0
+impl<T: QueryVariant> From<T> for QueryPod {
+    fn from(query: T) -> Self {
+        query.into_query()
     }
 }
 
-impl From<QueryHitPod> for QueryPod {
-    fn from(query: QueryHitPod) -> Self {
-        query.0
-    }
-}
+/// The variant of [`QueryPod`].
+pub trait QueryVariant: From<QueryPod> {
+    /// Cast to [`QueryPod`].
+    fn into_query(self) -> QueryPod;
 
-impl From<QueryRectPod> for QueryPod {
-    fn from(query: QueryRectPod) -> Self {
-        query.0
-    }
-}
+    /// Get as a reference of [`QueryPod`].
+    fn as_query(&self) -> &QueryPod;
 
-impl From<QueryBrushPod> for QueryPod {
-    fn from(query: QueryBrushPod) -> Self {
-        query.0
+    /// Get as a mutable reference of [`QueryPod`].
+    fn as_query_mut(&mut self) -> &mut QueryPod;
+
+    /// Get the type of the query.
+    fn query_type(&self) -> QueryType {
+        self.as_query().query_type()
+    }
+
+    /// Get the selection operation of the query.
+    fn query_selection_op(&self) -> QuerySelectionOp {
+        self.as_query().query_selection_op()
+    }
+
+    /// Set the selection operation.
+    fn with_selection_op(self, selection_op: QuerySelectionOp) -> Self {
+        self.into_query().with_selection_op(selection_op).into()
     }
 }
 
@@ -242,14 +251,18 @@ impl QueryNonePod {
     pub const fn new() -> Self {
         Self(QueryPod::none())
     }
+}
 
-    /// Get a reference to the query.
-    pub fn as_query(&self) -> &QueryPod {
+impl QueryVariant for QueryNonePod {
+    fn into_query(self) -> QueryPod {
+        self.0
+    }
+
+    fn as_query(&self) -> &QueryPod {
         &self.0
     }
 
-    /// Get a mutable reference to the query.
-    pub fn as_query_mut(&mut self) -> &mut QueryPod {
+    fn as_query_mut(&mut self) -> &mut QueryPod {
         &mut self.0
     }
 }
@@ -281,14 +294,18 @@ impl QueryHitPod {
     pub fn coords(&self) -> Vec2 {
         self.0.content_f32.xy()
     }
+}
 
-    /// Get a reference to the query.
-    pub fn as_query(&self) -> &QueryPod {
+impl QueryVariant for QueryHitPod {
+    fn into_query(self) -> QueryPod {
+        self.0
+    }
+
+    fn as_query(&self) -> &QueryPod {
         &self.0
     }
 
-    /// Get a mutable reference to the query.
-    pub fn as_query_mut(&mut self) -> &mut QueryPod {
+    fn as_query_mut(&mut self) -> &mut QueryPod {
         &mut self.0
     }
 }
@@ -319,14 +336,18 @@ impl QueryRectPod {
     pub fn bottom_right(&self) -> Vec2 {
         self.0.content_f32.zw()
     }
+}
 
-    /// Get a reference to the query.
-    pub fn as_query(&self) -> &QueryPod {
+impl QueryVariant for QueryRectPod {
+    fn into_query(self) -> QueryPod {
+        self.0
+    }
+
+    fn as_query(&self) -> &QueryPod {
         &self.0
     }
 
-    /// Get a mutable reference to the query.
-    pub fn as_query_mut(&mut self) -> &mut QueryPod {
+    fn as_query_mut(&mut self) -> &mut QueryPod {
         &mut self.0
     }
 }
@@ -362,14 +383,18 @@ impl QueryBrushPod {
     pub fn end(&self) -> Vec2 {
         self.0.content_f32.zw()
     }
+}
 
-    /// Get a reference to the query.
-    pub fn as_query(&self) -> &QueryPod {
+impl QueryVariant for QueryBrushPod {
+    fn into_query(self) -> QueryPod {
+        self.0
+    }
+
+    fn as_query(&self) -> &QueryPod {
         &self.0
     }
 
-    /// Get a mutable reference to the query.
-    pub fn as_query_mut(&mut self) -> &mut QueryPod {
+    fn as_query_mut(&mut self) -> &mut QueryPod {
         &mut self.0
     }
 }

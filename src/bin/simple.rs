@@ -498,11 +498,11 @@ impl System {
                 && input.held_mouse.contains(&MouseButton::Right)
             {
                 let selection_op = match self.query.query_selection_op() {
-                    gs::QuerySelectionOp::Add | gs::QuerySelectionOp::Set => {
-                        gs::QuerySelectionOp::Add
-                    }
+                    gs::QuerySelectionOp::Add => gs::QuerySelectionOp::Add,
                     gs::QuerySelectionOp::Remove => gs::QuerySelectionOp::Remove,
-                    gs::QuerySelectionOp::None => gs::QuerySelectionOp::Set,
+                    gs::QuerySelectionOp::None | gs::QuerySelectionOp::Set => {
+                        gs::QuerySelectionOp::Set
+                    }
                 };
 
                 let top_left = self.selection_rect_start.min(input.mouse_pos);

@@ -1,16 +1,8 @@
-struct DispatchIndirectArgs {
-    x: u32,
-    y: u32,
-    z: u32,
-}
-@group(0) @binding(0)
-var<storage, read_write> indirect_args: DispatchIndirectArgs;
-
 struct Query {
     content_u32: vec4<u32>,
     content_f32: vec4<f32>,
 }
-@group(0) @binding(1)
+@group(0) @binding(0)
 var<uniform> query: Query;
 
 const query_type_none = 0u << 24u;
@@ -31,17 +23,17 @@ fn query_selection_op() -> u32 {
     return query.content_u32.x & 0x00FF0000;
 }
 
-@group(0) @binding(2)
+@group(0) @binding(1)
 var<storage, read> query_result_count: u32;
 
 struct QueryResult {
     content_u32: vec4<u32>,
     content_f32: vec4<f32>,
 }
-@group(0) @binding(3)
+@group(0) @binding(2)
 var<storage, read> query_results: array<QueryResult>;
 
-@group(0) @binding(4)
+@group(0) @binding(3)
 var<storage, read_write> selection: array<atomic<u32>>;
 
 fn selection_set(index: u32) {
@@ -57,6 +49,16 @@ fn selection_clear(index: u32) {
     let mask = 1u << bit_index;
     atomicAnd(&selection[word_index], ~mask);
 }
+
+// Pre Only Begin
+
+struct DispatchIndirectArgs {
+    x: u32,
+    y: u32,
+    z: u32,
+}
+@group(0) @binding(4)
+var<storage, read_write> indirect_args: DispatchIndirectArgs;
 
 @compute @workgroup_size({{workgroup_size}})
 fn pre_main(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -75,6 +77,8 @@ fn pre_main(@builtin(global_invocation_id) id: vec3<u32>) {
         atomicStore(&selection[index], 0u);
     }
 }
+
+// Pre Only End
 
 @compute @workgroup_size({{workgroup_size}})
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
