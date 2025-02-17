@@ -8,6 +8,9 @@ pub mod query;
 mod radix_sorter;
 mod renderer;
 
+#[cfg(feature = "query-texture")]
+mod query_texture_tool;
+
 use glam::*;
 
 pub use buffer::*;
@@ -18,6 +21,9 @@ pub use postprocessor::*;
 pub use preprocessor::*;
 pub use radix_sorter::*;
 pub use renderer::*;
+
+#[cfg(feature = "query-texture-tool")]
+pub use query_texture_tool::*;
 
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]
@@ -37,6 +43,9 @@ pub struct Viewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
     pub selection_highlight_buffer: SelectionHighlightBuffer,
     pub selection_buffer: SelectionBuffer,
 
+    #[cfg(feature = "query-texture")]
+    pub query_texture: QueryTexture,
+
     pub preprocessor: Preprocessor,
     pub radix_sorter: RadixSorter,
     pub renderer: Renderer,
@@ -48,6 +57,7 @@ impl<G: GaussianPod> Viewer<G> {
     pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
+        #[cfg(feature = "query-texture")] texture_size: UVec2,
         gaussians: &Gaussians,
     ) -> Result<Self, Error> {
         log::debug!("Creating camera buffer");
@@ -95,6 +105,12 @@ impl<G: GaussianPod> Viewer<G> {
         log::debug!("Creating selection buffer");
         let selection_buffer = SelectionBuffer::new(device, gaussians.gaussians.len() as u32);
 
+        #[cfg(feature = "query-texture")]
+        let query_texture = {
+            log::debug!("Creating query texture");
+            QueryTexture::new(device, texture_size)
+        };
+
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new(
             device,
@@ -108,6 +124,8 @@ impl<G: GaussianPod> Viewer<G> {
             &query_buffer,
             &query_result_count_buffer,
             &query_results_buffer,
+            #[cfg(feature = "query-texture")]
+            &query_texture,
         )?;
 
         log::debug!("Creating radix sorter");
@@ -157,6 +175,9 @@ impl<G: GaussianPod> Viewer<G> {
             postprocess_indirect_args_buffer,
             selection_highlight_buffer,
             selection_buffer,
+
+            #[cfg(feature = "query-texture")]
+            query_texture,
 
             preprocessor,
             radix_sorter,
@@ -209,6 +230,28 @@ impl<G: GaussianPod> Viewer<G> {
     /// Update the selection highlight.
     pub fn update_selection_highlight(&mut self, queue: &wgpu::Queue, color: Vec4) {
         self.selection_highlight_buffer.update(queue, color);
+    }
+
+    /// Update the query texture size.
+    ///
+    /// This requires the `query-texture` feature.
+    #[cfg(feature = "query-texture")]
+    pub fn update_query_texture_size(&mut self, device: &wgpu::Device, size: UVec2) {
+        self.query_texture.update_size(device, size);
+        self.preprocessor.update_bind_group(
+            device,
+            &self.camera_buffer,
+            &self.model_transform_buffer,
+            &self.gaussians_buffer,
+            &self.indirect_args_buffer,
+            &self.radix_sort_indirect_args_buffer,
+            &self.indirect_indices_buffer,
+            &self.gaussians_depth_buffer,
+            &self.query_buffer,
+            &self.query_result_count_buffer,
+            &self.query_results_buffer,
+            &self.query_texture,
+        );
     }
 
     /// Render the viewer.

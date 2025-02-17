@@ -9,6 +9,7 @@ const query_type_none = 0u << 24u;
 const query_type_hit = 1u << 24u;
 const query_type_rect = 2u << 24u;
 const query_type_brush = 3u << 24u;
+const query_type_texture = 4u << 24u;
 
 fn query_type() -> u32 {
     return query.content_u32.x & 0xFF000000;
@@ -50,7 +51,7 @@ fn selection_clear(index: u32) {
     atomicAnd(&selection[word_index], ~mask);
 }
 
-// Pre Only Begin
+// Pre only begin
 
 struct DispatchIndirectArgs {
     x: u32,
@@ -78,7 +79,7 @@ fn pre_main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 }
 
-// Pre Only End
+// Pre only end
 
 @compute @workgroup_size({{workgroup_size}})
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {

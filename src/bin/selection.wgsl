@@ -26,10 +26,6 @@ struct Camera {
 @group(0) @binding(1)
 var<uniform> camera: Camera;
 
-fn camera_coords(ndc_pos: vec2<f32>) -> vec2<f32> {
-    return (ndc_pos * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0)) * camera.size * 0.5;
-}
-
 @vertex
 fn vert_main(
     @builtin(vertex_index) vert_index: u32,

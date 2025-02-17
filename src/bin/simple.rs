@@ -11,7 +11,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use wgpu_3dgs_viewer as gs;
+use wgpu_3dgs_viewer::{self as gs, Texture};
 
 /// The command line arguments.
 #[derive(Parser, Debug)]
@@ -233,13 +233,19 @@ struct System {
     camera: gs::Camera,
     gaussians: gs::Gaussians,
     viewer: gs::Viewer,
+    query_texture_tool: gs::QueryTextureTool,
 
     is_selecting: bool,
+    is_immediate: bool,
     query: gs::QueryPod,
+    selection_cursor_buffer: gs::QueryBuffer,
     selection_rect_start: Vec2,
     selection_brush_radius: u32,
     selection_bind_group: wgpu::BindGroup,
     selection_pipeline: wgpu::RenderPipeline,
+    selection_overlay_sampler: wgpu::Sampler,
+    selection_overlay_bind_group: wgpu::BindGroup,
+    selection_overlay_pipeline: wgpu::RenderPipeline,
 }
 
 impl System {
@@ -313,8 +319,13 @@ impl System {
             .fold(f32::INFINITY, |a, b| a.min(b));
 
         log::debug!("Creating viewer");
-        let mut viewer =
-            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
+        let mut viewer = gs::Viewer::new(
+            &device,
+            config.view_formats[0],
+            uvec2(config.width, config.height),
+            &gaussians,
+        )
+        .expect("viewer");
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
         viewer.update_gaussian_transform(
             &queue,
@@ -324,6 +335,13 @@ impl System {
             false,
         );
         viewer.update_selection_highlight(&queue, vec4(1.0, 1.0, 0.0, 0.5));
+
+        log::debug!("Creating query texture tool");
+        let query_texture_tool =
+            gs::QueryTextureTool::new(&device, &viewer.query_texture, &viewer.camera_buffer);
+
+        log::debug!("Creating selection cursor buffer");
+        let selection_cursor_buffer = gs::QueryBuffer::new(&device);
 
         log::debug!("Creating selection bind group layout");
         let selection_bind_group_layout =
@@ -360,7 +378,7 @@ impl System {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: viewer.query_buffer.buffer().as_entire_binding(),
+                    resource: selection_cursor_buffer.buffer().as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -407,6 +425,93 @@ impl System {
             multiview: None,
             cache: None,
         });
+
+        log::debug!("Creating selection overlay sampler");
+        let selection_overlay_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Selection Overlay Sampler"),
+            ..Default::default()
+        });
+
+        log::debug!("Creating selection overlay bind group layout");
+        let selection_overlay_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Selection Overlay Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+
+        log::debug!("Creating selection overlay bind group");
+        let selection_overlay_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Selection Overlay Bind Group"),
+            layout: &selection_overlay_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(viewer.query_texture.view()),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&selection_overlay_sampler),
+                },
+            ],
+        });
+
+        log::debug!("Creating selection overlay pipeline");
+        let selection_overlay_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Selection Pipeline Overlay Layout"),
+                bind_group_layouts: &[&selection_overlay_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let selection_overlay_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Selection Overlay Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("selection_overlay.wgsl").into()),
+        });
+
+        let selection_overlay_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Selection Overlay Pipeline"),
+                layout: Some(&selection_overlay_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &selection_overlay_shader,
+                    entry_point: Some("vert_main"),
+                    buffers: &[],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &selection_overlay_shader,
+                    entry_point: Some("frag_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: config.view_formats[0],
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                }),
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+
         log::info!("System initialized");
 
         Self {
@@ -418,13 +523,19 @@ impl System {
             camera,
             gaussians,
             viewer,
+            query_texture_tool,
 
             is_selecting: false,
+            is_immediate: false,
             query: gs::QueryPod::none(),
+            selection_cursor_buffer,
             selection_rect_start: Vec2::ZERO,
             selection_brush_radius: 40,
             selection_bind_group,
             selection_pipeline,
+            selection_overlay_sampler,
+            selection_overlay_bind_group,
+            selection_overlay_pipeline,
         }
     }
 
@@ -435,91 +546,12 @@ impl System {
         }
 
         if self.is_selecting {
-            // Selection brush
-            if self.query.query_type() == gs::QueryType::None
-                && input.pressed_mouse.contains(&MouseButton::Left)
-            {
-                let selection_op = if input.held_keys.contains(&KeyCode::ShiftLeft) {
-                    gs::QuerySelectionOp::Add
-                } else if input.held_keys.contains(&KeyCode::ControlLeft) {
-                    gs::QuerySelectionOp::Remove
-                } else {
-                    gs::QuerySelectionOp::Set
-                };
+            self.is_immediate = input.held_keys.contains(&KeyCode::Space);
 
-                self.query = gs::QueryPod::brush(
-                    self.selection_brush_radius,
-                    input.mouse_pos,
-                    input.mouse_pos,
-                )
-                .with_selection_op(selection_op);
-            } else if self.query.query_type() == gs::QueryType::Brush
-                && input.held_mouse.contains(&MouseButton::Left)
-            {
-                let selection_op = match self.query.query_selection_op() {
-                    gs::QuerySelectionOp::Add | gs::QuerySelectionOp::Set => {
-                        gs::QuerySelectionOp::Add
-                    }
-                    gs::QuerySelectionOp::Remove => gs::QuerySelectionOp::Remove,
-                    gs::QuerySelectionOp::None => gs::QuerySelectionOp::Set,
-                };
-
-                self.query = gs::QueryPod::brush(
-                    self.selection_brush_radius,
-                    self.query.as_brush().end(),
-                    input.mouse_pos,
-                )
-                .with_selection_op(selection_op);
-            }
-
-            if input.scroll_diff != 0.0 {
-                self.selection_brush_radius = (self.selection_brush_radius as i32
-                    + input.scroll_diff as i32 * 5)
-                    .max(1) as u32;
-            }
-
-            // Selection rect
-            if self.query.query_type() == gs::QueryType::None
-                && input.pressed_mouse.contains(&MouseButton::Right)
-            {
-                let selection_op = if input.held_keys.contains(&KeyCode::ShiftLeft) {
-                    gs::QuerySelectionOp::Add
-                } else if input.held_keys.contains(&KeyCode::ControlLeft) {
-                    gs::QuerySelectionOp::Remove
-                } else {
-                    gs::QuerySelectionOp::Set
-                };
-
-                self.selection_rect_start = input.mouse_pos;
-                self.query =
-                    gs::QueryPod::rect(self.selection_rect_start, self.selection_rect_start)
-                        .with_selection_op(selection_op);
-            } else if self.query.query_type() == gs::QueryType::Rect
-                && input.held_mouse.contains(&MouseButton::Right)
-            {
-                let selection_op = match self.query.query_selection_op() {
-                    gs::QuerySelectionOp::Add => gs::QuerySelectionOp::Add,
-                    gs::QuerySelectionOp::Remove => gs::QuerySelectionOp::Remove,
-                    gs::QuerySelectionOp::None | gs::QuerySelectionOp::Set => {
-                        gs::QuerySelectionOp::Set
-                    }
-                };
-
-                let top_left = self.selection_rect_start.min(input.mouse_pos);
-                let bottom_right = self.selection_rect_start.max(input.mouse_pos);
-
-                self.query =
-                    gs::QueryPod::rect(top_left, bottom_right).with_selection_op(selection_op);
-            }
-
-            // Clear query
-            if input.held_mouse.is_empty() {
-                self.query = gs::QueryPod::none();
-
-                // For selection cursor
-                self.query.content_u32.y = self.selection_brush_radius;
-                self.query.content_f32.z = input.mouse_pos.x;
-                self.query.content_f32.w = input.mouse_pos.y;
+            if self.is_immediate {
+                self.immediate_selection(input);
+            } else {
+                self.query_texture_selection(input);
             }
         } else {
             // Camera movement
@@ -592,6 +624,9 @@ impl System {
                 label: Some("Command Encoder"),
             });
 
+        self.query_texture_tool
+            .render(&mut encoder, &self.viewer.query_texture);
+
         self.viewer.render(
             &mut encoder,
             &texture_view,
@@ -599,24 +634,47 @@ impl System {
         );
 
         if self.is_selecting {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Selection Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
+            if !self.is_immediate && self.query_texture_tool.state().is_some() {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Selection Overlay Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &texture_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
 
-            render_pass.set_pipeline(&self.selection_pipeline);
-            render_pass.set_bind_group(0, &self.selection_bind_group, &[]);
-            render_pass.draw(0..6, 0..1);
+                render_pass.set_pipeline(&self.selection_overlay_pipeline);
+                render_pass.set_bind_group(0, &self.selection_overlay_bind_group, &[]);
+                render_pass.draw(0..3, 0..1);
+            }
+
+            {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Selection Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &texture_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
+
+                render_pass.set_pipeline(&self.selection_pipeline);
+                render_pass.set_bind_group(0, &self.selection_bind_group, &[]);
+                render_pass.draw(0..6, 0..1);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -629,6 +687,210 @@ impl System {
             self.config.width = size.width;
             self.config.height = size.height;
             self.surface.configure(&self.device, &self.config);
+            self.viewer
+                .update_query_texture_size(&self.device, uvec2(size.width, size.height));
+
+            log::debug!("Creating selection overlay bind group layout");
+            let selection_overlay_bind_group_layout =
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: Some("Selection Overlay Bind Group Layout"),
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
+                            },
+                        ],
+                    });
+
+            log::debug!("Creating selection overlay bind group");
+            self.selection_overlay_bind_group =
+                self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Selection Overlay Bind Group"),
+                    layout: &selection_overlay_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(
+                                self.viewer.query_texture.view(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(
+                                &self.selection_overlay_sampler,
+                            ),
+                        },
+                    ],
+                });
         }
+    }
+
+    fn immediate_selection(&mut self, input: &Input) {
+        if input.scroll_diff != 0.0 {
+            self.selection_brush_radius =
+                (self.selection_brush_radius as i32 + input.scroll_diff as i32 * 5).max(1) as u32;
+        }
+
+        self.query = gs::QueryPod::none();
+
+        // For selection cursor
+        self.query.content_u32.y = self.selection_brush_radius;
+        self.query.content_f32.z = input.mouse_pos.x;
+        self.query.content_f32.w = input.mouse_pos.y;
+
+        match self.query.query_type() {
+            gs::QueryType::None => {
+                if input.pressed_mouse.contains(&MouseButton::Left) {
+                    let selection_op = if input.held_keys.contains(&KeyCode::ShiftLeft) {
+                        gs::QuerySelectionOp::Add
+                    } else if input.held_keys.contains(&KeyCode::ControlLeft) {
+                        gs::QuerySelectionOp::Remove
+                    } else {
+                        gs::QuerySelectionOp::Set
+                    };
+
+                    self.query = gs::QueryPod::brush(
+                        self.selection_brush_radius,
+                        input.mouse_pos,
+                        input.mouse_pos,
+                    )
+                    .with_selection_op(selection_op);
+                } else if input.pressed_mouse.contains(&MouseButton::Right) {
+                    let selection_op = if input.held_keys.contains(&KeyCode::ShiftLeft) {
+                        gs::QuerySelectionOp::Add
+                    } else if input.held_keys.contains(&KeyCode::ControlLeft) {
+                        gs::QuerySelectionOp::Remove
+                    } else {
+                        gs::QuerySelectionOp::Set
+                    };
+
+                    self.selection_rect_start = input.mouse_pos;
+                    self.query =
+                        gs::QueryPod::rect(self.selection_rect_start, self.selection_rect_start)
+                            .with_selection_op(selection_op);
+                }
+            }
+            gs::QueryType::Brush => {
+                if input.held_mouse.contains(&MouseButton::Left) {
+                    let selection_op = match self.query.query_selection_op() {
+                        gs::QuerySelectionOp::Add | gs::QuerySelectionOp::Set => {
+                            gs::QuerySelectionOp::Add
+                        }
+                        gs::QuerySelectionOp::Remove => gs::QuerySelectionOp::Remove,
+                        gs::QuerySelectionOp::None => gs::QuerySelectionOp::Set,
+                    };
+
+                    self.query = gs::QueryPod::brush(
+                        self.selection_brush_radius,
+                        self.query.as_brush().end(),
+                        input.mouse_pos,
+                    )
+                    .with_selection_op(selection_op);
+                }
+            }
+            gs::QueryType::Rect => {
+                if input.held_mouse.contains(&MouseButton::Right) {
+                    let selection_op = match self.query.query_selection_op() {
+                        gs::QuerySelectionOp::Add => gs::QuerySelectionOp::Add,
+                        gs::QuerySelectionOp::Remove => gs::QuerySelectionOp::Remove,
+                        gs::QuerySelectionOp::None | gs::QuerySelectionOp::Set => {
+                            gs::QuerySelectionOp::Set
+                        }
+                    };
+
+                    let top_left = self.selection_rect_start.min(input.mouse_pos);
+                    let bottom_right = self.selection_rect_start.max(input.mouse_pos);
+
+                    self.query =
+                        gs::QueryPod::rect(top_left, bottom_right).with_selection_op(selection_op);
+                }
+            }
+            _ => {}
+        }
+
+        self.selection_cursor_buffer
+            .update(&self.queue, &self.query);
+    }
+
+    fn query_texture_selection(&mut self, input: &Input) {
+        let cursor_buffer_target = match self.query_texture_tool.state() {
+            None => {
+                if input.pressed_mouse.contains(&MouseButton::Left) {
+                    Some(
+                        self.query_texture_tool
+                            .start_brush(self.selection_brush_radius, input.mouse_pos)
+                            .expect("start brush"),
+                    )
+                } else if input.pressed_mouse.contains(&MouseButton::Right) {
+                    Some(
+                        self.query_texture_tool
+                            .start_rect(input.mouse_pos)
+                            .expect("start rect"),
+                    )
+                } else {
+                    self.query = gs::QueryPod::none();
+
+                    // For selection cursor
+                    self.query.content_u32.y = self.selection_brush_radius;
+                    self.query.content_f32.z = input.mouse_pos.x;
+                    self.query.content_f32.w = input.mouse_pos.y;
+
+                    Some(&self.query)
+                }
+            }
+            Some(gs::QueryTextureToolState::Brush { .. }) => {
+                if input.held_mouse.contains(&MouseButton::Left) {
+                    Some(
+                        self.query_texture_tool
+                            .update(input.mouse_pos)
+                            .expect("update rect"),
+                    )
+                } else if input.released_mouse.contains(&MouseButton::Left) {
+                    self.query =
+                        gs::QueryPod::texture().with_selection_op(gs::QuerySelectionOp::Set);
+
+                    Some(self.query_texture_tool.end().expect("end rect"))
+                } else {
+                    None
+                }
+            }
+            Some(gs::QueryTextureToolState::Rect { .. }) => {
+                if input.held_mouse.contains(&MouseButton::Right) {
+                    Some(
+                        self.query_texture_tool
+                            .update(input.mouse_pos)
+                            .expect("update rect"),
+                    )
+                } else if input.released_mouse.contains(&MouseButton::Right) {
+                    self.query =
+                        gs::QueryPod::texture().with_selection_op(gs::QuerySelectionOp::Set);
+
+                    Some(self.query_texture_tool.end().expect("end rect"))
+                } else {
+                    None
+                }
+            }
+        };
+
+        if let Some(target) = cursor_buffer_target {
+            self.selection_cursor_buffer.update(&self.queue, target);
+        }
+
+        self.query_texture_tool.update_buffer(&self.queue);
     }
 }

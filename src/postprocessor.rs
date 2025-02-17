@@ -269,9 +269,9 @@ impl Postprocessor {
                     )
                     .lines()
                     .scan(false, |state, line| {
-                        if line.contains("// Pre Only Begin") {
+                        if line.contains("// Pre only begin") {
                             *state = true;
-                        } else if line.contains("// Pre Only End") {
+                        } else if line.contains("// Pre only end") {
                             *state = false;
                         }
 

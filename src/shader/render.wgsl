@@ -286,6 +286,8 @@ var<uniform> query: Query;
 const query_type_none = 0u << 24u;
 const query_type_hit = 1u << 24u;
 const query_type_rect = 2u << 24u;
+const query_type_brush = 3u << 24u;
+const query_type_texture = 4u << 24u;
 
 fn query_type() -> u32 {
     return query.content_u32.x & 0xFF000000;
@@ -318,14 +320,15 @@ fn selection_at(index: u32) -> bool {
 }
 
 fn quad_offset(vert_index: u32) -> vec2<f32> {
-    return array<vec2<f32>, 6>(
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(-1.0, 1.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(-1.0, -1.0),
-    )[vert_index];
+    switch vert_index {
+        case 0u { return vec2<f32>(1.0, -1.0); }
+        case 1u { return vec2<f32>(-1.0, -1.0); }
+        case 2u { return vec2<f32>(1.0, 1.0); }
+        case 3u { return vec2<f32>(-1.0, 1.0); }
+        case 4u { return vec2<f32>(1.0, 1.0); }
+        case 5u { return vec2<f32>(-1.0, -1.0); }
+        default { return vec2<f32>(0.0, 0.0); }
+    }
 }
 
 fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {

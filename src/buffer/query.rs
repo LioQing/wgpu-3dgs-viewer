@@ -48,6 +48,12 @@ pub enum QueryType {
 
     /// Query centroids by a brush. Done by preprocess shader.
     Brush = 3 << 24,
+
+    /// Query centroids by a texture. Done by preprocess shader.
+    ///
+    /// Only available in feature `query-texture`.
+    #[cfg(feature = "query-texture")]
+    Texture = 4 << 24,
 }
 
 /// The selection operations.
@@ -97,6 +103,7 @@ impl QueryPod {
             x if x == QueryType::Hit as u32 => QueryType::Hit,
             x if x == QueryType::Rect as u32 => QueryType::Rect,
             x if x == QueryType::Brush as u32 => QueryType::Brush,
+            x if x == QueryType::Texture as u32 => QueryType::Texture,
             _ => panic!("Unknown query type"),
         }
     }
@@ -193,6 +200,14 @@ impl QueryPod {
     /// Get as a mutable reference of [`QueryType::Brush`] query.
     pub fn as_brush_mut(&mut self) -> &mut QueryBrushPod {
         bytemuck::cast_mut(self)
+    }
+
+    /// Create a new [`QueryType::Texture`] query.
+    pub const fn texture() -> Self {
+        Self::new(
+            uvec4(QueryType::Texture as u32, 0, 0, 0),
+            vec4(0.0, 0.0, 0.0, 0.0),
+        )
     }
 
     /// Set the selection operation.

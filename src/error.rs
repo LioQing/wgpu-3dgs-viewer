@@ -23,4 +23,12 @@ pub enum Error {
         "
     )]
     ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u32 },
+
+    #[cfg(feature = "query-texture-tool")]
+    #[error("query texture tool already in use")]
+    QueryTextureToolAlreadyInUse,
+
+    #[cfg(feature = "query-texture-tool")]
+    #[error("query texture tool not in use")]
+    QueryTextureToolNotInUse,
 }

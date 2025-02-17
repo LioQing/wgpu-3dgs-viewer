@@ -106,6 +106,7 @@ const query_type_none = 0u << 24u;
 const query_type_hit = 1u << 24u;
 const query_type_rect = 2u << 24u;
 const query_type_brush = 3u << 24u;
+const query_type_texture = 4u << 24u;
 
 fn query_type() -> u32 {
     return query.content_u32.x & 0xFF000000;
@@ -186,6 +187,34 @@ fn query_brush(gaussian_index: u32, ndc_pos: vec2<f32>) {
     );
 }
 
+// Feature query texture begin
+
+@group(0) @binding(10)
+var query_texture_view: texture_2d<f32>;
+
+fn query_texture(gaussian_index: u32, ndc_pos: vec2<f32>) {
+    let tex_size = vec2<i32>(textureDimensions(query_texture_view));
+    let coords = vec2<i32>(camera_coords(ndc_pos));
+
+    if any(coords < vec2<i32>(0)) || any(coords >= tex_size) {
+        return;
+    }
+    
+    let texel = textureLoad(query_texture_view, coords, 0);
+
+    if texel.r == 0.0 {
+        return;
+    }
+
+    let index = atomicAdd(&query_result_count, 1u);
+    query_results[index] = QueryResult(
+        vec4<u32>(gaussian_index, vec3<u32>(0u)),
+        vec4<f32>(0.0, 0.0, 0.0, 0.0),
+    );
+}
+
+// Feature query texture end
+
 @compute @workgroup_size({{workgroup_size}})
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let index = id.x;
@@ -207,11 +236,13 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     indirect_indices[culled_index] = index;
     
     // Query
-    let query_type = query_type();
-    if query_type == query_type_rect {
-        query_rect(index, ndc_pos.xy);
-    } else if query_type == query_type_brush {
-        query_brush(index, ndc_pos.xy);
+    switch query_type() {
+        case query_type_rect { query_rect(index, ndc_pos.xy); }
+        case query_type_brush { query_brush(index, ndc_pos.xy); }
+        // Feature query texture begin
+        case query_type_texture { query_texture(index, ndc_pos.xy); }
+        // Feature query texture end
+        default {}
     }
 
     // Depth
