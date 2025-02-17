@@ -3,7 +3,9 @@ use glam::*;
 use crate::{CameraBuffer, Error, QueryBuffer, QueryPod, QueryTexture, Texture};
 
 /// The query texture tool state.
-#[derive(Debug)]
+///
+/// This requires the `query-texture-tool` feature.
+#[derive(Debug, Clone, PartialEq)]
 pub enum QueryTextureToolState {
     /// The rectangle tool state.
     Rect { start: Vec2 },
@@ -16,6 +18,12 @@ pub enum QueryTextureToolState {
 ///
 /// It allows updating the query texture using commonly found tools in editing softwares.
 /// This includes: rectangle, brush.
+///
+/// This is an analog to the [`QueryTool`](crate::QueryTool).
+///
+/// **Important**: Unlike query tool, the query returned by each update call is not for direct use,
+/// instead the user should store their own query and set to [`QueryPod::texture`] after the
+/// [`QueryTextureTool::end`] call.
 ///
 /// This requires the `query-texture-tool` feature.
 #[derive(Debug)]
@@ -228,8 +236,8 @@ impl QueryTextureTool {
         Ok(&self.query)
     }
 
-    /// Update the current query.
-    pub fn update(&mut self, pos: Vec2) -> Result<&QueryPod, Error> {
+    /// Update the position.
+    pub fn update_pos(&mut self, pos: Vec2) -> Result<&QueryPod, Error> {
         match &mut self.state {
             Some(QueryTextureToolState::Rect { start }) => {
                 let top_left = start.min(pos);
@@ -266,24 +274,29 @@ impl QueryTextureTool {
     }
 
     /// End the current query.
+    ///
+    /// Generally, the query buffer should be set to [`QueryPod::texture`] with this.
     pub fn end(&mut self) -> Result<&QueryPod, Error> {
         match &self.state {
             Some(..) => {
                 self.just_started = false;
                 self.state = None;
+
                 Ok(&self.query)
             }
             None => Err(Error::QueryTextureToolNotInUse),
         }
     }
 
-    /// Update the buffer.
-    pub fn update_buffer(&mut self, queue: &wgpu::Queue) {
-        self.query_buffer.update(queue, &self.query);
-    }
-
     /// Render the tool.
-    pub fn render(&mut self, encoder: &mut wgpu::CommandEncoder, query_texture: &QueryTexture) {
+    pub fn render(
+        &mut self,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        query_texture: &QueryTexture,
+    ) {
+        self.query_buffer.update(queue, &self.query);
+
         if self.state.is_none() {
             return;
         }

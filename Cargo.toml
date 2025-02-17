@@ -20,14 +20,18 @@ required-features = ["bin-simple"]
 
 [features]
 bin-simple = [
-    "query-texture-tool",
+    "query-toolset",
+    "query-texture-overlay",
     "dep:clap",
     "dep:env_logger",
     "dep:futures",
     "dep:winit",
 ]
-query-texture-tool = ["query-texture"]
+query-toolset = ["query-tool", "query-texture-tool"]
+query-tool = []
 query-texture = []
+query-texture-tool = ["query-texture"]
+query-texture-overlay = ["query-texture"]
 
 [dependencies]
 bytemuck = { version = "1.21.0", features = [

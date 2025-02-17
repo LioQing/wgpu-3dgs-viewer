@@ -31,4 +31,12 @@ pub enum Error {
     #[cfg(feature = "query-texture-tool")]
     #[error("query texture tool not in use")]
     QueryTextureToolNotInUse,
+
+    #[cfg(feature = "query-tool")]
+    #[error("query tool already in use")]
+    QueryToolAlreadyInUse,
+
+    #[cfg(feature = "query-tool")]
+    #[error("query tool not in use")]
+    QueryToolNotInUse,
 }

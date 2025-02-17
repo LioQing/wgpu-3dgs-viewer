@@ -8,8 +8,17 @@ pub mod query;
 mod radix_sorter;
 mod renderer;
 
-#[cfg(feature = "query-texture")]
+#[cfg(feature = "query-texture-tool")]
 mod query_texture_tool;
+
+#[cfg(feature = "query-texture-overlay")]
+mod query_texture_overlay;
+
+#[cfg(feature = "query-tool")]
+mod query_tool;
+
+#[cfg(feature = "query-toolset")]
+pub mod query_toolset;
 
 use glam::*;
 
@@ -24,6 +33,15 @@ pub use renderer::*;
 
 #[cfg(feature = "query-texture-tool")]
 pub use query_texture_tool::*;
+
+#[cfg(feature = "query-texture-overlay")]
+pub use query_texture_overlay::*;
+
+#[cfg(feature = "query-tool")]
+pub use query_tool::*;
+
+#[cfg(feature = "query-toolset")]
+pub use query_toolset::*;
 
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]
