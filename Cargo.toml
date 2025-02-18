@@ -20,6 +20,7 @@ required-features = ["bin-simple"]
 
 [features]
 bin-simple = [
+    "query-cursor",
     "query-toolset",
     "query-texture-overlay",
     "dep:clap",
@@ -27,6 +28,7 @@ bin-simple = [
     "dep:futures",
     "dep:winit",
 ]
+query-cursor = []
 query-toolset = ["query-tool", "query-texture-tool"]
 query-tool = []
 query-texture = []

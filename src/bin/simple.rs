@@ -234,13 +234,11 @@ struct System {
     gaussians: gs::Gaussians,
     viewer: gs::Viewer,
 
+    query_cursor: gs::QueryCursor,
     query_toolset: gs::QueryToolset,
     query_texture_overlay: gs::QueryTextureOverlay,
 
     is_selecting: bool,
-    selection_cursor_buffer: gs::QueryBuffer,
-    selection_bind_group: wgpu::BindGroup,
-    selection_pipeline: wgpu::RenderPipeline,
 }
 
 impl System {
@@ -331,6 +329,10 @@ impl System {
         );
         viewer.update_selection_highlight(&queue, vec4(1.0, 1.0, 0.0, 0.5));
 
+        log::debug!("Creating query cursor");
+        let query_cursor =
+            gs::QueryCursor::new(&device, config.view_formats[0], &viewer.camera_buffer);
+
         log::debug!("Creating query toolset");
         let query_toolset =
             gs::QueryToolset::new(&device, &viewer.query_texture, &viewer.camera_buffer);
@@ -338,92 +340,6 @@ impl System {
         log::debug!("Creating query texture overlay");
         let query_texture_overlay =
             gs::QueryTextureOverlay::new(&device, config.view_formats[0], &viewer.query_texture);
-
-        log::debug!("Creating selection cursor buffer");
-        let selection_cursor_buffer = gs::QueryBuffer::new(&device);
-
-        log::debug!("Creating selection bind group layout");
-        let selection_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Selection Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
-        log::debug!("Creating selection bind group");
-        let selection_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Selection Bind Group"),
-            layout: &selection_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: selection_cursor_buffer.buffer().as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: viewer.camera_buffer.buffer().as_entire_binding(),
-                },
-            ],
-        });
-
-        log::debug!("Creating selection pipeline");
-        let selection_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Selection Pipeline Layout"),
-                bind_group_layouts: &[&selection_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let selection_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Selection Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("selection.wgsl").into()),
-        });
-
-        let selection_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Selection Pipeline"),
-            layout: Some(&selection_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &selection_shader,
-                entry_point: Some("vert_main"),
-                buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &selection_shader,
-                entry_point: Some("frag_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.view_formats[0],
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
 
         log::info!("System initialized");
 
@@ -437,13 +353,11 @@ impl System {
             gaussians,
             viewer,
 
+            query_cursor,
             query_toolset,
             query_texture_overlay,
 
             is_selecting: false,
-            selection_cursor_buffer,
-            selection_bind_group,
-            selection_pipeline,
         }
     }
 
@@ -464,8 +378,6 @@ impl System {
             } else {
                 gs::QuerySelectionOp::Set
             };
-
-            let brush_radius = self.query_toolset.brush_radius();
 
             if input.pressed_mouse.contains(&MouseButton::Left) {
                 self.query_toolset.start(
@@ -494,19 +406,11 @@ impl System {
             self.viewer
                 .update_query(&self.queue, self.query_toolset.query());
 
-            let mut query = gs::QueryPod::none();
-            self.selection_cursor_buffer.update(
+            self.query_cursor.update_query_toolset(
                 &self.queue,
-                match self.query_toolset.query().query_type() {
-                    gs::QueryType::None => {
-                        query.content_u32.y = brush_radius;
-                        query.content_f32.z = input.mouse_pos.x;
-                        query.content_f32.w = input.mouse_pos.y;
-                        &query
-                    }
-                    _ => self.query_toolset.query(),
-                },
-            )
+                &self.query_toolset,
+                input.mouse_pos,
+            );
         } else {
             // Camera movement
             const SPEED: f32 = 1.0;
@@ -592,27 +496,8 @@ impl System {
             {
                 self.query_texture_overlay
                     .render(&mut encoder, &texture_view);
-            }
-
-            {
-                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Selection Render Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &texture_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    occlusion_query_set: None,
-                    timestamp_writes: None,
-                });
-
-                render_pass.set_pipeline(&self.selection_pipeline);
-                render_pass.set_bind_group(0, &self.selection_bind_group, &[]);
-                render_pass.draw(0..6, 0..1);
+            } else {
+                self.query_cursor.render(&mut encoder, &texture_view);
             }
         }
 

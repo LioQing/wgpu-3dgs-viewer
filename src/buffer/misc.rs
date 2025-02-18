@@ -97,3 +97,65 @@ impl PostprocessIndirectArgsBuffer {
         &self.0
     }
 }
+
+/// The query cursor buffer for [`QueryCursor`](crate::QueryCursor).
+///
+/// This requires the `query-cursor` feature.
+#[cfg(feature = "query-cursor")]
+#[derive(Debug)]
+pub struct QueryCursorBuffer(wgpu::Buffer);
+
+#[cfg(feature = "query-cursor")]
+impl QueryCursorBuffer {
+    /// Create a new query cursor buffer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Query Cursor Buffer"),
+            contents: bytemuck::cast_slice(&[QueryCursorPod::new(vec4(1.0, 1.0, 1.0, 1.0), 1.0)]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        Self(buffer)
+    }
+
+    /// Update the query cursor buffer.
+    pub fn update(&self, queue: &wgpu::Queue, outline_color: Vec4, outline_width: f32) {
+        queue.write_buffer(
+            &self.0,
+            0,
+            bytemuck::cast_slice(&[QueryCursorPod::new(outline_color, outline_width)]),
+        );
+    }
+
+    /// Get the buffer.
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+/// The POD representation of a [`QueryCursor`].
+///
+/// This requires the `query-cursor` feature.
+#[cfg(feature = "query-cursor")]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct QueryCursorPod {
+    /// The outline color.
+    pub outline_color: Vec4,
+    /// The outline width.
+    pub outline_width: f32,
+    /// Padding.
+    _padding: [f32; 3],
+}
+
+#[cfg(feature = "query-cursor")]
+impl QueryCursorPod {
+    /// Create a new query cursor POD.
+    pub fn new(outline_color: Vec4, outline_width: f32) -> Self {
+        Self {
+            outline_color,
+            outline_width,
+            _padding: [0.0; 3],
+        }
+    }
+}

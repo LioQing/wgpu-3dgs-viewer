@@ -20,6 +20,9 @@ mod query_tool;
 #[cfg(feature = "query-toolset")]
 pub mod query_toolset;
 
+#[cfg(feature = "query-cursor")]
+pub mod query_cursor;
+
 use glam::*;
 
 pub use buffer::*;
@@ -42,6 +45,9 @@ pub use query_tool::*;
 
 #[cfg(feature = "query-toolset")]
 pub use query_toolset::*;
+
+#[cfg(feature = "query-cursor")]
+pub use query_cursor::*;
 
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]
