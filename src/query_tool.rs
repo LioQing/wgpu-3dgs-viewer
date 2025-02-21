@@ -127,7 +127,8 @@ impl QueryTool {
                     radius,
                     self.query.as_brush().start(),
                     self.query.as_brush().end(),
-                );
+                )
+                .with_selection_op(self.query.query_selection_op());
 
                 Ok(&self.query)
             }

@@ -162,4 +162,6 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
 
         discard;
     }
+
+    return vec4<f32>(0.0);
 }
