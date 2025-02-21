@@ -6,6 +6,10 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
+fn camera_coords(ndc_pos: vec2<f32>) -> vec2<f32> {
+    return (ndc_pos * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0)) * camera.size * 0.5;
+}
+
 struct ModelTransform {
     pos: vec3<f32>,
     quat: vec4<f32>,
@@ -77,13 +81,13 @@ struct IndirectArgs {
 @group(0) @binding(3)
 var<storage, read_write> indirect_args: IndirectArgs;
 
-struct DispatchIndirectArgs {
+struct RadixSortDispatchIndirectArgs {
     x: u32,
     y: u32,
     z: u32,
 }
 @group(0) @binding(4)
-var<storage, read_write> radix_sort_indirect_args: DispatchIndirectArgs;
+var<storage, read_write> radix_sort_indirect_args: RadixSortDispatchIndirectArgs;
 
 @group(0) @binding(5)
 var<storage, read_write> indirect_indices: array<u32>;
@@ -98,15 +102,34 @@ struct Query {
 @group(0) @binding(7)
 var<uniform> query: Query;
 
-const query_type_none = 0u;
-const query_type_hit = 1u;
+const query_type_none = 0u << 24u;
+const query_type_hit = 1u << 24u;
+const query_type_rect = 2u << 24u;
+const query_type_brush = 3u << 24u;
+const query_type_texture = 4u << 24u;
+
+fn query_type() -> u32 {
+    return query.content_u32.x & 0xFF000000;
+}
+
+const query_selection_op_none = 0u << 16u;
+const query_selection_op_set = 1u << 16u;
+const query_selection_op_remove = 2u << 16u;
+const query_selection_op_add = 3u << 16u;
+
+fn query_selection_op() -> u32 {
+    return query.content_u32.x & 0x00FF0000;
+}
 
 @group(0) @binding(8)
-var<storage, read_write> query_result_count: u32;
+var<storage, read_write> query_result_count: atomic<u32>;
 
-fn is_on_frustum(ndc_pos: vec3<f32>) -> bool {
-    return all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0));
+struct QueryResult {
+    content_u32: vec4<u32>,
+    content_f32: vec4<f32>,
 }
+@group(0) @binding(9)
+var<storage, read_write> query_results: array<QueryResult>;
 
 @compute @workgroup_size(1)
 fn pre_main() {
@@ -114,10 +137,83 @@ fn pre_main() {
     atomicStore(&indirect_args.instance_count, 0u);
 
     // Reset query result count
-    if query.content_u32.x != query_type_none {
-        query_result_count = 0u;
+    if query_type() != query_type_none {
+        atomicStore(&query_result_count, 0u);
     }
 }
+
+fn is_on_frustum(ndc_pos: vec3<f32>) -> bool {
+    return all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0));
+}
+
+fn query_rect(gaussian_index: u32, ndc_pos: vec2<f32>) {
+    let top_left = query.content_f32.xy;
+    let bottom_right = query.content_f32.zw;
+    let coords = camera_coords(ndc_pos);
+
+    if any(coords < top_left) || any(coords > bottom_right) {
+        return;
+    }
+
+    let index = atomicAdd(&query_result_count, 1u);
+    query_results[index] = QueryResult(
+        vec4<u32>(gaussian_index, vec3<u32>(0u)),
+        vec4<f32>(0.0, 0.0, 0.0, 0.0),
+    );
+}
+
+fn query_brush(gaussian_index: u32, ndc_pos: vec2<f32>) {
+    let radius = f32(query.content_u32.y);
+    let start = query.content_f32.xy;
+    let end = query.content_f32.zw;
+    let coords = camera_coords(ndc_pos);
+
+    let start_to_end = end - start;
+    let start_to_coords = coords - start;
+    
+    let factor = saturate(dot(start_to_coords, start_to_end) / dot(start_to_end, start_to_end));
+    let start_to_proj = start_to_end * factor;
+
+    let perp = start_to_coords - start_to_proj;
+
+    if dot(perp, perp) > radius * radius {
+        return;
+    }
+
+    let index = atomicAdd(&query_result_count, 1u);
+    query_results[index] = QueryResult(
+        vec4<u32>(gaussian_index, vec3<u32>(0u)),
+        vec4<f32>(0.0, 0.0, 0.0, 0.0),
+    );
+}
+
+// Feature query texture begin
+
+@group(0) @binding(10)
+var query_texture_view: texture_2d<f32>;
+
+fn query_texture(gaussian_index: u32, ndc_pos: vec2<f32>) {
+    let tex_size = vec2<i32>(textureDimensions(query_texture_view));
+    let coords = vec2<i32>(camera_coords(ndc_pos));
+
+    if any(coords < vec2<i32>(0)) || any(coords >= tex_size) {
+        return;
+    }
+    
+    let texel = textureLoad(query_texture_view, coords, 0);
+
+    if texel.r == 0.0 {
+        return;
+    }
+
+    let index = atomicAdd(&query_result_count, 1u);
+    query_results[index] = QueryResult(
+        vec4<u32>(gaussian_index, vec3<u32>(0u)),
+        vec4<f32>(0.0, 0.0, 0.0, 0.0),
+    );
+}
+
+// Feature query texture end
 
 @compute @workgroup_size({{workgroup_size}})
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -138,6 +234,16 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     let culled_index = atomicAdd(&indirect_args.instance_count, 1u);
     indirect_indices[culled_index] = index;
+    
+    // Query
+    switch query_type() {
+        case query_type_rect { query_rect(index, ndc_pos.xy); }
+        case query_type_brush { query_brush(index, ndc_pos.xy); }
+        // Feature query texture begin
+        case query_type_texture { query_texture(index, ndc_pos.xy); }
+        // Feature query texture end
+        default {}
+    }
 
     // Depth
     gaussians_depth[culled_index] = 1.0 - ndc_pos.z;

@@ -26,6 +26,13 @@ struct Camera {
 @group(0) @binding(1)
 var<uniform> camera: Camera;
 
+struct QueryCursor {
+    outline_color: vec4<f32>,
+    outline_width: f32,
+}
+@group(0) @binding(2)
+var<uniform> cursor: QueryCursor;
+
 @vertex
 fn vert_main(
     @builtin(vertex_index) vert_index: u32,
@@ -104,11 +111,11 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
         let dist_from_top = abs(in.coords.y - top_left.y);
         let dist_from_bottom = abs(in.coords.y - bottom_right.y);
         
-        if (dist_from_left < outline_width || 
-            dist_from_right < outline_width ||
-            dist_from_top < outline_width || 
-            dist_from_bottom < outline_width) {
-            return vec4(1.0);
+        if (dist_from_left < cursor.outline_width || 
+            dist_from_right < cursor.outline_width ||
+            dist_from_top < cursor.outline_width || 
+            dist_from_bottom < cursor.outline_width) {
+            return cursor.outline_color;
         }
 
         discard;
@@ -123,8 +130,8 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
             discard;
         }
 
-        if dist_sqr > (radius - outline_width) * (radius - outline_width) {
-            return vec4(1.0);
+        if dist_sqr > (radius - cursor.outline_width) * (radius - cursor.outline_width) {
+            return cursor.outline_color;
         }
 
         discard;
@@ -133,13 +140,13 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
         let center = query.content_f32.zw;
 
         if (
-            center.x - outline_width / 2.0 <= in.coords.x &&
-            in.coords.x < center.x + outline_width / 2.0
+            center.x - cursor.outline_width / 2.0 <= in.coords.x &&
+            in.coords.x < center.x + cursor.outline_width / 2.0
         ) || (
-            center.y - outline_width / 2.0 <= in.coords.y &&
-            in.coords.y < center.y + outline_width / 2.0
+            center.y - cursor.outline_width / 2.0 <= in.coords.y &&
+            in.coords.y < center.y + cursor.outline_width / 2.0
         ) {
-            return vec4(1.0);
+            return cursor.outline_color;
         }
         
         let diff = in.coords - center;
@@ -149,8 +156,8 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
             discard;
         }
 
-        if dist_sqr > (radius - outline_width) * (radius - outline_width) {
-            return vec4(1.0);
+        if dist_sqr > (radius - cursor.outline_width) * (radius - cursor.outline_width) {
+            return cursor.outline_color;
         }
 
         discard;

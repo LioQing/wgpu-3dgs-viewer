@@ -11,6 +11,14 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
+fn camera_coords(ndc_pos: vec2<f32>) -> vec2<f32> {
+    return (ndc_pos * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0)) * camera.size * 0.5;
+}
+
+fn camera_aspect_ratio() -> f32 {
+    return camera.size.y / camera.size.x;
+}
+
 struct ModelTransform {
     pos: vec3<f32>,
     quat: vec4<f32>,
@@ -275,8 +283,15 @@ struct Query {
 @group(0) @binding(5)
 var<uniform> query: Query;
 
-const query_type_none = 0u;
-const query_type_hit = 1u;
+const query_type_none = 0u << 24u;
+const query_type_hit = 1u << 24u;
+const query_type_rect = 2u << 24u;
+const query_type_brush = 3u << 24u;
+const query_type_texture = 4u << 24u;
+
+fn query_type() -> u32 {
+    return query.content_u32.x & 0xFF000000;
+}
 
 @group(0) @binding(6)
 var<storage, read_write> query_result_count: atomic<u32>;
@@ -288,15 +303,65 @@ struct QueryResult {
 @group(0) @binding(7)
 var<storage, read_write> query_results: array<QueryResult>;
 
+struct SelectionHighlight {
+    color: vec4<f32>,
+}
+@group(0) @binding(8)
+var<uniform> selection_highlight: SelectionHighlight;
+
+@group(0) @binding(9)
+var<storage, read> selection: array<u32>;
+
+fn selection_at(index: u32) -> bool {
+    let word_index = index / 32u;
+    let bit_index = index % 32u;
+    let mask = 1u << bit_index;
+    return (selection[word_index] & mask) != 0u;
+}
+
 fn quad_offset(vert_index: u32) -> vec2<f32> {
-    return array<vec2<f32>, 6>(
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(-1.0, 1.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(-1.0, -1.0),
-    )[vert_index];
+    switch vert_index {
+        case 0u { return vec2<f32>(1.0, -1.0); }
+        case 1u { return vec2<f32>(-1.0, -1.0); }
+        case 2u { return vec2<f32>(1.0, 1.0); }
+        case 3u { return vec2<f32>(-1.0, 1.0); }
+        case 4u { return vec2<f32>(1.0, 1.0); }
+        case 5u { return vec2<f32>(-1.0, -1.0); }
+        default { return vec2<f32>(0.0, 0.0); }
+    }
+}
+
+fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {
+    let selected = selection_at(gaussian_index);
+
+    if selected && selection_highlight.color.a == 1.0 {
+        let color = unpack4x8unorm(gaussians[gaussian_index].color);
+        return vec4<f32>(selection_highlight.color.rgb, color.a);
+    }
+
+    let world_camera_pos = -(transpose(mat3x3<f32>(
+        camera.view[0].xyz,
+        camera.view[1].xyz,
+        camera.view[2].xyz
+    )) * camera.view[3].xyz);
+    let world_view_dir = world_camera_pos - world_pos;
+    let model_view_dir = model_transform_inv_sr_mat() * world_view_dir;
+
+    let color = gaussian_color(
+        gaussian_index,
+        -normalize(model_view_dir),
+        gaussian_transform_sh_deg(),
+        gaussian_transform_no_sh0(),
+    );
+
+    if selected && selection_highlight.color.a > 0.0 {
+        return vec4<f32>(
+            mix(color.rgb, selection_highlight.color.rgb, selection_highlight.color.a),
+            color.a,
+        );
+    }
+
+    return color;
 }
 
 @vertex
@@ -309,34 +374,25 @@ fn vert_main(
     let gaussian_index = indirect_indices[instance_index];
     let gaussian = gaussians[gaussian_index];
 
-    if gaussian_transform_display_mode() == gaussian_display_mode_point {
+    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let view_pos = camera.view * world_pos;
+    let proj_pos = camera.proj * view_pos;
+
+    let color = color(gaussian_index, world_pos.xyz);
+    let display_mode = gaussian_transform_display_mode();
+
+    if display_mode == gaussian_display_mode_point {
         let quad_offset = quad_offset(vert_index) * point_size * gaussian_transform.size;
-        let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
-        let view_pos = camera.view * world_pos;
-        let proj_pos = camera.proj * view_pos;
-        let aspect_ratio = camera.size.y / camera.size.x;
+        let aspect_ratio = camera_aspect_ratio();
         let clip_pos = proj_pos.xy
             + quad_offset * proj_pos.w * vec2<f32>(aspect_ratio, 1.0) / length(view_pos.xyz);
-        let world_camera_pos = -(transpose(mat3x3<f32>(
-            camera.view[0].xyz,
-            camera.view[1].xyz,
-            camera.view[2].xyz
-        )) * camera.view[3].xyz);
-        let world_view_dir = world_camera_pos - world_pos.xyz;
-        let model_view_dir = model_transform_inv_sr_mat() * world_view_dir;
 
         out.clip_pos = vec4<f32>(clip_pos, proj_pos.zw);
         out.quad_offset = quad_offset;
-        out.color = gaussian_color(
-            gaussian_index,
-            -normalize(model_view_dir),
-            gaussian_transform_sh_deg(),
-            gaussian_transform_no_sh0(),
-        );
-        out.display_mode = gaussian_transform_display_mode();
+        out.color = color;
+        out.display_mode = display_mode;
         out.index = gaussian_index;
-        out.coords = (clip_pos / proj_pos.w * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0))
-            * camera.size * 0.5;
+        out.coords = camera_coords(clip_pos / proj_pos.w);
         out.depth = proj_pos.z / proj_pos.w;
         
         return out;
@@ -353,38 +409,26 @@ fn vert_main(
         return out;
     }
 
-    let diag_vec = normalize(vec2<f32>(cov2d.y, lambda_1 - cov2d.x));
-    let ortho_diag_vec = vec2<f32>(diag_vec.y, -diag_vec.x);
-    let major_axis = min(max_radius * sqrt(lambda_1), 1024.0) * diag_vec;
-    let minor_axis = min(max_radius * sqrt(lambda_2), 1024.0) * ortho_diag_vec;
+    let diag_dir = normalize(vec2<f32>(cov2d.y, lambda_1 - cov2d.x));
+    let ortho_diag_dir = vec2<f32>(diag_dir.y, -diag_dir.x);
+    let major_len = min(max_radius * sqrt(lambda_1), 1024.0);
+    let minor_len = min(max_radius * sqrt(lambda_2), 1024.0);
+    let major_axis = major_len * diag_dir * gaussian_transform.size;
+    let minor_axis = minor_len * ortho_diag_dir * gaussian_transform.size;
+
     let quad_offset = quad_offset(vert_index) * max_radius;
-    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
-    let proj_pos = camera.proj * camera.view * world_pos;
     let clip_pos = (
         proj_pos.xy
-        + quad_offset.x * proj_pos.w * major_axis * gaussian_transform.size / camera.size
-        + quad_offset.y * proj_pos.w * minor_axis * gaussian_transform.size / camera.size
+        + quad_offset.x * proj_pos.w * major_axis / camera.size
+        + quad_offset.y * proj_pos.w * minor_axis / camera.size
     );
-    let world_camera_pos = -(transpose(mat3x3<f32>(
-        camera.view[0].xyz,
-        camera.view[1].xyz,
-        camera.view[2].xyz
-    )) * camera.view[3].xyz);
-    let world_view_dir = world_camera_pos - world_pos.xyz;
-    let model_view_dir = model_transform_inv_sr_mat() * world_view_dir;
 
     out.clip_pos = vec4<f32>(clip_pos, proj_pos.zw);
     out.quad_offset = quad_offset;
-    out.color = gaussian_color(
-        gaussian_index,
-        -normalize(model_view_dir),
-        gaussian_transform_sh_deg(),
-        gaussian_transform_no_sh0(),
-    );
-    out.display_mode = gaussian_transform_display_mode();
+    out.color = color;
+    out.display_mode = display_mode;
     out.index = gaussian_index;
-    out.coords = (clip_pos / proj_pos.w * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0))
-        * camera.size * 0.5;
+    out.coords = camera_coords(clip_pos / proj_pos.w);
     out.depth = proj_pos.z / proj_pos.w;
 
     return out;
@@ -455,7 +499,7 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
         color = point(in);
     }
 
-    if query.content_u32.x == query_type_hit {
+    if query_type() == query_type_hit {
         query_hit(in, color);
     }
 
