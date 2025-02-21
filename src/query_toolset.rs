@@ -75,9 +75,6 @@ impl QueryToolset {
     }
 
     /// Get the query.
-    ///
-    /// Under the hood, it may modify its query since the last [`QueryToolset::end`] may left it in
-    /// an invalid state.
     pub fn query(&self) -> &QueryPod {
         match self.use_texture() {
             false => self.query_tool.query(),
