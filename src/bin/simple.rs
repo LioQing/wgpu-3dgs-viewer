@@ -246,7 +246,7 @@ impl System {
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 
         log::debug!("Creating window surface");
         let surface = instance.create_surface(window.clone()).expect("surface");
