@@ -378,14 +378,24 @@ fn gaussians_edit_base_color(index: u32, color: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(hsv_to_rgb(hsv_edited), color.a);
 }
 
-fn gaussians_edit_contr_expo_gamma_alpha(index: u32) -> vec4<f32> {
+fn gaussians_edit_contr_expo_gamma_alpha_color(index: u32, color: vec4<f32>) -> vec4<f32> {
     let unorms = unpack4x8unorm(gaussians_edit[index].contr_expo_gamma_alpha);
-    return vec4<f32>(
-        unorms.x / 127.5 - 1.0,
-        unorms.y / 25.5 - 5.0,
-        unorms.z / 51.0,
-        unorms.w / 127.5,
-    );
+
+    let contrast = unorms.x * 2.0 - 1.0;
+    const contrast_const = 259.0 / 255.0;
+    let contrast_factor = contrast_const * (contrast + 1.0) / (contrast_const - contrast);
+    let contrasted = (color.rgb - 0.5) * contrast_factor + 0.5;
+
+    let exposure = unorms.y * 10.0 - 5.0;
+    let exposed = contrasted * exp2(exposure);
+
+    let gamma = unorms.z * 5.0;
+    let gammaed = pow(exposed, vec3<f32>(gamma));
+
+    let alpha = unorms.w * 2.0;
+    let colored = vec4<f32>(gammaed, color.a * alpha);
+
+    return colored;
 }
 
 fn gaussians_edit_color(index: u32, color: vec4<f32>) -> vec4<f32> {
@@ -394,18 +404,9 @@ fn gaussians_edit_color(index: u32, color: vec4<f32>) -> vec4<f32> {
     }
 
     let base = gaussians_edit_base_color(index, color);
-    let cega = gaussians_edit_contr_expo_gamma_alpha(index);
-    let contrast = cega.x;
-    let exposure = cega.y;
-    let gamma = cega.z;
-    let alpha = cega.w;
+    let edited = gaussians_edit_contr_expo_gamma_alpha_color(index, base);
 
-    let contrasted = (base.rgb - 0.5) / (1.0 - contrast) + 0.5;
-    let exposed = contrasted * exp2(exposure);
-    let gammaed = pow(exposed, vec3<f32>(gamma));
-    let colored = vec4<f32>(gammaed, base.a * alpha);
-
-    return base;
+    return edited;
 }
 
 fn quad_offset(vert_index: u32) -> vec2<f32> {
