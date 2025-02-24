@@ -228,7 +228,7 @@ fn gaussian_color(gaussian_index: u32, dir: vec3<f32>, sh_deg: u32, no_sh0: bool
     let y = dir.y;
     let z = dir.z;
 
-    let color = unpack4x8unorm(gaussians[i].color);
+    let color = gaussians_edit_color(gaussian_index, unpack4x8unorm(gaussians[i].color));
     var result = color.rgb; // 0.5 + SH_C0 * sh[0] already precomputed
 
     if no_sh0 {
@@ -317,6 +317,95 @@ fn selection_at(index: u32) -> bool {
     let bit_index = index % 32u;
     let mask = 1u << bit_index;
     return (selection[word_index] & mask) != 0u;
+}
+
+struct GaussianEdit {
+    flag_hsv: u32,
+    contr_expo_gamma_alpha: u32,
+}
+@group(0) @binding(10)
+var<storage, read> gaussians_edit: array<GaussianEdit>;
+
+const gaussian_edit_flag_none = 0u;
+const gaussian_edit_flag_enabled = 1u << 0u;
+const gaussian_edit_flag_hidden = 1u << 1u;
+const gaussian_edit_flag_override_color = 1u << 2u;
+
+fn gaussians_edit_flag(index: u32) -> u32 {
+    return gaussians_edit[index].flag_hsv & 0x000000FF;
+}
+
+fn gaussians_edit_enabled(index: u32) -> bool {
+    return (gaussians_edit_flag(index) & gaussian_edit_flag_enabled) != 0;
+}
+
+fn gaussians_edit_flag_test(index: u32, test: u32) -> bool {
+    let mask = gaussian_edit_flag_enabled | test;
+    return (gaussians_edit_flag(index) & mask) == mask;
+}
+
+fn rgb_to_hsv(c: vec3<f32>) -> vec3<f32> {
+    const k = vec4<f32>(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    let p = select(vec4<f32>(c.bg, k.wz), vec4<f32>(c.gb, k.xy), c.b < c.g);
+    let q = select(vec4<f32>(p.xyw, c.r), vec4<f32>(c.r, p.yzx), p.x < c.r);
+
+    let d = q.x - min(q.w, q.y);
+    const e = 1.0e-10;
+    return vec3<f32>(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+fn hsv_to_rgb(c: vec3<f32>) -> vec3<f32> {
+    const k = vec4<f32>(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    let p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
+    return c.z * mix(k.xxx, saturate(p - k.xxx), c.y);
+}
+
+fn gaussians_edit_base_color(index: u32, color: vec4<f32>) -> vec4<f32> {
+    let hsv_or_rgb = unpack4x8unorm(gaussians_edit[index].flag_hsv).yzw;
+
+    if gaussians_edit_flag_test(index, gaussian_edit_flag_override_color) {
+        return vec4<f32>(hsv_or_rgb, color.a);
+    }
+
+    let hsv = rgb_to_hsv(color.rgb);
+    let hsv_edit = hsv_or_rgb * vec3<f32>(1.0, 2.0, 2.0);
+    let hsv_edited = saturate(vec3<f32>(
+        (hsv.x + hsv_edit.x) % 1.0,
+        hsv.y * hsv_edit.y,
+        hsv.z * hsv_edit.z,
+    ));
+
+    return vec4<f32>(hsv_to_rgb(hsv_edited), color.a);
+}
+
+fn gaussians_edit_contr_expo_gamma_alpha(index: u32) -> vec4<f32> {
+    let unorms = unpack4x8unorm(gaussians_edit[index].contr_expo_gamma_alpha);
+    return vec4<f32>(
+        unorms.x / 127.5 - 1.0,
+        unorms.y / 25.5 - 5.0,
+        unorms.z / 51.0,
+        unorms.w / 127.5,
+    );
+}
+
+fn gaussians_edit_color(index: u32, color: vec4<f32>) -> vec4<f32> {
+    if !gaussians_edit_enabled(index) {
+        return color;
+    }
+
+    let base = gaussians_edit_base_color(index, color);
+    let cega = gaussians_edit_contr_expo_gamma_alpha(index);
+    let contrast = cega.x;
+    let exposure = cega.y;
+    let gamma = cega.z;
+    let alpha = cega.w;
+
+    let contrasted = (base.rgb - 0.5) / (1.0 - contrast) + 0.5;
+    let exposed = contrasted * exp2(exposure);
+    let gammaed = pow(exposed, vec3<f32>(gamma));
+    let colored = vec4<f32>(gammaed, base.a * alpha);
+
+    return base;
 }
 
 fn quad_offset(vert_index: u32) -> vec2<f32> {

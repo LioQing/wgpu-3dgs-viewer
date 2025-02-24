@@ -1,7 +1,8 @@
 use crate::{
     CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig, GaussiansBuffer,
-    GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer, ModelTransformBuffer,
-    QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer, RadixSortIndirectArgsBuffer, Texture,
+    GaussiansDepthBuffer, GaussiansEditBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
+    ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer,
+    RadixSortIndirectArgsBuffer, SelectionBuffer, SelectionEditBuffer, Texture,
 };
 
 /// Preprocessor to preprocess the Gaussians.
@@ -142,10 +143,43 @@ impl Preprocessor {
                     },
                     count: None,
                 },
+                // Gaussians edit storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 10,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Selection storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 11,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Selection edit uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 12,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
                 // Qeruy texture view
                 #[cfg(feature = "query-texture")]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 10,
+                    binding: 13,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: false },
@@ -171,6 +205,9 @@ impl Preprocessor {
         query: &QueryBuffer,
         query_result_count: &QueryResultCountBuffer,
         query_results: &QueryResultsBuffer,
+        gaussians_edit: &GaussiansEditBuffer,
+        selection: &SelectionBuffer,
+        selection_edit: &SelectionEditBuffer,
         #[cfg(feature = "query-texture")] query_texture: &impl Texture,
     ) -> Result<Self, Error> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
@@ -198,6 +235,9 @@ impl Preprocessor {
             query,
             query_result_count,
             query_results,
+            gaussians_edit,
+            selection,
+            selection_edit,
             #[cfg(feature = "query-texture")]
             query_texture,
         );
@@ -337,6 +377,9 @@ impl Preprocessor {
         query: &QueryBuffer,
         query_result_count: &QueryResultCountBuffer,
         query_results: &QueryResultsBuffer,
+        gaussians_edit: &GaussiansEditBuffer,
+        selection: &SelectionBuffer,
+        selection_edit: &SelectionEditBuffer,
         query_texture: &impl Texture,
     ) {
         self.bind_group = Self::create_bind_group(
@@ -352,6 +395,9 @@ impl Preprocessor {
             query,
             query_result_count,
             query_results,
+            gaussians_edit,
+            selection,
+            selection_edit,
             query_texture,
         );
     }
@@ -371,6 +417,9 @@ impl Preprocessor {
         query: &QueryBuffer,
         query_result_count: &QueryResultCountBuffer,
         query_results: &QueryResultsBuffer,
+        gaussians_edit: &GaussiansEditBuffer,
+        selection: &SelectionBuffer,
+        selection_edit: &SelectionEditBuffer,
         #[cfg(feature = "query-texture")] query_texture: &impl Texture,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -427,10 +476,25 @@ impl Preprocessor {
                     binding: 9,
                     resource: query_results.buffer().as_entire_binding(),
                 },
+                // Gaussians edit buffer
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: gaussians_edit.buffer().as_entire_binding(),
+                },
+                // Selection buffer
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: selection.buffer().as_entire_binding(),
+                },
+                // Selection edit uniform buffer
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: selection_edit.buffer().as_entire_binding(),
+                },
                 // Query texture view
                 #[cfg(feature = "query-texture")]
                 wgpu::BindGroupEntry {
-                    binding: 10,
+                    binding: 13,
                     resource: wgpu::BindingResource::TextureView(query_texture.view()),
                 },
             ],

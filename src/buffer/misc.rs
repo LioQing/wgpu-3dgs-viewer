@@ -120,11 +120,12 @@ impl QueryCursorBuffer {
 
     /// Update the query cursor buffer.
     pub fn update(&self, queue: &wgpu::Queue, outline_color: Vec4, outline_width: f32) {
-        queue.write_buffer(
-            &self.0,
-            0,
-            bytemuck::cast_slice(&[QueryCursorPod::new(outline_color, outline_width)]),
-        );
+        self.update_with_pod(queue, &QueryCursorPod::new(outline_color, outline_width));
+    }
+
+    /// Update the query cursor buffer with [`QueryCursorPod`].
+    pub fn update_with_pod(&self, queue: &wgpu::Queue, pod: &QueryCursorPod) {
+        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(pod));
     }
 
     /// Get the buffer.

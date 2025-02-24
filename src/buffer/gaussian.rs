@@ -53,17 +53,28 @@ impl<G: GaussianPod> GaussiansBuffer<G> {
             return;
         }
 
-        queue.write_buffer(
-            &self.0,
-            0,
-            bytemuck::cast_slice(
-                gaussians
-                    .iter()
-                    .map(G::from_gaussian)
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-            ),
+        self.update_with_pod(
+            queue,
+            gaussians
+                .iter()
+                .map(G::from_gaussian)
+                .collect::<Vec<_>>()
+                .as_slice(),
         );
+    }
+
+    /// Update the buffer with [`GaussianPod`].
+    pub fn update_with_pod(&self, queue: &wgpu::Queue, pods: &[G]) {
+        if pods.len() != self.len() {
+            log::error!(
+                "Gaussians count mismatch, buffer has {}, but {} were provided",
+                self.len(),
+                pods.len()
+            );
+            return;
+        }
+
+        queue.write_buffer(&self.0, 0, bytemuck::cast_slice(pods));
     }
 }
 
@@ -351,11 +362,12 @@ impl CameraBuffer {
 
     /// Update the camera buffer.
     pub fn update(&self, queue: &wgpu::Queue, camera: &impl CameraTrait, size: UVec2) {
-        queue.write_buffer(
-            &self.0,
-            0,
-            bytemuck::bytes_of(&CameraPod::new(camera, size)),
-        );
+        self.update_with_pod(queue, &CameraPod::new(camera, size));
+    }
+
+    /// Update the camera buffer with [`CameraPod`].
+    pub fn update_with_pod(&self, queue: &wgpu::Queue, pod: &CameraPod) {
+        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(pod));
     }
 
     /// Get the buffer.
@@ -404,11 +416,12 @@ impl ModelTransformBuffer {
 
     /// Update the model transformation buffer.
     pub fn update(&self, queue: &wgpu::Queue, pos: Vec3, quat: Quat, scale: Vec3) {
-        queue.write_buffer(
-            &self.0,
-            0,
-            bytemuck::bytes_of(&ModelTransformPod::new(pos, quat, scale)),
-        );
+        self.update_with_pod(queue, &ModelTransformPod::new(pos, quat, scale));
+    }
+
+    /// Update the model transformation buffer with [`ModelTransformPod`].
+    pub fn update_with_pod(&self, queue: &wgpu::Queue, pod: &ModelTransformPod) {
+        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(pod));
     }
 
     /// Get the buffer.
@@ -508,16 +521,15 @@ impl GaussianTransformBuffer {
         sh_deg: GaussianShDegree,
         no_sh0: bool,
     ) {
-        queue.write_buffer(
-            &self.0,
-            0,
-            bytemuck::bytes_of(&GaussianTransformPod::new(
-                size,
-                display_mode,
-                sh_deg,
-                no_sh0,
-            )),
+        self.update_with_pod(
+            queue,
+            &GaussianTransformPod::new(size, display_mode, sh_deg, no_sh0),
         );
+    }
+
+    /// Update the Gaussian transformation buffer with [`GaussianTransformPod`].
+    pub fn update_with_pod(&self, queue: &wgpu::Queue, transform: &GaussianTransformPod) {
+        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(transform));
     }
 
     /// Get the buffer.
@@ -589,5 +601,112 @@ impl GaussiansDepthBuffer {
     /// Get the buffer.
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.0
+    }
+}
+
+/// The Gaussians edit storage buffer.
+#[derive(Debug)]
+pub struct GaussiansEditBuffer(wgpu::Buffer);
+
+impl GaussiansEditBuffer {
+    /// Create a new Gaussians edit buffer.
+    pub fn new(device: &wgpu::Device, gaussian_count: u32) -> Self {
+        let size = gaussian_count * std::mem::size_of::<GaussianEditPod>() as u32;
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Gaussians Edit Buffer"),
+            size: size as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+
+        Self(buffer)
+    }
+
+    /// Get the buffer.
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+bitflags::bitflags! {
+    /// The flags for [`GaussianEditPod`].
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct GaussianEditFlag: u8 {
+        /// No flag.
+        const NONE = 0;
+
+        /// Is the edit enabled.
+        const ENABLED = 1 << 0;
+
+        /// Hide the Gaussian.
+        const HIDDEN = 1 << 1;
+
+        /// Override the base color.
+        const OVERRIDE_COLOR = 1 << 2;
+    }
+}
+
+/// The POD representation of a Gaussian edit.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GaussianEditPod {
+    /// \[Flag (8), HSB, or RGB if [`GaussianEditFlag::OVERRIDE_COLOR`] (24)\]
+    pub flag_hsv: U8Vec4,
+
+    /// \[Contrast (8), Exposure (8), Gamma (8), Alpha (8)\]
+    pub contr_expo_gamma_alpha: U8Vec4,
+}
+
+impl GaussianEditPod {
+    /// Create a new Gaussian edit.
+    ///
+    /// The hue is in the range of \[0, 1\].
+    /// The saturation is in the range of \[0, 2\].
+    /// The brightness is in the range of \[0, 2\].
+    /// The RGB is in the range of \[0, 1\] (if [`GaussianEditFlag::OVERRIDE_COLOR`]).
+    /// The contrast is in the range of \[-1, 1\].
+    /// The exposure is in the range of \[-5, 5\].
+    /// The gamma is in the range of \[0, 5\].
+    /// The alpha is in the range of \[0, 2\].
+    pub fn new(
+        flag: GaussianEditFlag,
+        hsv_or_rgb: Vec3,
+        contrast: f32,
+        exposure: f32,
+        gamma: f32,
+        alpha: f32,
+    ) -> Self {
+        let hsv_or_rgb = match flag.contains(GaussianEditFlag::OVERRIDE_COLOR) {
+            true => hsv_or_rgb.clamp(Vec3::ZERO, Vec3::ONE) * 255.0,
+            false => hsv_or_rgb.clamp(Vec3::ZERO, vec3(1.0, 2.0, 2.0)) * vec3(255.0, 127.5, 127.5),
+        }
+        .as_u8vec3();
+        let contr_expo_gamma_alpha = vec4(
+            (contrast.clamp(-1.0, 1.0) + 1.0) * 127.5,
+            (exposure.clamp(-5.0, 5.0) + 5.0) * 25.5,
+            gamma.clamp(0.0, 5.0) * 51.0,
+            alpha.clamp(0.0, 2.0) * 127.5,
+        )
+        .as_u8vec4();
+        let flag = flag.bits();
+
+        Self {
+            flag_hsv: u8vec4(flag, hsv_or_rgb.x, hsv_or_rgb.y, hsv_or_rgb.z),
+            contr_expo_gamma_alpha,
+        }
+    }
+}
+
+impl Default for GaussianEditPod {
+    fn default() -> Self {
+        Self::new(
+            GaussianEditFlag::NONE,
+            vec3(0.0, 0.0, 0.0),
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+        )
     }
 }

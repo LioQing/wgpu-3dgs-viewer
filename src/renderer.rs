@@ -1,8 +1,8 @@
 use crate::{
     CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig,
-    GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer, SelectionBuffer,
-    SelectionHighlightBuffer,
+    GaussianTransformBuffer, GaussiansBuffer, GaussiansEditBuffer, IndirectArgsBuffer,
+    IndirectIndicesBuffer, ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer,
+    QueryResultsBuffer, SelectionBuffer, SelectionHighlightBuffer,
 };
 
 /// A renderer for Gaussians.
@@ -133,6 +133,17 @@ impl Renderer {
                     },
                     count: None,
                 },
+                // Gaussians edit storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 10,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 
@@ -151,6 +162,7 @@ impl Renderer {
         query_results: &QueryResultsBuffer,
         selection_highlight: &SelectionHighlightBuffer,
         selection: &SelectionBuffer,
+        gaussians_edit: &GaussiansEditBuffer,
     ) -> Result<Self, Error> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
             return Err(Error::ModelSizeExceedsDeviceLimit {
@@ -217,6 +229,11 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 9,
                     resource: selection.buffer().as_entire_binding(),
+                },
+                // Gaussians edit storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: gaussians_edit.buffer().as_entire_binding(),
                 },
             ],
         });

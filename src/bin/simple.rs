@@ -453,6 +453,19 @@ impl System {
             self.camera.yaw_by(-yaw);
         }
 
+        // Selection edit
+        if input.pressed_keys.contains(&KeyCode::Delete) {
+            self.viewer.update_selection_edit(
+                &self.queue,
+                gs::GaussianEditFlag::ENABLED | gs::GaussianEditFlag::HIDDEN,
+                Vec3::ZERO,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            );
+        }
+
         // Update the viewer
         self.viewer.update_camera(
             &self.queue,

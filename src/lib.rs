@@ -66,6 +66,8 @@ pub struct Viewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
     pub postprocess_indirect_args_buffer: PostprocessIndirectArgsBuffer,
     pub selection_highlight_buffer: SelectionHighlightBuffer,
     pub selection_buffer: SelectionBuffer,
+    pub gaussians_edit_buffer: GaussiansEditBuffer,
+    pub selection_edit_buffer: SelectionEditBuffer,
 
     #[cfg(feature = "query-texture")]
     pub query_texture: QueryTexture,
@@ -129,6 +131,13 @@ impl<G: GaussianPod> Viewer<G> {
         log::debug!("Creating selection buffer");
         let selection_buffer = SelectionBuffer::new(device, gaussians.gaussians.len() as u32);
 
+        log::debug!("Creating gaussians edit buffer");
+        let gaussians_edit_buffer =
+            GaussiansEditBuffer::new(device, gaussians.gaussians.len() as u32);
+
+        log::debug!("Creating selection edit buffer");
+        let selection_edit_buffer = SelectionEditBuffer::new(device);
+
         #[cfg(feature = "query-texture")]
         let query_texture = {
             log::debug!("Creating query texture");
@@ -148,6 +157,9 @@ impl<G: GaussianPod> Viewer<G> {
             &query_buffer,
             &query_result_count_buffer,
             &query_results_buffer,
+            &gaussians_edit_buffer,
+            &selection_buffer,
+            &selection_edit_buffer,
             #[cfg(feature = "query-texture")]
             &query_texture,
         )?;
@@ -170,6 +182,7 @@ impl<G: GaussianPod> Viewer<G> {
             &query_results_buffer,
             &selection_highlight_buffer,
             &selection_buffer,
+            &gaussians_edit_buffer,
         )?;
 
         log::debug!("Creating postprocessor");
@@ -199,6 +212,8 @@ impl<G: GaussianPod> Viewer<G> {
             postprocess_indirect_args_buffer,
             selection_highlight_buffer,
             selection_buffer,
+            gaussians_edit_buffer,
+            selection_edit_buffer,
 
             #[cfg(feature = "query-texture")]
             query_texture,
@@ -220,6 +235,11 @@ impl<G: GaussianPod> Viewer<G> {
         self.camera_buffer.update(queue, camera, texture_size);
     }
 
+    /// Update the camera with [`CameraPod`].
+    pub fn update_camera_with_pod(&mut self, queue: &wgpu::Queue, pod: &CameraPod) {
+        self.camera_buffer.update_with_pod(queue, pod);
+    }
+
     /// Update the query.
     ///
     /// There can only be one query at a time.
@@ -238,6 +258,15 @@ impl<G: GaussianPod> Viewer<G> {
         self.model_transform_buffer.update(queue, pos, quat, scale);
     }
 
+    /// Update the model transform with [`ModelTransformPod`].
+    pub fn update_model_transform_with_pod(
+        &mut self,
+        queue: &wgpu::Queue,
+        pod: &ModelTransformPod,
+    ) {
+        self.model_transform_buffer.update_with_pod(queue, pod);
+    }
+
     /// Update the Gaussian transform.
     pub fn update_gaussian_transform(
         &mut self,
@@ -251,9 +280,50 @@ impl<G: GaussianPod> Viewer<G> {
             .update(queue, size, display_mode, sh_deg, no_sh0);
     }
 
+    /// Update the Gaussian transform with [`GaussianTransformPod`].
+    pub fn update_gaussian_transform_with_pod(
+        &mut self,
+        queue: &wgpu::Queue,
+        pod: &GaussianTransformPod,
+    ) {
+        self.gaussian_transform_buffer.update_with_pod(queue, pod);
+    }
+
     /// Update the selection highlight.
     pub fn update_selection_highlight(&mut self, queue: &wgpu::Queue, color: Vec4) {
         self.selection_highlight_buffer.update(queue, color);
+    }
+
+    /// Update the selection highlight with [`SelectionHighlightPod`].
+    pub fn update_selection_highlight_with_pod(
+        &mut self,
+        queue: &wgpu::Queue,
+        pod: &SelectionHighlightPod,
+    ) {
+        self.selection_highlight_buffer.update_with_pod(queue, pod);
+    }
+
+    /// Update the selection edit.
+    ///
+    /// Set [`GaussianEditFlag::ENABLED`] to apply the edits on the selected Gaussians.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_selection_edit(
+        &mut self,
+        queue: &wgpu::Queue,
+        flag: GaussianEditFlag,
+        hsv: Vec3,
+        contrast: f32,
+        exposure: f32,
+        gamma: f32,
+        alpha: f32,
+    ) {
+        self.selection_edit_buffer
+            .update(queue, flag, hsv, contrast, exposure, gamma, alpha);
+    }
+
+    /// Update the selection edit with [`GaussianEditPod`].
+    pub fn update_selection_edit_with_pod(&mut self, queue: &wgpu::Queue, pod: &GaussianEditPod) {
+        self.selection_edit_buffer.update_with_pod(queue, pod);
     }
 
     /// Update the query texture size.
@@ -274,6 +344,9 @@ impl<G: GaussianPod> Viewer<G> {
             &self.query_buffer,
             &self.query_result_count_buffer,
             &self.query_results_buffer,
+            &self.gaussians_edit_buffer,
+            &self.selection_buffer,
+            &self.selection_edit_buffer,
             &self.query_texture,
         );
     }

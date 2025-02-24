@@ -187,9 +187,55 @@ fn query_brush(gaussian_index: u32, ndc_pos: vec2<f32>) {
     );
 }
 
+struct GaussianEdit {
+    flag_hsv: u32,
+    contr_expo_gamma_alpha: u32,
+}
+@group(0) @binding(10)
+var<storage, read_write> gaussians_edit: array<GaussianEdit>;
+
+const gaussian_edit_flag_none = 0u;
+const gaussian_edit_flag_enabled = 1u << 0u;
+const gaussian_edit_flag_hidden = 1u << 1u;
+const gaussian_edit_flag_override_color = 1u << 2u;
+
+fn gaussians_edit_flag(index: u32) -> u32 {
+    return gaussians_edit[index].flag_hsv & 0x000000FF;
+}
+
+fn gaussians_edit_enabled(index: u32) -> bool {
+    return (gaussians_edit_flag(index) & gaussian_edit_flag_enabled) != 0;
+}
+
+fn gaussians_edit_flag_test(index: u32, test: u32) -> bool {
+    let mask = gaussian_edit_flag_enabled | test;
+    return (gaussians_edit_flag(index) & mask) == mask;
+}
+
+@group(0) @binding(11)
+var<storage, read> selection: array<u32>;
+
+fn selection_at(index: u32) -> bool {
+    let word_index = index / 32u;
+    let bit_index = index % 32u;
+    let mask = 1u << bit_index;
+    return (selection[word_index] & mask) != 0u;
+}
+
+@group(0) @binding(12)
+var<uniform> selection_edit: GaussianEdit;
+
+fn selection_edit_flag() -> u32 {
+    return selection_edit.flag_hsv & 0x000000FF;
+}
+
+fn selection_edit_enabled() -> bool {
+    return (selection_edit_flag() & gaussian_edit_flag_enabled) != 0;
+}
+
 // Feature query texture begin
 
-@group(0) @binding(10)
+@group(0) @binding(13)
 var query_texture_view: texture_2d<f32>;
 
 fn query_texture(gaussian_index: u32, ndc_pos: vec2<f32>) {
@@ -224,6 +270,16 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 
     let gaussian = gaussians[index];
+
+    // Edit
+    if selection_at(index) && selection_edit_enabled() {
+        gaussians_edit[index] = selection_edit;
+    }
+
+    // Hidden
+    if gaussians_edit_flag_test(index, gaussian_edit_flag_hidden) {
+        return;
+    }
 
     // Cull
     let proj_pos = camera.proj * camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
