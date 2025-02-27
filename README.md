@@ -8,9 +8,9 @@ This crate is built for [3D Gaussian Splatting Viewer App](https://lioqing.com/w
 
 There are two ways to use this viewer:
 
-1. As a standalone application
+1. As a [standalone application](#standalone-application)
 
-2. As a library
+2. As a [library](#library)
 
 ### Standalone Application
 
@@ -23,13 +23,41 @@ cargo run --bin simple-wgpu-3dgs-viewer --features="bin-simple" -- -m "path/to/m
 Usage:
 
 ```
+     Running `target\debug\simple-wgpu-3dgs-viewer.exe --help`
 A 3D Gaussian splatting viewer written in Rust using wgpu.
 
-In default mode, move the camera with W, A, S, D, Space, Shift, and rotate with mouse.
-In selectio mode, click anywhere on the model to select the nearest Gaussian.
-Use C to toggle between default and selection mode.
+In default mode, use W, A, S, D, Space, Shift to move, use mouse to rotate.
+
 
 Usage: simple-wgpu-3dgs-viewer.exe --model <MODEL>
+
+Options:
+  -m, --model <MODEL>
+          Path to the .ply file
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+```
+
+Or try the selection related features:
+
+```sh
+cargo run --bin selection-wgpu-3dgs-viewer --features="bin-selection" -- -m "path/to/model.ply"
+```
+
+Usage:
+
+```
+A 3D Gaussian splatting viewer written in Rust using wgpu.
+
+In default mode, use W, A, S, D, Space, Shift to move, use mouse to rotate.
+In selection mode, use left mouse button to brush select, use right mouse button to box select, hold space to use immediate selection, use delete to detele selected Gaussians.
+Use C to toggle between default and selection mode.
+
+Usage: selection-wgpu-3dgs-viewer.exe --model <MODEL>
 
 Options:
   -m, --model <MODEL>
