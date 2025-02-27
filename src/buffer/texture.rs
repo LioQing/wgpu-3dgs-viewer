@@ -1,3 +1,4 @@
+#[cfg(feature = "query-texture")]
 use glam::*;
 
 /// A texture, including its view.

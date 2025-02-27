@@ -44,6 +44,8 @@ Options:
 
 ### Library
 
+Generally, the `Viewer` is sufficient for most use cases. However, you may directly use the individual components from the fields of `Viewer` if you want more control.
+
 Example:
 
 ```rust
@@ -58,28 +60,29 @@ let mut reader = std::io::BufReader::new(f);
 let gaussians = Gaussians::read_ply(&mut reader).expect("gaussians");
 
 // Create the camera
-let camera = Camera::new(1e-4..1e4, 60f32.to_radians());
+let camera = Camera::new(0.1..1e4, 60f32.to_radians());
 
 // Create the viewer
-let viewer = Viewer::new(&device, surface_texture_format, &gaussians).expect("viewer");
+let mut viewer =
+    Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
 
 // ...
 
-// Update the viewer's buffers each frame
-viewer.update(
+// Update the viewer's camera buffer
+viewer.update_camera(
     &queue,
     &camera,
-    uvec2(surface_config.width, surface_config.height),
+    uvec2(config.width, config.height),
 );
 
 // ...
 
-// Render the viewer each frame
+// Render the viewer
 viewer.render(
     &mut encoder,
-    &surface_texture_view,
+    &texture_view,
     gaussians.gaussians.len() as u32,
 );
 ```
 
-You may also take a look at [the `simple-wgpu-3dgs-viewer` binary](./src/bin/simple.rs) for an example.
+You may also take a look at [the `simple-wgpu-3dgs-viewer` binary](./src/bin/simple.rs) for a simple example, and [the `selection-wgpu-3dgs-viewer` binary](./src/bin/selection.rs) for an example with the selection related features enabled.

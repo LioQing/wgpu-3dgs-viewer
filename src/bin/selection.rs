@@ -22,6 +22,11 @@ use wgpu_3dgs_viewer as gs;
     A 3D Gaussian splatting viewer written in Rust using wgpu.\n\
     \n\
     In default mode, use W, A, S, D, Space, Shift to move, use mouse to rotate.\n\
+    In selection mode, use left mouse button to brush select, \
+    use right mouse button to box select, \
+    hold space to use immediate selection, \
+    use delete to detele selected Gaussians.\n\
+    Use C to toggle between default and selection mode.\
     "
 )]
 struct Args {
@@ -230,6 +235,12 @@ struct System {
     camera: gs::Camera,
     gaussians: gs::Gaussians,
     viewer: gs::Viewer,
+
+    query_cursor: gs::QueryCursor,
+    query_toolset: gs::QueryToolset,
+    query_texture_overlay: gs::QueryTextureOverlay,
+
+    is_selecting: bool,
 }
 
 impl System {
@@ -303,8 +314,13 @@ impl System {
             .fold(f32::INFINITY, |a, b| a.min(b));
 
         log::debug!("Creating viewer");
-        let mut viewer =
-            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
+        let mut viewer = gs::Viewer::new(
+            &device,
+            config.view_formats[0],
+            uvec2(config.width, config.height),
+            &gaussians,
+        )
+        .expect("viewer");
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
         viewer.update_gaussian_transform(
             &queue,
@@ -314,6 +330,18 @@ impl System {
             false,
         );
         viewer.update_selection_highlight(&queue, vec4(1.0, 1.0, 0.0, 0.5));
+
+        log::debug!("Creating query cursor");
+        let query_cursor =
+            gs::QueryCursor::new(&device, config.view_formats[0], &viewer.camera_buffer);
+
+        log::debug!("Creating query toolset");
+        let query_toolset =
+            gs::QueryToolset::new(&device, &viewer.query_texture, &viewer.camera_buffer);
+
+        log::debug!("Creating query texture overlay");
+        let query_texture_overlay =
+            gs::QueryTextureOverlay::new(&device, config.view_formats[0], &viewer.query_texture);
 
         log::info!("System initialized");
 
@@ -326,49 +354,119 @@ impl System {
             camera,
             gaussians,
             viewer,
+
+            query_cursor,
+            query_toolset,
+            query_texture_overlay,
+
+            is_selecting: false,
         }
     }
 
     pub fn update(&mut self, input: &Input, delta_time: f32) {
-        // Camera movement
-        const SPEED: f32 = 1.0;
-
-        let mut forward = 0.0;
-        if input.held_keys.contains(&KeyCode::KeyW) {
-            forward += SPEED * delta_time;
-        }
-        if input.held_keys.contains(&KeyCode::KeyS) {
-            forward -= SPEED * delta_time;
+        if input.pressed_keys.contains(&KeyCode::KeyC) {
+            self.is_selecting = !self.is_selecting;
+            self.viewer.update_query(&self.queue, &gs::QueryPod::none());
         }
 
-        let mut right = 0.0;
-        if input.held_keys.contains(&KeyCode::KeyD) {
-            right += SPEED * delta_time;
+        if self.is_selecting {
+            self.query_toolset
+                .set_use_texture(!input.held_keys.contains(&KeyCode::Space));
+
+            let selection_op = if input.held_keys.contains(&KeyCode::ShiftLeft) {
+                gs::QuerySelectionOp::Add
+            } else if input.held_keys.contains(&KeyCode::ControlLeft) {
+                gs::QuerySelectionOp::Remove
+            } else {
+                gs::QuerySelectionOp::Set
+            };
+
+            if input.pressed_mouse.contains(&MouseButton::Left) {
+                self.query_toolset.start(
+                    gs::QueryToolsetTool::Brush,
+                    selection_op,
+                    input.mouse_pos,
+                );
+            } else if input.pressed_mouse.contains(&MouseButton::Right) {
+                self.query_toolset
+                    .start(gs::QueryToolsetTool::Rect, selection_op, input.mouse_pos);
+            } else if input.released_mouse.contains(&MouseButton::Left)
+                || input.released_mouse.contains(&MouseButton::Right)
+            {
+                self.query_toolset.end();
+            } else {
+                self.query_toolset.update_pos(input.mouse_pos);
+            }
+
+            if input.scroll_diff != 0.0 {
+                let new_brush_radius = (self.query_toolset.brush_radius() as i32
+                    + input.scroll_diff as i32 * 5)
+                    .max(1) as u32;
+                self.query_toolset.update_brush_radius(new_brush_radius);
+            }
+
+            self.viewer
+                .update_query(&self.queue, self.query_toolset.query());
+
+            self.query_cursor.update_query_toolset(
+                &self.queue,
+                &self.query_toolset,
+                input.mouse_pos,
+            );
+        } else {
+            // Camera movement
+            const SPEED: f32 = 1.0;
+
+            let mut forward = 0.0;
+            if input.held_keys.contains(&KeyCode::KeyW) {
+                forward += SPEED * delta_time;
+            }
+            if input.held_keys.contains(&KeyCode::KeyS) {
+                forward -= SPEED * delta_time;
+            }
+
+            let mut right = 0.0;
+            if input.held_keys.contains(&KeyCode::KeyD) {
+                right += SPEED * delta_time;
+            }
+            if input.held_keys.contains(&KeyCode::KeyA) {
+                right -= SPEED * delta_time;
+            }
+
+            self.camera.move_by(forward, right);
+
+            let mut up = 0.0;
+            if input.held_keys.contains(&KeyCode::Space) {
+                up += SPEED * delta_time;
+            }
+            if input.held_keys.contains(&KeyCode::ShiftLeft) {
+                up -= SPEED * delta_time;
+            }
+
+            self.camera.move_up(up);
+
+            // Camera rotation
+            const SENSITIVITY: f32 = 0.3;
+
+            let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
+            let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
+
+            self.camera.pitch_by(-pitch);
+            self.camera.yaw_by(-yaw);
         }
-        if input.held_keys.contains(&KeyCode::KeyA) {
-            right -= SPEED * delta_time;
+
+        // Selection edit
+        if input.pressed_keys.contains(&KeyCode::Delete) {
+            self.viewer.update_selection_edit(
+                &self.queue,
+                gs::GaussianEditFlag::ENABLED | gs::GaussianEditFlag::HIDDEN,
+                Vec3::ZERO,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            );
         }
-
-        self.camera.move_by(forward, right);
-
-        let mut up = 0.0;
-        if input.held_keys.contains(&KeyCode::Space) {
-            up += SPEED * delta_time;
-        }
-        if input.held_keys.contains(&KeyCode::ShiftLeft) {
-            up -= SPEED * delta_time;
-        }
-
-        self.camera.move_up(up);
-
-        // Camera rotation
-        const SENSITIVITY: f32 = 0.3;
-
-        let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
-        let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
-
-        self.camera.pitch_by(-pitch);
-        self.camera.yaw_by(-yaw);
 
         // Update the viewer
         self.viewer.update_camera(
@@ -398,11 +496,25 @@ impl System {
                 label: Some("Command Encoder"),
             });
 
+        self.query_toolset
+            .render(&self.queue, &mut encoder, &self.viewer.query_texture);
+
         self.viewer.render(
             &mut encoder,
             &texture_view,
             self.gaussians.gaussians.len() as u32,
         );
+
+        if self.is_selecting {
+            if let Some((gs::QueryToolsetUsedTool::QueryTextureTool { .. }, ..)) =
+                self.query_toolset.state()
+            {
+                self.query_texture_overlay
+                    .render(&mut encoder, &texture_view);
+            } else {
+                self.query_cursor.render(&mut encoder, &texture_view);
+            }
+        }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
@@ -414,6 +526,10 @@ impl System {
             self.config.width = size.width;
             self.config.height = size.height;
             self.surface.configure(&self.device, &self.config);
+            self.viewer
+                .update_query_texture_size(&self.device, uvec2(size.width, size.height));
+            self.query_texture_overlay
+                .update_bind_group(&self.device, &self.viewer.query_texture);
         }
     }
 }

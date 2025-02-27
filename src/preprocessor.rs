@@ -2,8 +2,11 @@ use crate::{
     CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig, GaussiansBuffer,
     GaussiansDepthBuffer, GaussiansEditBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
     ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer,
-    RadixSortIndirectArgsBuffer, SelectionBuffer, SelectionEditBuffer, Texture,
+    RadixSortIndirectArgsBuffer, SelectionBuffer, SelectionEditBuffer,
 };
+
+#[cfg(feature = "query-texture")]
+use crate::Texture;
 
 /// Preprocessor to preprocess the Gaussians.
 ///
@@ -265,7 +268,7 @@ impl Preprocessor {
                         #[cfg(not(feature = "query-texture"))]
                         if line.contains("// Feature query texture begin") {
                             *state = true;
-                        } else if line.contains("// Feature query texture begin") {
+                        } else if line.contains("// Feature query texture end") {
                             *state = false;
                         }
 

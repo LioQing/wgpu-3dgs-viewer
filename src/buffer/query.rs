@@ -103,6 +103,7 @@ impl QueryPod {
             x if x == QueryType::Hit as u32 => QueryType::Hit,
             x if x == QueryType::Rect as u32 => QueryType::Rect,
             x if x == QueryType::Brush as u32 => QueryType::Brush,
+            #[cfg(feature = "query-texture")]
             x if x == QueryType::Texture as u32 => QueryType::Texture,
             _ => panic!("Unknown query type"),
         }
@@ -203,6 +204,7 @@ impl QueryPod {
     }
 
     /// Create a new [`QueryType::Texture`] query.
+    #[cfg(feature = "query-texture")]
     pub const fn texture() -> Self {
         Self::new(
             uvec4(QueryType::Texture as u32, 0, 0, 0),
