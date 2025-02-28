@@ -1,14 +1,32 @@
 use crate::{GaussiansDepthBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer};
 
+pub type RadixSorterBindGroups = wgpu_sort::InternalSortBuffers;
+
 /// Radix sorter for sorting Gaussians based on their depth (i.e. clipped z value).
 #[derive(Debug)]
-pub struct RadixSorter {
+pub struct RadixSorter<B = RadixSorterBindGroups> {
     /// The sorter.
     ///
     /// Using modified version of the [wgpu_sort](https://crates.io/crates/wgpu_sort) crate.
     sorter: wgpu_sort::GPUSorter,
     /// The internal sort buffers.
-    internal_sort_buffers: wgpu_sort::InternalSortBuffers,
+    internal_sort_buffers: B,
+}
+
+impl<B> RadixSorter<B> {
+    /// Create the bind groups.
+    pub fn create_bind_groups(
+        &self,
+        device: &wgpu::Device,
+        gaussians_depth: &GaussiansDepthBuffer,
+        indirect_indices: &IndirectIndicesBuffer,
+    ) -> RadixSorterBindGroups {
+        self.sorter.create_internal_sort_buffers(
+            device,
+            gaussians_depth.buffer(),
+            indirect_indices.buffer(),
+        )
+    }
 }
 
 impl RadixSorter {
@@ -18,20 +36,16 @@ impl RadixSorter {
         gaussians_depth: &GaussiansDepthBuffer,
         indirect_indices: &IndirectIndicesBuffer,
     ) -> Self {
-        log::debug!("Creating radix sorter");
-        let sorter = wgpu_sort::GPUSorter::new(device, 1);
+        let this = RadixSorter::new_without_bind_groups(device);
 
         log::debug!("Creating radix sorter internal sort buffers");
-        let internal_sort_buffers = sorter.create_internal_sort_buffers(
-            device,
-            gaussians_depth.buffer(),
-            indirect_indices.buffer(),
-        );
+        let internal_sort_buffers =
+            this.create_bind_groups(device, gaussians_depth, indirect_indices);
 
         log::info!("Radix sorter created");
 
         Self {
-            sorter,
+            sorter: this.sorter,
             internal_sort_buffers,
         }
     }
@@ -47,6 +61,21 @@ impl RadixSorter {
             &self.internal_sort_buffers,
             indirect_args_buffer.buffer(),
         );
+    }
+}
+
+impl RadixSorter<()> {
+    /// Create a new radix sorter without internally managed bind groups.
+    pub fn new_without_bind_groups(device: &wgpu::Device) -> Self {
+        log::debug!("Creating radix sorter without bind groups");
+        let sorter = wgpu_sort::GPUSorter::new(device, 1);
+
+        log::info!("Radix sorter created");
+
+        Self {
+            sorter,
+            internal_sort_buffers: (),
+        }
     }
 }
 

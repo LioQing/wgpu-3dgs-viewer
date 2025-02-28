@@ -2,7 +2,7 @@
 
 ...written in Rust using [wgpu](https://wgpu.rs/).
 
-This crate is built for [3D Gaussian Splatting Viewer App](https://lioqing.com/wgpu-3dgs-viewer-app) which is also made by me.
+This crate is built for [3D Gaussian Splatting Viewer App](https://github.com/lioqing/wgpu-3dgs-viewer-app) which is also made by me.
 
 ## Usage
 
@@ -22,7 +22,7 @@ cargo run --bin simple-wgpu-3dgs-viewer --features="bin-simple" -- -m "path/to/m
 
 Usage:
 
-```
+```text
      Running `target\debug\simple-wgpu-3dgs-viewer.exe --help`
 A 3D Gaussian splatting viewer written in Rust using wgpu.
 
@@ -50,7 +50,7 @@ cargo run --bin selection-wgpu-3dgs-viewer --features="bin-selection" -- -m "pat
 
 Usage:
 
-```
+```text
 A 3D Gaussian splatting viewer written in Rust using wgpu.
 
 In default mode, use W, A, S, D, Space, Shift to move, use mouse to rotate.
@@ -72,7 +72,7 @@ Options:
 
 ### Library
 
-Generally, the `Viewer` is sufficient for most use cases. However, you may directly use the individual components from the fields of `Viewer` if you want more control.
+Generally, the [`Viewer`] is sufficient for most use cases. However, you may directly use the individual components from the fields of [`Viewer`] if you want more control.
 
 Example:
 

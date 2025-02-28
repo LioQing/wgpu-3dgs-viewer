@@ -7,14 +7,50 @@ use crate::{
 
 /// A renderer for Gaussians.
 #[derive(Debug)]
-pub struct Renderer {
+pub struct Renderer<B = wgpu::BindGroup> {
     /// The bind group layout.
     #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
     /// The bind group.
-    bind_group: wgpu::BindGroup,
+    bind_group: B,
     /// The render pipeline.
     pipeline: wgpu::RenderPipeline,
+}
+
+impl<B> Renderer<B> {
+    /// Create the bind group.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_bind_group<G: GaussianPod>(
+        &self,
+        device: &wgpu::Device,
+        camera: &CameraBuffer,
+        model_transform: &ModelTransformBuffer,
+        gaussian_transform: &GaussianTransformBuffer,
+        gaussians: &GaussiansBuffer<G>,
+        indirect_indices: &IndirectIndicesBuffer,
+        query: &QueryBuffer,
+        query_result_count: &QueryResultCountBuffer,
+        query_results: &QueryResultsBuffer,
+        selection_highlight: &SelectionHighlightBuffer,
+        selection: &SelectionBuffer,
+        gaussians_edit: &GaussiansEditBuffer,
+    ) -> wgpu::BindGroup {
+        Renderer::create_bind_group_static(
+            device,
+            &self.bind_group_layout,
+            camera,
+            model_transform,
+            gaussian_transform,
+            gaussians,
+            indirect_indices,
+            query,
+            query_result_count,
+            query_results,
+            selection_highlight,
+            selection,
+            gaussians_edit,
+        )
+    }
 }
 
 impl Renderer {
@@ -171,14 +207,87 @@ impl Renderer {
             });
         }
 
-        log::debug!("Creating renderer bind group layout");
-        let bind_group_layout =
-            device.create_bind_group_layout(&Self::BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let this = Renderer::new_without_bind_group::<G>(device, texture_format);
 
         log::debug!("Creating renderer bind group");
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = this.create_bind_group(
+            device,
+            camera,
+            model_transform,
+            gaussian_transform,
+            gaussians,
+            indirect_indices,
+            query,
+            query_result_count,
+            query_results,
+            selection_highlight,
+            selection,
+            gaussians_edit,
+        );
+
+        Ok(Self {
+            bind_group_layout: this.bind_group_layout,
+            bind_group,
+            pipeline: this.pipeline,
+        })
+    }
+
+    /// Render the scene.
+    pub fn render(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        indirect_args: &IndirectArgsBuffer,
+    ) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Renderer Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+
+        self.render_with_pass(&mut render_pass, indirect_args);
+    }
+
+    /// Render the scene with a [`wgpu::RenderPass`].
+    pub fn render_with_pass(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        indirect_args: &IndirectArgsBuffer,
+    ) {
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.draw_indirect(indirect_args.buffer(), 0);
+    }
+
+    /// Create the bind group statically.
+    #[allow(clippy::too_many_arguments)]
+    fn create_bind_group_static<G: GaussianPod>(
+        device: &wgpu::Device,
+        bind_group_layout: &wgpu::BindGroupLayout,
+        camera: &CameraBuffer,
+        model_transform: &ModelTransformBuffer,
+        gaussian_transform: &GaussianTransformBuffer,
+        gaussians: &GaussiansBuffer<G>,
+        indirect_indices: &IndirectIndicesBuffer,
+        query: &QueryBuffer,
+        query_result_count: &QueryResultCountBuffer,
+        query_results: &QueryResultsBuffer,
+        selection_highlight: &SelectionHighlightBuffer,
+        selection: &SelectionBuffer,
+        gaussians_edit: &GaussiansEditBuffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Renderer Bind Group"),
-            layout: &bind_group_layout,
+            layout: bind_group_layout,
             entries: &[
                 // Camera uniform buffer
                 wgpu::BindGroupEntry {
@@ -236,7 +345,22 @@ impl Renderer {
                     resource: gaussians_edit.buffer().as_entire_binding(),
                 },
             ],
-        });
+        })
+    }
+}
+
+impl Renderer<()> {
+    /// Create a new renderer without internally managed bind group.
+    ///
+    /// To create a bind group with layout matched to this renderer, use the
+    /// [`Renderer::create_bind_group`] method.
+    pub fn new_without_bind_group<G: GaussianPod>(
+        device: &wgpu::Device,
+        texture_format: wgpu::TextureFormat,
+    ) -> Self {
+        log::debug!("Creating renderer bind group layout");
+        let bind_group_layout =
+            device.create_bind_group_layout(&Renderer::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         log::debug!("Creating renderer pipeline layout");
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -287,11 +411,11 @@ impl Renderer {
 
         log::info!("Renderer created");
 
-        Ok(Self {
+        Self {
             bind_group_layout,
-            bind_group,
+            bind_group: (),
             pipeline,
-        })
+        }
     }
 
     /// Render the scene.
@@ -299,6 +423,7 @@ impl Renderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
+        bind_group: &wgpu::BindGroup,
         indirect_args: &IndirectArgsBuffer,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -316,17 +441,18 @@ impl Renderer {
             timestamp_writes: None,
         });
 
-        self.render_with_pass(&mut render_pass, indirect_args);
+        self.render_with_pass(&mut render_pass, bind_group, indirect_args);
     }
 
     /// Render the scene with a [`wgpu::RenderPass`].
     pub fn render_with_pass(
         &self,
         pass: &mut wgpu::RenderPass<'_>,
+        bind_group: &wgpu::BindGroup,
         indirect_args: &IndirectArgsBuffer,
     ) {
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_bind_group(0, bind_group, &[]);
         pass.draw_indirect(indirect_args.buffer(), 0);
     }
 }

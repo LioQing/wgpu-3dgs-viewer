@@ -13,18 +13,61 @@ use crate::Texture;
 /// It computes the depth for [`RadixSorter`](crate::RadixSorter), do frustum culling,
 /// and process selection query.
 #[derive(Debug)]
-pub struct Preprocessor {
+pub struct Preprocessor<B = wgpu::BindGroup> {
     /// The bind group layout.
     #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
     /// The bind group.
-    bind_group: wgpu::BindGroup,
+    bind_group: B,
     /// The pre compute pipeline.
     pre_pipeline: wgpu::ComputePipeline,
     /// The compute pipeline.
     pipeline: wgpu::ComputePipeline,
     /// The post compute pipeline.
     post_pipeline: wgpu::ComputePipeline,
+}
+
+impl<B> Preprocessor<B> {
+    /// Create the bind group.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_bind_group<G: GaussianPod>(
+        &self,
+        device: &wgpu::Device,
+        camera: &CameraBuffer,
+        model_transform: &ModelTransformBuffer,
+        gaussians: &GaussiansBuffer<G>,
+        indirect_args: &IndirectArgsBuffer,
+        radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
+        indirect_indices: &IndirectIndicesBuffer,
+        gaussians_depth: &GaussiansDepthBuffer,
+        query: &QueryBuffer,
+        query_result_count: &QueryResultCountBuffer,
+        query_results: &QueryResultsBuffer,
+        gaussians_edit: &GaussiansEditBuffer,
+        selection: &SelectionBuffer,
+        selection_edit: &SelectionEditBuffer,
+        #[cfg(feature = "query-texture")] query_texture: &impl Texture,
+    ) -> wgpu::BindGroup {
+        Preprocessor::create_bind_group_static(
+            device,
+            &self.bind_group_layout,
+            camera,
+            model_transform,
+            gaussians,
+            indirect_args,
+            radix_sort_indirect_args,
+            indirect_indices,
+            gaussians_depth,
+            query,
+            query_result_count,
+            query_results,
+            gaussians_edit,
+            selection,
+            selection_edit,
+            #[cfg(feature = "query-texture")]
+            query_texture,
+        )
+    }
 }
 
 impl Preprocessor {
@@ -220,14 +263,11 @@ impl Preprocessor {
             });
         }
 
-        log::debug!("Creating preprocessor bind group layout");
-        let bind_group_layout =
-            device.create_bind_group_layout(&Self::BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let this = Preprocessor::new_without_bind_group::<G>(device);
 
         log::debug!("Creating preprocessor bind group");
-        let bind_group = Self::create_bind_group(
+        let bind_group = this.create_bind_group(
             device,
-            &bind_group_layout,
             camera,
             model_transform,
             gaussians,
@@ -245,82 +285,12 @@ impl Preprocessor {
             query_texture,
         );
 
-        log::debug!("Creating preprocessor pipeline layout");
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Preprocessor Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        log::debug!("Creating preprocessor shader module");
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Preprocessor Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                include_str!("shader/preprocess.wgsl")
-                    .replace(
-                        "{{workgroup_size}}",
-                        Self::WORKGROUP_SIZE.to_string().as_str(),
-                    )
-                    .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
-                    .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
-                    .lines()
-                    .scan(false, |state, line| {
-                        #[cfg(not(feature = "query-texture"))]
-                        if line.contains("// Feature query texture begin") {
-                            *state = true;
-                        } else if line.contains("// Feature query texture end") {
-                            *state = false;
-                        }
-
-                        if *state {
-                            Some(format!("// {line}\n"))
-                        } else {
-                            Some(format!("{line}\n"))
-                        }
-                    })
-                    .collect::<String>()
-                    .into(),
-            ),
-        });
-
-        log::debug!("Creating preprocessor pre pipeline");
-        let pre_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Preprocessor Pre Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: Some("pre_main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
-        });
-
-        log::debug!("Creating preprocessor pipeline");
-        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Preprocessor Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: Some("main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
-        });
-
-        log::debug!("Creating preprocessor post pipeline");
-        let post_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Preprocessor Post Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: Some("post_main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
-        });
-
-        log::info!("Preprocessor created");
-
         Ok(Self {
-            bind_group_layout,
+            bind_group_layout: this.bind_group_layout,
             bind_group,
-            pre_pipeline,
-            pipeline,
-            post_pipeline,
+            pre_pipeline: this.pre_pipeline,
+            pipeline: this.pipeline,
+            post_pipeline: this.post_pipeline,
         })
     }
 
@@ -385,9 +355,8 @@ impl Preprocessor {
         selection_edit: &SelectionEditBuffer,
         query_texture: &impl Texture,
     ) {
-        self.bind_group = Self::create_bind_group(
+        self.bind_group = self.create_bind_group(
             device,
-            &self.bind_group_layout,
             camera,
             model_transform,
             gaussians,
@@ -405,9 +374,9 @@ impl Preprocessor {
         );
     }
 
-    /// Create the bind group.
+    /// Create the bind group statically.
     #[allow(clippy::too_many_arguments)]
-    fn create_bind_group<G: GaussianPod>(
+    fn create_bind_group_static<G: GaussianPod>(
         device: &wgpu::Device,
         bind_group_layout: &wgpu::BindGroupLayout,
         camera: &CameraBuffer,
@@ -502,5 +471,136 @@ impl Preprocessor {
                 },
             ],
         })
+    }
+}
+
+impl Preprocessor<()> {
+    /// Create a new preprocessor without interally managed bind group.
+    ///
+    /// To create a bind group with layout matched to this preprocessor, use the
+    /// [`Preprocessor::create_bind_group`] method.
+    pub fn new_without_bind_group<G: GaussianPod>(device: &wgpu::Device) -> Self {
+        log::debug!("Creating preprocessor bind group layout");
+        let bind_group_layout =
+            device.create_bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR);
+
+        log::debug!("Creating preprocessor pipeline layout");
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Preprocessor Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        log::debug!("Creating preprocessor shader module");
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Preprocessor Shader"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shader/preprocess.wgsl")
+                    .replace(
+                        "{{workgroup_size}}",
+                        Preprocessor::WORKGROUP_SIZE.to_string().as_str(),
+                    )
+                    .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
+                    .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
+                    .lines()
+                    .scan(false, |state, line| {
+                        #[cfg(not(feature = "query-texture"))]
+                        if line.contains("// Feature query texture begin") {
+                            *state = true;
+                        } else if line.contains("// Feature query texture end") {
+                            *state = false;
+                        }
+
+                        if *state {
+                            Some(format!("// {line}\n"))
+                        } else {
+                            Some(format!("{line}\n"))
+                        }
+                    })
+                    .collect::<String>()
+                    .into(),
+            ),
+        });
+
+        log::debug!("Creating preprocessor pre pipeline");
+        let pre_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Preprocessor Pre Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("pre_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        log::debug!("Creating preprocessor pipeline");
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Preprocessor Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        log::debug!("Creating preprocessor post pipeline");
+        let post_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Preprocessor Post Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("post_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        log::info!("Preprocessor created");
+
+        Self {
+            bind_group_layout,
+            bind_group: (),
+            pre_pipeline,
+            pipeline,
+            post_pipeline,
+        }
+    }
+
+    /// Preprocess the Gaussians.
+    pub fn preprocess(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        bind_group: &wgpu::BindGroup,
+        gaussian_count: u32,
+    ) {
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Preprocessor Pre Compute Pass"),
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&self.pre_pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.dispatch_workgroups(1, 1, 1);
+        }
+
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Preprocessor Compute Pass"),
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.dispatch_workgroups(gaussian_count.div_ceil(Preprocessor::WORKGROUP_SIZE), 1, 1);
+        }
+
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Preprocessor Post Compute Pass"),
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&self.post_pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.dispatch_workgroups(1, 1, 1);
+        }
     }
 }

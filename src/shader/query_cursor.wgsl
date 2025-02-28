@@ -124,13 +124,13 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
         let center = query.content_f32.zw;
         
         let diff = in.coords - center;
-        let dist_sqr = dot(diff, diff);
+        let dist_sq = dot(diff, diff);
         
-        if dist_sqr > radius * radius {
+        if dist_sq > radius * radius {
             discard;
         }
 
-        if dist_sqr > (radius - cursor.outline_width) * (radius - cursor.outline_width) {
+        if dist_sq > (radius - cursor.outline_width) * (radius - cursor.outline_width) {
             return cursor.outline_color;
         }
 
@@ -150,13 +150,13 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
         }
         
         let diff = in.coords - center;
-        let dist_sqr = dot(diff, diff);
+        let dist_sq = dot(diff, diff);
         
-        if dist_sqr > radius * radius {
+        if dist_sq > radius * radius {
             discard;
         }
 
-        if dist_sqr > (radius - cursor.outline_width) * (radius - cursor.outline_width) {
+        if dist_sq > (radius - cursor.outline_width) * (radius - cursor.outline_width) {
             return cursor.outline_color;
         }
 

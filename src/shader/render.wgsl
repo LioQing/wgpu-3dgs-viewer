@@ -538,22 +538,22 @@ struct FragmentInput {
 }
 
 fn splat(in: FragmentInput) -> vec4<f32> {
-    let radius_sqr = dot(in.quad_offset, in.quad_offset);
-    if radius_sqr > max_radius * max_radius {
+    let radius_sq = dot(in.quad_offset, in.quad_offset);
+    if radius_sq > max_radius * max_radius {
         discard;
     }
 
-    let alpha = in.color.a * exp(-radius_sqr);
+    let alpha = in.color.a * exp(-radius_sq);
     return vec4<f32>(in.color.rgb, alpha);
 }
 
 fn ellipse(in: FragmentInput) -> vec4<f32> {
-    let radius_sqr = dot(in.quad_offset, in.quad_offset);
-    if radius_sqr > max_radius * max_radius {
+    let radius_sq = dot(in.quad_offset, in.quad_offset);
+    if radius_sq > max_radius * max_radius {
         discard;
     }
 
-    let is_outline = radius_sqr > (max_radius - 0.1) * (max_radius - 0.1);
+    let is_outline = radius_sq > (max_radius - 0.1) * (max_radius - 0.1);
     let alpha = in.color.a + (1.0 - in.color.a) * f32(is_outline);
     return vec4<f32>(in.color.rgb, alpha);
 }
