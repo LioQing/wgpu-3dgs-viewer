@@ -409,4 +409,42 @@ impl Postprocessor<()> {
             pipeline,
         }
     }
+
+    /// Postprocess the query and selection.
+    pub fn postprocess(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        pre_bind_group: &wgpu::BindGroup,
+        bind_group: &wgpu::BindGroup,
+        gaussian_count: u32,
+        indirect_args_buffer: &PostprocessIndirectArgsBuffer,
+    ) {
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Postprocessor Pre Compute Pass"),
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&self.pre_pipeline);
+            pass.set_bind_group(0, pre_bind_group, &[]);
+            pass.dispatch_workgroups(
+                gaussian_count
+                    .div_ceil(32)
+                    .div_ceil(Postprocessor::WORKGROUP_SIZE),
+                1,
+                1,
+            );
+        }
+
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Postprocessor Compute Pass"),
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.dispatch_workgroups_indirect(indirect_args_buffer.buffer(), 0);
+        }
+    }
 }

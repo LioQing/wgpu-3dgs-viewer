@@ -12,15 +12,21 @@ pub struct GaussiansBuffer<G: GaussianPod>(wgpu::Buffer, std::marker::PhantomDat
 impl<G: GaussianPod> GaussiansBuffer<G> {
     /// Create a new Gaussians buffer.
     pub fn new(device: &wgpu::Device, gaussians: &[Gaussian]) -> Self {
+        Self::new_with_pods(
+            device,
+            gaussians
+                .iter()
+                .map(G::from_gaussian)
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+    }
+
+    /// Create a new Gaussians buffer with [`GaussianPod`].
+    pub fn new_with_pods(device: &wgpu::Device, gaussians: &[G]) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Gaussians Buffer"),
-            contents: bytemuck::cast_slice(
-                gaussians
-                    .iter()
-                    .map(G::from_gaussian)
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-            ),
+            contents: bytemuck::cast_slice(gaussians),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 

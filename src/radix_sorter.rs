@@ -77,6 +77,17 @@ impl RadixSorter<()> {
             internal_sort_buffers: (),
         }
     }
+
+    /// Sort the Gaussians based on their depth.
+    pub fn sort(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        bind_groups: &RadixSorterBindGroups,
+        indirect_args_buffer: &RadixSortIndirectArgsBuffer,
+    ) {
+        self.sorter
+            .sort_indirect(encoder, bind_groups, indirect_args_buffer.buffer());
+    }
 }
 
 #[allow(dead_code)]

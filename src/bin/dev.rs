@@ -31,8 +31,18 @@ use wgpu_3dgs_viewer as gs;
 )]
 struct Args {
     /// Path to the .ply file.
-    #[arg(short, long)]
-    model: String,
+    #[arg(short, long, num_args = 1..)]
+    models: Vec<String>,
+
+    /// The offset of each model.
+    #[arg(
+        short,
+        long,
+        num_args = 3,
+        value_delimiter = ',',
+        default_value = "2.0,0.0,0.0"
+    )]
+    offset: Vec<f32>,
 }
 
 fn main() -> Result<(), EventLoopError> {
@@ -167,7 +177,8 @@ impl ApplicationHandler for App {
         log::debug!("Creating system");
         self.system = Some(futures::executor::block_on(System::new(
             self.window.as_ref().expect("window").clone(),
-            &self.args.model,
+            &self.args.models,
+            Vec3::from_slice(&self.args.offset),
         )));
 
         event_loop.set_control_flow(ControlFlow::Poll);
@@ -233,8 +244,9 @@ struct System {
     config: wgpu::SurfaceConfiguration,
 
     camera: gs::Camera,
-    gaussians: gs::Gaussians,
-    viewer: gs::Viewer,
+    gaussians: Vec<gs::Gaussians>,
+    gaussian_centroids: Vec<Vec3>,
+    viewer: gs::MultiModelViewer,
 
     query_cursor: gs::QueryCursor,
     query_toolset: gs::QueryToolset,
@@ -244,7 +256,7 @@ struct System {
 }
 
 impl System {
-    pub async fn new(window: Arc<Window>, model_path: &str) -> Self {
+    pub async fn new(window: Arc<Window>, model_paths: &[String], model_offset: Vec3) -> Self {
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
@@ -294,34 +306,37 @@ impl System {
         surface.configure(&device, &config);
 
         log::debug!("Creating gaussians");
-        let f = std::fs::File::open(model_path).expect("ply file");
-        let mut reader = std::io::BufReader::new(f);
-        let gaussians = gs::Gaussians::read_ply(&mut reader).expect("gaussians");
+        let gaussians = model_paths
+            .iter()
+            .map(|model_path| {
+                log::debug!("Reading model from {model_path}");
+                let f = std::fs::File::open(model_path).expect("ply file");
+                let mut reader = std::io::BufReader::new(f);
+                gs::Gaussians::read_ply(&mut reader).expect("gaussians")
+            })
+            .collect::<Vec<_>>();
+
+        log::debug!("Computing gaussian centroids");
+        let mut gaussian_centroids = gaussians
+            .iter()
+            .map(|g| {
+                let mut centroid = Vec3::ZERO;
+                for gaussian in &g.gaussians {
+                    centroid += gaussian.pos;
+                }
+                centroid / g.gaussians.len() as f32
+            })
+            .collect::<Vec<_>>();
 
         log::debug!("Creating camera");
-        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
-        let mut camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
-        camera.pos = gaussians
-            .gaussians
-            .iter()
-            .map(|g| adjust_quat * g.pos)
-            .sum::<Vec3>()
-            / gaussians.gaussians.len() as f32;
-        camera.pos.z += gaussians
-            .gaussians
-            .iter()
-            .map(|g| (adjust_quat * g.pos).z - camera.pos.z)
-            .fold(f32::INFINITY, |a, b| a.min(b));
+        let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
         log::debug!("Creating viewer");
-        let mut viewer = gs::Viewer::new(
+        let mut viewer = gs::MultiModelViewer::new(
             &device,
             config.view_formats[0],
             uvec2(config.width, config.height),
-            &gaussians,
-        )
-        .expect("viewer");
-        viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
+        );
         viewer.update_gaussian_transform(
             &queue,
             1.0,
@@ -331,17 +346,38 @@ impl System {
         );
         viewer.update_selection_highlight(&queue, vec4(1.0, 1.0, 0.0, 0.5));
 
+        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
+        for (i, gaussians) in gaussians.iter().enumerate() {
+            let offset = model_offset * i as f32;
+
+            log::debug!("Pushing model {i}");
+
+            viewer.push_model(&device, gaussians);
+            viewer.update_model_transform(&queue, i, offset, adjust_quat, Vec3::ONE);
+
+            gaussian_centroids[i] = adjust_quat.mul_vec3(gaussian_centroids[i]) + offset;
+        }
+
         log::debug!("Creating query cursor");
-        let query_cursor =
-            gs::QueryCursor::new(&device, config.view_formats[0], &viewer.camera_buffer);
+        let query_cursor = gs::QueryCursor::new(
+            &device,
+            config.view_formats[0],
+            &viewer.world_buffers.camera_buffer,
+        );
 
         log::debug!("Creating query toolset");
-        let query_toolset =
-            gs::QueryToolset::new(&device, &viewer.query_texture, &viewer.camera_buffer);
+        let query_toolset = gs::QueryToolset::new(
+            &device,
+            &viewer.world_buffers.query_texture,
+            &viewer.world_buffers.camera_buffer,
+        );
 
         log::debug!("Creating query texture overlay");
-        let query_texture_overlay =
-            gs::QueryTextureOverlay::new(&device, config.view_formats[0], &viewer.query_texture);
+        let query_texture_overlay = gs::QueryTextureOverlay::new(
+            &device,
+            config.view_formats[0],
+            &viewer.world_buffers.query_texture,
+        );
 
         log::info!("System initialized");
 
@@ -353,6 +389,7 @@ impl System {
 
             camera,
             gaussians,
+            gaussian_centroids,
             viewer,
 
             query_cursor,
@@ -496,14 +533,37 @@ impl System {
                 label: Some("Command Encoder"),
             });
 
-        self.query_toolset
-            .render(&self.queue, &mut encoder, &self.viewer.query_texture);
-
-        self.viewer.render(
+        self.query_toolset.render(
+            &self.queue,
             &mut encoder,
-            &texture_view,
-            self.gaussians.gaussians.len() as u32,
+            &self.viewer.world_buffers.query_texture,
         );
+
+        let mut render_metdata = self
+            .gaussian_centroids
+            .iter()
+            .enumerate()
+            .map(|(i, centroid)| (i, centroid - self.camera.pos))
+            .collect::<Vec<_>>();
+
+        render_metdata.sort_by(|(_, a), (_, b)| {
+            a.length()
+                .partial_cmp(&b.length())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let render_metdata = render_metdata
+            .into_iter()
+            .rev()
+            .map(|(i, _)| gs::MultiModelViewerRenderMetadata {
+                gaussian_count: self.gaussians[i].gaussians.len() as u32,
+                index: i,
+            })
+            .collect::<Vec<_>>();
+
+        self.viewer
+            .render(&mut encoder, &texture_view, &render_metdata)
+            .expect("render");
 
         if self.is_selecting {
             if let Some((gs::QueryToolsetUsedTool::QueryTextureTool { .. }, ..)) =
@@ -529,7 +589,7 @@ impl System {
             self.viewer
                 .update_query_texture_size(&self.device, uvec2(size.width, size.height));
             self.query_texture_overlay
-                .update_bind_group(&self.device, &self.viewer.query_texture);
+                .update_bind_group(&self.device, &self.viewer.world_buffers.query_texture);
         }
     }
 }

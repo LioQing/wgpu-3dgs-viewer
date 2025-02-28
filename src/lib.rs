@@ -25,6 +25,9 @@ pub mod query_toolset;
 #[cfg(feature = "query-cursor")]
 pub mod query_cursor;
 
+#[cfg(feature = "multi-model")]
+mod multi_model_viewer;
+
 use glam::*;
 
 pub use buffer::*;
@@ -50,6 +53,9 @@ pub use query_toolset::*;
 
 #[cfg(feature = "query-cursor")]
 pub use query_cursor::*;
+
+#[cfg(feature = "multi-model")]
+pub use multi_model_viewer::*;
 
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]

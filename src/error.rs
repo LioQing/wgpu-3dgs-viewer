@@ -19,10 +19,17 @@ pub enum Error {
     #[error(
         "\
         model size ({model_size} bytes) exceeds the device limit ({device_limit} bytes), \
-        try smaller model or more aggressive compression
+        try smaller model or more aggressive compression\
         "
     )]
     ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u32 },
+    #[error(
+        "model count and render metadata length mismatch: {model_count} != {render_metadata_len}"
+    )]
+    ModelCountRenderMetadataLenMismatch {
+        model_count: usize,
+        render_metadata_len: usize,
+    },
 
     #[cfg(feature = "query-texture-tool")]
     #[error("query texture tool already in use")]
