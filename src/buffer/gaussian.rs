@@ -40,7 +40,7 @@ impl<G: GaussianPod> GaussiansBuffer<G> {
 
     /// Get the number of Gaussians.
     pub fn len(&self) -> usize {
-        self.0.size() as usize / std::mem::size_of::<Gaussian>()
+        self.0.size() as usize / std::mem::size_of::<G>()
     }
 
     /// Check if the buffer is empty.

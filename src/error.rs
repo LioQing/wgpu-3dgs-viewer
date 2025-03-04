@@ -23,13 +23,8 @@ pub enum Error {
         "
     )]
     ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u32 },
-    #[error(
-        "model count and render metadata length mismatch: {model_count} != {render_metadata_len}"
-    )]
-    ModelCountRenderMetadataLenMismatch {
-        model_count: usize,
-        render_metadata_len: usize,
-    },
+    #[error("model count and keys length mismatch: {model_count} != {keys_len}")]
+    ModelCountKeysLenMismatch { model_count: usize, keys_len: usize },
 
     #[cfg(feature = "query-texture-tool")]
     #[error("query texture tool already in use")]

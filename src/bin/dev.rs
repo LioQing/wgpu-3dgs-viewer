@@ -237,6 +237,7 @@ impl ApplicationHandler for App {
 }
 
 /// The application system.
+#[allow(dead_code)]
 struct System {
     surface: wgpu::Surface<'static>,
     queue: wgpu::Queue,
@@ -246,7 +247,7 @@ struct System {
     camera: gs::Camera,
     gaussians: Vec<gs::Gaussians>,
     gaussian_centroids: Vec<Vec3>,
-    viewer: gs::MultiModelViewer,
+    viewer: gs::MultiModelViewer<gs::GaussianPodWithShNorm8Cov3dHalfConfigs, usize>,
 
     query_cursor: gs::QueryCursor,
     query_toolset: gs::QueryToolset,
@@ -352,8 +353,8 @@ impl System {
 
             log::debug!("Pushing model {i}");
 
-            viewer.push_model(&device, gaussians);
-            viewer.update_model_transform(&queue, i, offset, adjust_quat, Vec3::ONE);
+            viewer.insert_model(&device, i, gaussians);
+            viewer.update_model_transform(&queue, &i, offset, adjust_quat, Vec3::ONE);
 
             gaussian_centroids[i] = adjust_quat.mul_vec3(gaussian_centroids[i]) + offset;
         }
@@ -539,30 +540,31 @@ impl System {
             &self.viewer.world_buffers.query_texture,
         );
 
-        let mut render_metdata = self
+        let mut render_keys = self
             .gaussian_centroids
             .iter()
             .enumerate()
             .map(|(i, centroid)| (i, centroid - self.camera.pos))
             .collect::<Vec<_>>();
 
-        render_metdata.sort_by(|(_, a), (_, b)| {
+        render_keys.sort_by(|(_, a), (_, b)| {
             a.length()
                 .partial_cmp(&b.length())
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        let render_metdata = render_metdata
+        let render_keys = render_keys
             .into_iter()
             .rev()
-            .map(|(i, _)| gs::MultiModelViewerRenderMetadata {
-                gaussian_count: self.gaussians[i].gaussians.len() as u32,
-                index: i,
-            })
+            .map(|(i, _)| i)
             .collect::<Vec<_>>();
 
         self.viewer
-            .render(&mut encoder, &texture_view, &render_metdata)
+            .render(
+                &mut encoder,
+                &texture_view,
+                render_keys.iter().collect::<Vec<_>>().as_slice(),
+            )
             .expect("render");
 
         if self.is_selecting {

@@ -1,3 +1,5 @@
+use glam::*;
+
 use crate::{
     PostprocessIndirectArgsBuffer, QueryBuffer, QueryResultCountBuffer, QueryResultsBuffer,
     SelectionBuffer,
@@ -9,6 +11,8 @@ use crate::{
 /// [`QuerySelectionOp`](crate::QuerySelectionOp).
 #[derive(Debug)]
 pub struct Postprocessor<B = wgpu::BindGroup> {
+    /// The workgroup size.
+    workgroup_size: UVec3,
     /// The pre bind group layout.
     #[allow(dead_code)]
     pre_bind_group_layout: wgpu::BindGroupLayout,
@@ -49,12 +53,14 @@ impl<B> Postprocessor<B> {
             selection,
         )
     }
+
+    /// Get the number of invocations in one workgroup.
+    pub fn workgroup_count(&self) -> u32 {
+        self.workgroup_size.x * self.workgroup_size.y * self.workgroup_size.z
+    }
 }
 
 impl Postprocessor {
-    /// The workgroup size.
-    pub const WORKGROUP_SIZE: u32 = 64;
-
     /// The pre bind group layout descriptor.
     pub const PRE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
@@ -193,6 +199,7 @@ impl Postprocessor {
         );
 
         Self {
+            workgroup_size: this.workgroup_size,
             pre_bind_group_layout: this.pre_bind_group_layout,
             pre_bind_group,
             bind_group_layout: this.bind_group_layout,
@@ -218,7 +225,7 @@ impl Postprocessor {
             pass.set_pipeline(&self.pre_pipeline);
             pass.set_bind_group(0, &self.pre_bind_group, &[]);
             pass.dispatch_workgroups(
-                gaussian_count.div_ceil(32).div_ceil(Self::WORKGROUP_SIZE),
+                gaussian_count.div_ceil(32).div_ceil(self.workgroup_count()),
                 1,
                 1,
             );
@@ -317,6 +324,15 @@ impl Postprocessor<()> {
     /// To create a bind group with layout matched to this postprocessor, use the
     /// [`Postprocessor::create_bind_groups`] method.
     pub fn new_without_bind_groups(device: &wgpu::Device) -> Self {
+        let workgroup_size = uvec3(
+            device
+                .limits()
+                .max_compute_workgroup_size_x
+                .min(device.limits().max_compute_invocations_per_workgroup),
+            1,
+            1,
+        );
+
         let pre_bind_group_layout =
             device.create_bind_group_layout(&Postprocessor::PRE_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
@@ -337,7 +353,11 @@ impl Postprocessor<()> {
                 include_str!("shader/postprocess.wgsl")
                     .replace(
                         "{{workgroup_size}}",
-                        Postprocessor::WORKGROUP_SIZE.to_string().as_str(),
+                        format!(
+                            "{}, {}, {}",
+                            workgroup_size.x, workgroup_size.y, workgroup_size.z
+                        )
+                        .as_str(),
                     )
                     .into(),
             ),
@@ -367,7 +387,11 @@ impl Postprocessor<()> {
                 include_str!("shader/postprocess.wgsl")
                     .replace(
                         "{{workgroup_size}}",
-                        Postprocessor::WORKGROUP_SIZE.to_string().as_str(),
+                        format!(
+                            "{}, {}, {}",
+                            workgroup_size.x, workgroup_size.y, workgroup_size.z
+                        )
+                        .as_str(),
                     )
                     .lines()
                     .scan(false, |state, line| {
@@ -401,6 +425,7 @@ impl Postprocessor<()> {
         log::info!("Postprocessor created");
 
         Self {
+            workgroup_size,
             pre_bind_group_layout,
             pre_bind_group: (),
             bind_group_layout,
@@ -428,9 +453,7 @@ impl Postprocessor<()> {
             pass.set_pipeline(&self.pre_pipeline);
             pass.set_bind_group(0, pre_bind_group, &[]);
             pass.dispatch_workgroups(
-                gaussian_count
-                    .div_ceil(32)
-                    .div_ceil(Postprocessor::WORKGROUP_SIZE),
+                gaussian_count.div_ceil(32).div_ceil(self.workgroup_count()),
                 1,
                 1,
             );

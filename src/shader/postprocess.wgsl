@@ -51,6 +51,9 @@ fn selection_clear(index: u32) {
     atomicAnd(&selection[word_index], ~mask);
 }
 
+const workgroup_size = vec3<u32>({{workgroup_size}});
+const workgroup_count = workgroup_size.x * workgroup_size.y * workgroup_size.z;
+
 // Pre only begin
 
 struct DispatchIndirectArgs {
@@ -62,13 +65,15 @@ struct DispatchIndirectArgs {
 var<storage, read_write> indirect_args: DispatchIndirectArgs;
 
 @compute @workgroup_size({{workgroup_size}})
-fn pre_main(@builtin(global_invocation_id) id: vec3<u32>) {
-    let index = id.x;
+fn pre_main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let index = wid.x * workgroup_count +
+        lid.x +
+        lid.y * workgroup_size.x +
+        lid.z * workgroup_size.x * workgroup_size.y;
 
     if index == 0u {
         // Set the dispatch indirect args
-        const workgroup_size = {{workgroup_size}}u;
-        indirect_args.x = (query_result_count + workgroup_size - 1u) / workgroup_size;
+        indirect_args.x = (query_result_count + workgroup_size.x - 1u) / workgroup_size.x;
         indirect_args.y = 1u;
         indirect_args.z = 1u;
     }
@@ -82,8 +87,11 @@ fn pre_main(@builtin(global_invocation_id) id: vec3<u32>) {
 // Pre only end
 
 @compute @workgroup_size({{workgroup_size}})
-fn main(@builtin(global_invocation_id) id: vec3<u32>) {
-    let index = id.x;
+fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let index = wid.x * workgroup_count +
+        lid.x +
+        lid.y * workgroup_size.x +
+        lid.z * workgroup_size.x * workgroup_size.y;
 
     if index >= query_result_count {
         return;

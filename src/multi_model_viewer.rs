@@ -1,3 +1,5 @@
+use std::{collections::HashMap, hash::Hash};
+
 use crate::*;
 
 /// The buffers for [`Viewer`] related to the world.
@@ -320,23 +322,13 @@ pub struct MultiModelViewerModel<G: GaussianPod = GaussianPodWithShNorm8Cov3dHal
     pub bind_groups: MultiModelViewerBindGroups,
 }
 
-/// The metadata for rendering of [`MultiModelViewer::render`].
-///
-/// This provides a way for the models to be sorted before rendering, essentially acting as an
-/// indirect indexed rendering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MultiModelViewerRenderMetadata {
-    /// The number of Gaussians in the model.
-    pub gaussian_count: u32,
-
-    /// The index of the model in [`MultiModelViewer::models`].
-    pub index: usize,
-}
-
 /// The 3D Gaussian splatting viewer for multiple models.
 #[derive(Debug)]
-pub struct MultiModelViewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
-    pub models: Vec<MultiModelViewerModel<G>>,
+pub struct MultiModelViewer<
+    G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs,
+    K: Hash + std::cmp::Eq = String,
+> {
+    pub models: HashMap<K, MultiModelViewerModel<G>>,
     pub world_buffers: MultiModelViewerWorldBuffers,
     pub preprocessor: Preprocessor<()>,
     pub radix_sorter: RadixSorter<()>,
@@ -344,14 +336,14 @@ pub struct MultiModelViewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConf
     pub postprocessor: Postprocessor<()>,
 }
 
-impl<G: GaussianPod> MultiModelViewer<G> {
+impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
     /// Create a new viewer.
     pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         #[cfg(feature = "query-texture")] texture_size: UVec2,
     ) -> Self {
-        let models = Vec::new();
+        let models = HashMap::new();
 
         log::debug!("Creating world buffers");
         let world_buffers = MultiModelViewerWorldBuffers::new(device, texture_size);
@@ -380,8 +372,8 @@ impl<G: GaussianPod> MultiModelViewer<G> {
         }
     }
 
-    /// Push a new model to the viewer.
-    pub fn push_model(&mut self, device: &wgpu::Device, gaussians: &Gaussians) {
+    /// Insert a new model to the viewer.
+    pub fn insert_model(&mut self, device: &wgpu::Device, key: K, gaussians: &Gaussians) {
         let gaussian_buffers = MultiModelViewerGaussianBuffers::new(device, gaussians);
         let bind_groups = MultiModelViewerBindGroups::new(
             device,
@@ -392,21 +384,29 @@ impl<G: GaussianPod> MultiModelViewer<G> {
             &gaussian_buffers,
             &self.world_buffers,
         );
-        self.models.push(MultiModelViewerModel {
-            gaussian_buffers,
-            bind_groups,
-        });
+        self.models.insert(
+            key,
+            MultiModelViewerModel {
+                gaussian_buffers,
+                bind_groups,
+            },
+        );
     }
 
-    /// Push models from an iterator.
-    pub fn push_models<'a>(
+    /// Insert models from an iterator.
+    pub fn insert_models<'a>(
         &mut self,
         device: &wgpu::Device,
-        iter: impl IntoIterator<Item = &'a Gaussians>,
+        iter: impl IntoIterator<Item = (K, &'a Gaussians)>,
     ) {
-        for gaussians in iter {
-            self.push_model(device, gaussians);
+        for (key, gaussians) in iter {
+            self.insert_model(device, key, gaussians);
         }
+    }
+
+    /// Remove a model from the viewer.
+    pub fn remove_model(&mut self, key: &K) {
+        self.models.remove(key);
     }
 
     /// Update the camera.
@@ -436,12 +436,14 @@ impl<G: GaussianPod> MultiModelViewer<G> {
     pub fn update_model_transform(
         &mut self,
         queue: &wgpu::Queue,
-        index: usize,
+        key: &K,
         pos: Vec3,
         quat: Quat,
         scale: Vec3,
     ) {
-        self.models[index]
+        self.models
+            .get_mut(key)
+            .expect("model not found")
             .gaussian_buffers
             .update_model_transform(queue, pos, quat, scale);
     }
@@ -449,11 +451,13 @@ impl<G: GaussianPod> MultiModelViewer<G> {
     /// Update the model transform with [`ModelTransformPod`].
     pub fn update_model_transform_with_pod(
         &mut self,
-        index: usize,
         queue: &wgpu::Queue,
+        key: &K,
         pod: &ModelTransformPod,
     ) {
-        self.models[index]
+        self.models
+            .get_mut(key)
+            .expect("model not found")
             .gaussian_buffers
             .update_model_transform_with_pod(queue, pod);
     }
@@ -537,7 +541,7 @@ impl<G: GaussianPod> MultiModelViewer<G> {
     #[cfg(feature = "query-texture")]
     pub fn update_query_texture_size(&mut self, device: &wgpu::Device, size: UVec2) {
         self.world_buffers.update_query_texture_size(device, size);
-        for model in &mut self.models {
+        for model in self.models.values_mut() {
             model.bind_groups.preprocessor = self.preprocessor.create_bind_group(
                 device,
                 &self.world_buffers.camera_buffer,
@@ -563,22 +567,20 @@ impl<G: GaussianPod> MultiModelViewer<G> {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         texture_view: &wgpu::TextureView,
-        render_metadata: &[MultiModelViewerRenderMetadata],
+        keys: &[&K],
     ) -> Result<(), Error> {
-        if render_metadata.len() != self.models.len() {
-            return Err(Error::ModelCountRenderMetadataLenMismatch {
+        if keys.len() != self.models.len() {
+            return Err(Error::ModelCountKeysLenMismatch {
                 model_count: self.models.len(),
-                render_metadata_len: render_metadata.len(),
+                keys_len: keys.len(),
             });
         }
 
-        for render_metadata in render_metadata {
-            let model = &self.models[render_metadata.index];
-
+        for model in self.models.values() {
             self.preprocessor.preprocess(
                 encoder,
                 &model.bind_groups.preprocessor,
-                render_metadata.gaussian_count,
+                model.gaussian_buffers.gaussians_buffer.len() as u32,
             );
 
             self.radix_sorter.sort(
@@ -604,8 +606,8 @@ impl<G: GaussianPod> MultiModelViewer<G> {
                 timestamp_writes: None,
             });
 
-            for render_metadata in render_metadata {
-                let model = &self.models[render_metadata.index];
+            for key in keys.iter() {
+                let model = &self.models.get(key).expect("model not found");
                 self.renderer.render_with_pass(
                     &mut render_pass,
                     &model.bind_groups.renderer,
@@ -614,14 +616,12 @@ impl<G: GaussianPod> MultiModelViewer<G> {
             }
         }
 
-        for render_metadata in render_metadata {
-            let model = &self.models[render_metadata.index];
-
+        for model in self.models.values() {
             self.postprocessor.postprocess(
                 encoder,
                 &model.bind_groups.postprocessor.0,
                 &model.bind_groups.postprocessor.1,
-                render_metadata.gaussian_count,
+                model.gaussian_buffers.gaussians_buffer.len() as u32,
                 &model.gaussian_buffers.postprocess_indirect_args_buffer,
             );
         }
@@ -634,15 +634,23 @@ impl<G: GaussianPod> MultiModelViewer<G> {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        index: usize,
+        key: &K,
     ) -> Result<Vec<QueryResultPod>, Error> {
         query::download(
             device,
             queue,
-            &self.models[index]
+            &self
+                .models
+                .get(key)
+                .expect("model not found")
                 .gaussian_buffers
                 .query_result_count_buffer,
-            &self.models[index].gaussian_buffers.query_results_buffer,
+            &self
+                .models
+                .get(key)
+                .expect("model not found")
+                .gaussian_buffers
+                .query_results_buffer,
         )
         .await
     }

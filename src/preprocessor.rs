@@ -1,3 +1,5 @@
+use glam::*;
+
 use crate::{
     CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig, GaussiansBuffer,
     GaussiansDepthBuffer, GaussiansEditBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
@@ -14,6 +16,8 @@ use crate::Texture;
 /// and process selection query.
 #[derive(Debug)]
 pub struct Preprocessor<B = wgpu::BindGroup> {
+    /// The workgroup size.
+    workgroup_size: UVec3,
     /// The bind group layout.
     #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
@@ -68,12 +72,14 @@ impl<B> Preprocessor<B> {
             query_texture,
         )
     }
+
+    /// Get the number of invocations in one workgroup.
+    pub fn workgroup_count(&self) -> u32 {
+        self.workgroup_size.x * self.workgroup_size.y * self.workgroup_size.z
+    }
 }
 
 impl Preprocessor {
-    /// The workgroup size.
-    pub const WORKGROUP_SIZE: u32 = 64;
-
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
@@ -286,6 +292,7 @@ impl Preprocessor {
         );
 
         Ok(Self {
+            workgroup_size: this.workgroup_size,
             bind_group_layout: this.bind_group_layout,
             bind_group,
             pre_pipeline: this.pre_pipeline,
@@ -315,7 +322,7 @@ impl Preprocessor {
 
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.dispatch_workgroups(gaussian_count.div_ceil(Self::WORKGROUP_SIZE), 1, 1);
+            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_count()), 1, 1);
         }
 
         {
@@ -480,6 +487,15 @@ impl Preprocessor<()> {
     /// To create a bind group with layout matched to this preprocessor, use the
     /// [`Preprocessor::create_bind_group`] method.
     pub fn new_without_bind_group<G: GaussianPod>(device: &wgpu::Device) -> Self {
+        let workgroup_size = uvec3(
+            device
+                .limits()
+                .max_compute_workgroup_size_x
+                .min(device.limits().max_compute_invocations_per_workgroup),
+            1,
+            1,
+        );
+
         log::debug!("Creating preprocessor bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR);
@@ -498,7 +514,11 @@ impl Preprocessor<()> {
                 include_str!("shader/preprocess.wgsl")
                     .replace(
                         "{{workgroup_size}}",
-                        Preprocessor::WORKGROUP_SIZE.to_string().as_str(),
+                        format!(
+                            "{}, {}, {}",
+                            workgroup_size.x, workgroup_size.y, workgroup_size.z
+                        )
+                        .as_str(),
                     )
                     .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
                     .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
@@ -555,6 +575,7 @@ impl Preprocessor<()> {
         log::info!("Preprocessor created");
 
         Self {
+            workgroup_size,
             bind_group_layout,
             bind_group: (),
             pre_pipeline,
@@ -589,7 +610,7 @@ impl Preprocessor<()> {
 
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, bind_group, &[]);
-            pass.dispatch_workgroups(gaussian_count.div_ceil(Preprocessor::WORKGROUP_SIZE), 1, 1);
+            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_count()), 1, 1);
         }
 
         {

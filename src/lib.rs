@@ -20,10 +20,10 @@ mod query_texture_overlay;
 mod query_tool;
 
 #[cfg(feature = "query-toolset")]
-pub mod query_toolset;
+mod query_toolset;
 
 #[cfg(feature = "query-cursor")]
-pub mod query_cursor;
+mod query_cursor;
 
 #[cfg(feature = "multi-model")]
 mod multi_model_viewer;
@@ -360,13 +360,9 @@ impl<G: GaussianPod> Viewer<G> {
     }
 
     /// Render the viewer.
-    pub fn render(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        texture_view: &wgpu::TextureView,
-        gaussian_count: u32,
-    ) {
-        self.preprocessor.preprocess(encoder, gaussian_count);
+    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, texture_view: &wgpu::TextureView) {
+        self.preprocessor
+            .preprocess(encoder, self.gaussians_buffer.len() as u32);
 
         self.radix_sorter
             .sort(encoder, &self.radix_sort_indirect_args_buffer);
@@ -376,7 +372,7 @@ impl<G: GaussianPod> Viewer<G> {
 
         self.postprocessor.postprocess(
             encoder,
-            gaussian_count,
+            self.gaussians_buffer.len() as u32,
             &self.postprocess_indirect_args_buffer,
         );
     }

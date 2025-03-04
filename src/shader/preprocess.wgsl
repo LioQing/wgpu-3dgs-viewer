@@ -261,9 +261,15 @@ fn query_texture(gaussian_index: u32, ndc_pos: vec2<f32>) {
 
 // Feature query texture end
 
+const workgroup_size = vec3<u32>({{workgroup_size}});
+const workgroup_count = workgroup_size.x * workgroup_size.y * workgroup_size.z;
+
 @compute @workgroup_size({{workgroup_size}})
-fn main(@builtin(global_invocation_id) id: vec3<u32>) {
-    let index = id.x;
+fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let index = wid.x * workgroup_count +
+        lid.x +
+        lid.y * workgroup_size.x +
+        lid.z * workgroup_size.x * workgroup_size.y;
 
     if index >= arrayLength(&gaussians) {
         return;

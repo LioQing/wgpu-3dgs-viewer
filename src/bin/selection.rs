@@ -226,6 +226,7 @@ impl ApplicationHandler for App {
 }
 
 /// The application system.
+#[allow(dead_code)]
 struct System {
     surface: wgpu::Surface<'static>,
     queue: wgpu::Queue,
@@ -499,11 +500,7 @@ impl System {
         self.query_toolset
             .render(&self.queue, &mut encoder, &self.viewer.query_texture);
 
-        self.viewer.render(
-            &mut encoder,
-            &texture_view,
-            self.gaussians.gaussians.len() as u32,
-        );
+        self.viewer.render(&mut encoder, &texture_view);
 
         if self.is_selecting {
             if let Some((gs::QueryToolsetUsedTool::QueryTextureTool { .. }, ..)) =

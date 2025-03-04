@@ -221,6 +221,7 @@ impl ApplicationHandler for App {
 }
 
 /// The application system.
+#[allow(dead_code)]
 struct System {
     surface: wgpu::Surface<'static>,
     queue: wgpu::Queue,
@@ -398,11 +399,7 @@ impl System {
                 label: Some("Command Encoder"),
             });
 
-        self.viewer.render(
-            &mut encoder,
-            &texture_view,
-            self.gaussians.gaussians.len() as u32,
-        );
+        self.viewer.render(&mut encoder, &texture_view);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
