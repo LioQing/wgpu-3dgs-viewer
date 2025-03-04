@@ -188,6 +188,7 @@ impl Renderer {
     pub fn new<G: GaussianPod>(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
+        depth_stencil: Option<wgpu::DepthStencilState>,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
         gaussian_transform: &GaussianTransformBuffer,
@@ -207,7 +208,7 @@ impl Renderer {
             });
         }
 
-        let this = Renderer::new_without_bind_group::<G>(device, texture_format);
+        let this = Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil);
 
         log::debug!("Creating renderer bind group");
         let bind_group = this.create_bind_group(
@@ -357,6 +358,7 @@ impl Renderer<()> {
     pub fn new_without_bind_group<G: GaussianPod>(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
+        depth_stencil: Option<wgpu::DepthStencilState>,
     ) -> Self {
         log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
@@ -403,7 +405,7 @@ impl Renderer<()> {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,

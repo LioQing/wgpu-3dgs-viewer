@@ -50,12 +50,14 @@ impl Gaussians {
 
     /// Read the splat PLY Gaussians into [`Gaussian`].
     fn read_ply_gaussians(reader: &mut impl BufRead, count: usize) -> Result<Vec<Gaussian>, Error> {
-        std::iter::repeat_n(PlyGaussianPod::zeroed(), count)
-            .map(|mut gaussian| {
-                reader.read_exact(bytemuck::bytes_of_mut(&mut gaussian))?;
-                Ok(gaussian.into())
-            })
-            .collect()
+        let mut gaussians = Vec::with_capacity(count);
+        for _ in 0..count {
+            let mut gaussian = PlyGaussianPod::zeroed();
+            reader.read_exact(bytemuck::bytes_of_mut(&mut gaussian))?;
+            gaussians.push(gaussian.into());
+        }
+
+        Ok(gaussians)
     }
 }
 

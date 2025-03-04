@@ -343,6 +343,22 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         texture_format: wgpu::TextureFormat,
         #[cfg(feature = "query-texture")] texture_size: UVec2,
     ) -> Self {
+        Self::new_with(
+            device,
+            texture_format,
+            None,
+            #[cfg(feature = "query-texture")]
+            texture_size,
+        )
+    }
+
+    /// Create a new viewer with all options.
+    pub fn new_with(
+        device: &wgpu::Device,
+        texture_format: wgpu::TextureFormat,
+        depth_stencil: Option<wgpu::DepthStencilState>,
+        #[cfg(feature = "query-texture")] texture_size: UVec2,
+    ) -> Self {
         let models = HashMap::new();
 
         log::debug!("Creating world buffers");
@@ -355,7 +371,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         let radix_sorter = RadixSorter::new_without_bind_groups(device);
 
         log::debug!("Creating renderer");
-        let renderer = Renderer::new_without_bind_group::<G>(device, texture_format);
+        let renderer = Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil);
 
         log::debug!("Creating postprocessor");
         let postprocessor = Postprocessor::new_without_bind_groups(device);

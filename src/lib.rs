@@ -94,6 +94,24 @@ impl<G: GaussianPod> Viewer<G> {
         #[cfg(feature = "query-texture")] texture_size: UVec2,
         gaussians: &Gaussians,
     ) -> Result<Self, Error> {
+        Self::new_with(
+            device,
+            texture_format,
+            None,
+            #[cfg(feature = "query-texture")]
+            texture_size,
+            gaussians,
+        )
+    }
+
+    /// Create a new viewer with all options.
+    pub fn new_with(
+        device: &wgpu::Device,
+        texture_format: wgpu::TextureFormat,
+        depth_stencil: Option<wgpu::DepthStencilState>,
+        #[cfg(feature = "query-texture")] texture_size: UVec2,
+        gaussians: &Gaussians,
+    ) -> Result<Self, Error> {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 
@@ -180,6 +198,7 @@ impl<G: GaussianPod> Viewer<G> {
         let renderer = Renderer::new(
             device,
             texture_format,
+            depth_stencil,
             &camera_buffer,
             &model_transform_buffer,
             &gaussian_transform_buffer,
