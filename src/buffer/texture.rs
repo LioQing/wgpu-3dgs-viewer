@@ -14,7 +14,7 @@ pub trait Texture {
 ///
 /// This requires the `query-texture` feature.
 #[cfg(feature = "query-texture")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryTexture {
     texture: wgpu::Texture,
     view: wgpu::TextureView,

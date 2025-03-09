@@ -3,7 +3,7 @@ use glam::*;
 use wgpu::util::DeviceExt;
 
 /// The indirect args storage buffer for [`Renderer`](crate::Renderer).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndirectArgsBuffer(wgpu::Buffer);
 
 impl IndirectArgsBuffer {
@@ -31,7 +31,7 @@ impl IndirectArgsBuffer {
 }
 
 /// The dispatch indirect args storage buffer for [`RadixSorter`](crate::RadixSorter).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RadixSortIndirectArgsBuffer(wgpu::Buffer);
 
 impl RadixSortIndirectArgsBuffer {
@@ -53,7 +53,7 @@ impl RadixSortIndirectArgsBuffer {
 }
 
 /// The indirect indices storage buffer for [`Renderer`](crate::Renderer).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndirectIndicesBuffer(wgpu::Buffer);
 
 impl IndirectIndicesBuffer {
@@ -76,7 +76,7 @@ impl IndirectIndicesBuffer {
 }
 
 /// The dipsatch indirect args storage buffer for [`Postprocessor`](crate::Postprocessor).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PostprocessIndirectArgsBuffer(wgpu::Buffer);
 
 impl PostprocessIndirectArgsBuffer {
@@ -102,7 +102,7 @@ impl PostprocessIndirectArgsBuffer {
 ///
 /// This requires the `query-cursor` feature.
 #[cfg(feature = "query-cursor")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryCursorBuffer(wgpu::Buffer);
 
 #[cfg(feature = "query-cursor")]

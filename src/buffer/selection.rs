@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 use super::{GaussianEditFlag, GaussianEditPod};
 
 /// The selection highlight uniform buffer for storing selection highlight data.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SelectionHighlightBuffer(wgpu::Buffer);
 
 impl SelectionHighlightBuffer {
@@ -60,7 +60,7 @@ impl Default for SelectionHighlightPod {
 }
 
 /// The selection storage buffer for storing selected Gaussians as a bitvec.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SelectionBuffer(wgpu::Buffer);
 
 impl SelectionBuffer {
@@ -84,7 +84,7 @@ impl SelectionBuffer {
 }
 
 /// The selection edit uniform buffer for editing selected Gaussians.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SelectionEditBuffer(wgpu::Buffer);
 
 impl SelectionEditBuffer {

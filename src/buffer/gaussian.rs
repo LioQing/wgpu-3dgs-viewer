@@ -3,7 +3,7 @@ use glam::*;
 use half::f16;
 use wgpu::util::DeviceExt;
 
-use crate::{wgpu_sort, CameraTrait, Gaussian};
+use crate::{CameraTrait, Gaussian, wgpu_sort};
 
 /// The Gaussians storage buffer.
 #[derive(Debug)]
@@ -350,7 +350,7 @@ pub struct PlyGaussianPod {
 }
 
 /// The camera buffer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CameraBuffer(wgpu::Buffer);
 
 impl CameraBuffer {
@@ -405,7 +405,7 @@ impl CameraPod {
 }
 
 /// The model transformation buffer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ModelTransformBuffer(wgpu::Buffer);
 
 impl ModelTransformBuffer {
@@ -503,7 +503,7 @@ impl GaussianShDegree {
 }
 
 /// The Gaussian transform buffer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GaussianTransformBuffer(wgpu::Buffer);
 
 impl GaussianTransformBuffer {
@@ -585,7 +585,7 @@ impl Default for GaussianTransformPod {
 }
 
 /// The Gaussians depth storage buffer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GaussiansDepthBuffer(wgpu::Buffer);
 
 impl GaussiansDepthBuffer {
@@ -611,7 +611,7 @@ impl GaussiansDepthBuffer {
 }
 
 /// The Gaussians edit storage buffer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GaussiansEditBuffer(wgpu::Buffer);
 
 impl GaussiansEditBuffer {

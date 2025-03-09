@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 use crate::Error;
 
 /// The query uniform buffer for [`Renderer`](crate::Renderer).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryBuffer(wgpu::Buffer);
 
 impl QueryBuffer {
@@ -423,7 +423,7 @@ impl From<QueryPod> for QueryBrushPod {
 }
 
 /// The query result count storage buffer for [`Renderer`](crate::Renderer).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryResultCountBuffer {
     data: wgpu::Buffer,
     download: wgpu::Buffer,
@@ -495,7 +495,7 @@ impl QueryResultCountBuffer {
 }
 
 /// The query results storage buffer for [`Renderer`](crate::Renderer).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryResultsBuffer(wgpu::Buffer);
 
 impl QueryResultsBuffer {
