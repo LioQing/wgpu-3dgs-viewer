@@ -6,6 +6,7 @@
 
 - 🔢 Multi-model viewer to see multiple Gaussian models, enabled by `multi-model` feature.
 - 🎥 Depth stencil as an option to render with.
+- ⏬ Download for Gaussian edits.
 
 ### Changed
 

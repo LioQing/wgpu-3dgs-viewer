@@ -670,4 +670,20 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         )
         .await
     }
+
+    /// Download the Gaussian edits from the GPU.
+    pub async fn download_gaussians_edits(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        key: &K,
+    ) -> Result<Vec<GaussianEditPod>, Error> {
+        self.models
+            .get(key)
+            .expect("model not found")
+            .gaussian_buffers
+            .gaussians_edit_buffer
+            .download(device, queue)
+            .await
+    }
 }

@@ -410,4 +410,13 @@ impl<G: GaussianPod> Viewer<G> {
         )
         .await
     }
+
+    /// Download the Gaussian edits from the GPU.
+    pub async fn download_gaussian_edits(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<GaussianEditPod>, Error> {
+        self.gaussians_edit_buffer.download(device, queue).await
+    }
 }
