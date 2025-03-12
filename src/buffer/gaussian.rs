@@ -34,6 +34,18 @@ impl<G: GaussianPod> GaussiansBuffer<G> {
         Self(buffer, std::marker::PhantomData)
     }
 
+    /// Create a new Gaussians buffer with the specified size.
+    pub fn new_empty(device: &wgpu::Device, len: usize) -> Self {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Gaussians Buffer"),
+            size: (len * std::mem::size_of::<G>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self(buffer, std::marker::PhantomData)
+    }
+
     /// Get the buffer.
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.0
@@ -82,6 +94,48 @@ impl<G: GaussianPod> GaussiansBuffer<G> {
         }
 
         queue.write_buffer(&self.0, 0, bytemuck::cast_slice(pods));
+    }
+
+    /// Update a range of the buffer.
+    pub fn update_range(&self, queue: &wgpu::Queue, start: usize, gaussians: &[Gaussian]) {
+        if start + gaussians.len() > self.len() {
+            log::error!(
+                "Gaussians count mismatch, buffer has {}, but {} were provided starting at {}",
+                self.len(),
+                gaussians.len(),
+                start
+            );
+            return;
+        }
+
+        self.update_range_with_pod(
+            queue,
+            start,
+            gaussians
+                .iter()
+                .map(G::from_gaussian)
+                .collect::<Vec<_>>()
+                .as_slice(),
+        );
+    }
+
+    /// Update a range of the buffer with [`GaussianPod`].
+    pub fn update_range_with_pod(&self, queue: &wgpu::Queue, start: usize, pods: &[G]) {
+        if start + pods.len() > self.len() {
+            log::error!(
+                "Gaussians count mismatch, buffer has {}, but {} were provided starting at {}",
+                self.len(),
+                pods.len(),
+                start
+            );
+            return;
+        }
+
+        queue.write_buffer(
+            &self.0,
+            (start * std::mem::size_of::<G>()) as wgpu::BufferAddress,
+            bytemuck::cast_slice(pods),
+        );
     }
 }
 

@@ -68,12 +68,12 @@ pub struct Gaussians {
 impl Gaussians {
     /// Read a splat PLY file.
     pub fn read_ply(reader: &mut impl BufRead) -> Result<Self, Error> {
-        let ply_type = Self::read_ply_header(reader)?;
+        let ply_header = Self::read_ply_header(reader)?;
 
-        let count = ply_type.count()?;
+        let count = ply_header.count()?;
         let mut gaussians = Vec::with_capacity(count);
 
-        for gaussian in Self::read_ply_gaussians(reader, ply_type)? {
+        for gaussian in Self::read_ply_gaussians(reader, ply_header)? {
             gaussians.push(gaussian?.into());
         }
 
@@ -94,7 +94,7 @@ impl Gaussians {
             false => ply_rs::ply::Encoding::BinaryBigEndian,
         };
 
-        let ply_type = match vertex
+        let ply_header = match vertex
             .properties
             .iter()
             .map(|(name, _)| name.as_str())
@@ -106,27 +106,23 @@ impl Gaussians {
             false => PlyHeader::Custom(header),
         };
 
-        Ok(ply_type)
+        Ok(ply_header)
     }
 
     /// Read the splat PLY Gaussians into [`PlyGaussianPod`].
     pub fn read_ply_gaussians(
         reader: &mut impl BufRead,
-        ply_type: PlyHeader,
+        ply_header: PlyHeader,
     ) -> Result<impl Iterator<Item = Result<PlyGaussianPod, Error>>, Error> {
-        let count = ply_type.count()?;
+        let count = ply_header.count()?;
         log::info!("Reading PLY format with {count} Gaussians");
 
-        Ok(match ply_type {
-            PlyHeader::Inria(..) => {
-                log::info!("Reading Inria PLY format with {} Gaussians", count);
-
-                PlyGaussianIter::Inria((0..count).map(|_| {
-                    let mut gaussian = PlyGaussianPod::zeroed();
-                    reader.read_exact(bytemuck::bytes_of_mut(&mut gaussian))?;
-                    Ok(gaussian)
-                }))
-            }
+        Ok(match ply_header {
+            PlyHeader::Inria(..) => PlyGaussianIter::Inria((0..count).map(|_| {
+                let mut gaussian = PlyGaussianPod::zeroed();
+                reader.read_exact(bytemuck::bytes_of_mut(&mut gaussian))?;
+                Ok(gaussian)
+            })),
             PlyHeader::Custom(header) => {
                 let parser = ply_rs::parser::Parser::<PlyGaussianPod>::new();
 

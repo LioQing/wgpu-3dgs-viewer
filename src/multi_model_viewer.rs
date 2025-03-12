@@ -216,6 +216,56 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         }
     }
 
+    /// Create a new viewer Gaussian buffers with only the count.
+    pub fn new_empty(device: &wgpu::Device, count: usize) -> Self {
+        log::debug!("Creating model transform buffer");
+        let model_transform_buffer = ModelTransformBuffer::new(device);
+
+        log::debug!("Creating gaussians buffer");
+        let gaussians_buffer = GaussiansBuffer::new_empty(device, count);
+
+        log::debug!("Creating indirect args buffer");
+        let indirect_args_buffer = IndirectArgsBuffer::new(device);
+
+        log::debug!("Creating radix sort indirect args buffer");
+        let radix_sort_indirect_args_buffer = RadixSortIndirectArgsBuffer::new(device);
+
+        log::debug!("Creating indirect indices buffer");
+        let indirect_indices_buffer = IndirectIndicesBuffer::new(device, count as u32);
+
+        log::debug!("Creating gaussians depth buffer");
+        let gaussians_depth_buffer = GaussiansDepthBuffer::new(device, count as u32);
+
+        log::debug!("Creating query result count buffer");
+        let query_result_count_buffer = QueryResultCountBuffer::new(device);
+
+        log::debug!("Creating query results buffer");
+        let query_results_buffer = QueryResultsBuffer::new(device, count as u32);
+
+        log::debug!("Creating postprocess indirect args buffer");
+        let postprocess_indirect_args_buffer = PostprocessIndirectArgsBuffer::new(device);
+
+        log::debug!("Creating selection buffer");
+        let selection_buffer = SelectionBuffer::new(device, count as u32);
+
+        log::debug!("Creating gaussians edit buffer");
+        let gaussians_edit_buffer = GaussiansEditBuffer::new(device, count as u32);
+
+        Self {
+            model_transform_buffer,
+            gaussians_buffer,
+            indirect_args_buffer,
+            radix_sort_indirect_args_buffer,
+            indirect_indices_buffer,
+            gaussians_depth_buffer,
+            query_result_count_buffer,
+            query_results_buffer,
+            postprocess_indirect_args_buffer,
+            selection_buffer,
+            gaussians_edit_buffer,
+        }
+    }
+
     /// Update the model transform.
     pub fn update_model_transform(
         &mut self,
@@ -407,17 +457,6 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
                 bind_groups,
             },
         );
-    }
-
-    /// Insert models from an iterator.
-    pub fn insert_models<'a>(
-        &mut self,
-        device: &wgpu::Device,
-        iter: impl IntoIterator<Item = (K, &'a Gaussians)>,
-    ) {
-        for (key, gaussians) in iter {
-            self.insert_model(device, key, gaussians);
-        }
     }
 
     /// Remove a model from the viewer.
