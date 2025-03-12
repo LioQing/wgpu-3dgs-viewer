@@ -5,9 +5,9 @@ use glam::*;
 
 use crate::{Error, GaussianEditFlag, GaussianEditPod, PlyGaussianPod};
 
-/// Types of PLY files.
+/// Header of PLY file.
 #[derive(Debug, Clone)]
-enum PlyType {
+pub enum PlyHeader {
     /// The Inria PLY format.
     ///
     /// This can be directly loaded into [`PlyGaussianPod`].
@@ -15,6 +15,47 @@ enum PlyType {
 
     /// Custom PLY format.
     Custom(ply_rs::ply::Header),
+}
+
+impl PlyHeader {
+    /// Get the number of Gaussians.
+    pub fn count(&self) -> Result<usize, Error> {
+        match self {
+            Self::Inria(count) => Ok(*count),
+            Self::Custom(header) => header
+                .elements
+                .get("vertex")
+                .map(|vertex| vertex.count)
+                .ok_or(Error::PlyVertexNotFound),
+        }
+    }
+}
+
+/// PLY Gaussian iterator.
+pub enum PlyGaussianIter<
+    I: Iterator<Item = Result<PlyGaussianPod, Error>>,
+    C: Iterator<Item = Result<PlyGaussianPod, Error>>,
+> {
+    /// The Inria PLY format.
+    Inria(I),
+
+    /// Custom PLY format.
+    Custom(C),
+}
+
+impl<
+    I: Iterator<Item = Result<PlyGaussianPod, Error>>,
+    C: Iterator<Item = Result<PlyGaussianPod, Error>>,
+> Iterator for PlyGaussianIter<I, C>
+{
+    type Item = Result<PlyGaussianPod, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Inria(iter) => iter.next(),
+            Self::Custom(iter) => iter.next(),
+        }
+    }
 }
 
 /// A scene containing Gaussians.
@@ -28,13 +69,19 @@ impl Gaussians {
     /// Read a splat PLY file.
     pub fn read_ply(reader: &mut impl BufRead) -> Result<Self, Error> {
         let ply_type = Self::read_ply_header(reader)?;
-        let gaussians = Self::read_ply_gaussians(reader, ply_type)?;
+
+        let count = ply_type.count()?;
+        let mut gaussians = Vec::with_capacity(count);
+
+        for gaussian in Self::read_ply_gaussians(reader, ply_type)? {
+            gaussians.push(gaussian?.into());
+        }
 
         Ok(Self { gaussians })
     }
 
     /// Read a splat PLY header.
-    fn read_ply_header(reader: &mut impl BufRead) -> Result<PlyType, Error> {
+    pub fn read_ply_header(reader: &mut impl BufRead) -> Result<PlyHeader, Error> {
         let parser = ply_rs::parser::Parser::<ply_rs::ply::DefaultElement>::new();
         let header = parser.read_header(reader)?;
         let vertex = header
@@ -42,51 +89,52 @@ impl Gaussians {
             .get("vertex")
             .ok_or(Error::PlyVertexNotFound)?;
 
+        const SYSTEM_ENDIANNESS: ply_rs::ply::Encoding = match cfg!(target_endian = "little") {
+            true => ply_rs::ply::Encoding::BinaryLittleEndian,
+            false => ply_rs::ply::Encoding::BinaryBigEndian,
+        };
+
         let ply_type = match vertex
             .properties
             .iter()
             .map(|(name, _)| name.as_str())
             .zip(PLY_PROPERTIES.iter())
             .all(|(a, b)| a == *b)
-            && header.encoding == ply_rs::ply::Encoding::BinaryLittleEndian
+            && header.encoding == SYSTEM_ENDIANNESS
         {
-            true => PlyType::Inria(vertex.count),
-            false => PlyType::Custom(header),
+            true => PlyHeader::Inria(vertex.count),
+            false => PlyHeader::Custom(header),
         };
 
         Ok(ply_type)
     }
 
     /// Read the splat PLY Gaussians into [`PlyGaussianPod`].
-    fn read_ply_gaussians(
+    pub fn read_ply_gaussians(
         reader: &mut impl BufRead,
-        ply_type: PlyType,
-    ) -> Result<Vec<Gaussian>, Error> {
-        match ply_type {
-            PlyType::Inria(count) => {
+        ply_type: PlyHeader,
+    ) -> Result<impl Iterator<Item = Result<PlyGaussianPod, Error>>, Error> {
+        let count = ply_type.count()?;
+        log::info!("Reading PLY format with {count} Gaussians");
+
+        Ok(match ply_type {
+            PlyHeader::Inria(..) => {
                 log::info!("Reading Inria PLY format with {} Gaussians", count);
 
-                let mut gaussians = Vec::with_capacity(count);
-                for _ in 0..count {
+                PlyGaussianIter::Inria((0..count).map(|_| {
                     let mut gaussian = PlyGaussianPod::zeroed();
                     reader.read_exact(bytemuck::bytes_of_mut(&mut gaussian))?;
-                    gaussians.push(gaussian.into());
-                }
-
-                Ok(gaussians)
+                    Ok(gaussian)
+                }))
             }
-            PlyType::Custom(header) => {
-                log::info!("Reading custom PLY format");
-
-                let vertex = header
-                    .elements
-                    .get("vertex")
-                    .ok_or(Error::PlyVertexNotFound)?;
-
+            PlyHeader::Custom(header) => {
                 let parser = ply_rs::parser::Parser::<PlyGaussianPod>::new();
-                let mut gaussians = Vec::with_capacity(vertex.count);
-                for _ in 0..vertex.count {
-                    let gaussian = match header.encoding {
+
+                PlyGaussianIter::Custom((0..count).map(move |_| {
+                    let Some(vertex) = header.elements.get("vertex") else {
+                        return Err(Error::PlyVertexNotFound);
+                    };
+                    Ok(match header.encoding {
                         ply_rs::ply::Encoding::Ascii => {
                             let mut line = String::new();
                             reader.read_line(&mut line)?;
@@ -111,14 +159,10 @@ impl Gaussians {
                         ply_rs::ply::Encoding::BinaryBigEndian => {
                             parser.read_big_endian_element(reader, vertex)?
                         }
-                    };
-
-                    gaussians.push(gaussian.into());
-                }
-
-                Ok(gaussians)
+                    })
+                }))
             }
-        }
+        })
     }
 
     /// Write the Gaussians to a PLY file.
