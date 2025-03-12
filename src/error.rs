@@ -4,14 +4,10 @@ use thiserror::Error;
 pub enum Error {
     #[error("{0}")]
     Io(#[from] std::io::Error),
-    #[error("vertex count not found in PLY header")]
-    PlyVertexCountNotFound,
-    #[error("{0}")]
-    PlyVertexCountParseFailed(#[from] std::num::ParseIntError),
-    #[error("not a PLY file")]
-    NotPly,
-    #[error("PLY header not found")]
-    PlyHeaderNotFound,
+    #[error("vertex not found in PLY")]
+    PlyVertexNotFound,
+    #[error("vertex property {0} not found in PLY")]
+    PlyVertexPropertyNotFound(String),
     #[error("{0}")]
     BufferDownloadOneShotReceive(#[from] oneshot::RecvError),
     #[error("{0}")]

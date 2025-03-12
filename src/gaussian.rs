@@ -5,6 +5,18 @@ use glam::*;
 
 use crate::{Error, GaussianEditFlag, GaussianEditPod, PlyGaussianPod};
 
+/// Types of PLY files.
+#[derive(Debug, Clone)]
+enum PlyType {
+    /// The Inria PLY format.
+    ///
+    /// This can be directly loaded into [`PlyGaussianPod`].
+    Inria(usize),
+
+    /// Custom PLY format.
+    Custom(ply_rs::ply::Header),
+}
+
 /// A scene containing Gaussians.
 #[derive(Debug, Clone)]
 pub struct Gaussians {
@@ -15,49 +27,98 @@ pub struct Gaussians {
 impl Gaussians {
     /// Read a splat PLY file.
     pub fn read_ply(reader: &mut impl BufRead) -> Result<Self, Error> {
-        let count = Self::read_ply_header(reader)?;
-        let gaussians = Self::read_ply_gaussians(reader, count)?;
+        let ply_type = Self::read_ply_header(reader)?;
+        let gaussians = Self::read_ply_gaussians(reader, ply_type)?;
 
         Ok(Self { gaussians })
     }
 
     /// Read a splat PLY header.
-    fn read_ply_header(reader: &mut impl BufRead) -> Result<usize, Error> {
-        let mut line = String::new();
-        reader.read_line(&mut line)?;
-        if line.as_str().trim().to_lowercase() != "ply" {
-            return Err(Error::NotPly);
-        }
+    fn read_ply_header(reader: &mut impl BufRead) -> Result<PlyType, Error> {
+        let parser = ply_rs::parser::Parser::<ply_rs::ply::DefaultElement>::new();
+        let header = parser.read_header(reader)?;
+        let vertex = header
+            .elements
+            .get("vertex")
+            .ok_or(Error::PlyVertexNotFound)?;
 
-        let mut count = 0;
-        loop {
-            let mut line = String::new();
-            if reader.read_line(&mut line)? == 0 {
-                return Err(Error::PlyHeaderNotFound);
-            }
+        let ply_type = match vertex
+            .properties
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .zip(PLY_PROPERTIES.iter())
+            .all(|(a, b)| a == *b)
+            && header.encoding == ply_rs::ply::Encoding::BinaryLittleEndian
+        {
+            true => PlyType::Inria(vertex.count),
+            false => PlyType::Custom(header),
+        };
 
-            if line.starts_with("end_header") {
-                break Ok(count);
-            } else if line.starts_with("element vertex") {
-                count = line
-                    .split_whitespace()
-                    .nth(2)
-                    .ok_or(Error::PlyVertexCountNotFound)?
-                    .parse()?;
-            }
-        }
+        Ok(ply_type)
     }
 
     /// Read the splat PLY Gaussians into [`PlyGaussianPod`].
-    fn read_ply_gaussians(reader: &mut impl BufRead, count: usize) -> Result<Vec<Gaussian>, Error> {
-        let mut gaussians = Vec::with_capacity(count);
-        for _ in 0..count {
-            let mut gaussian = PlyGaussianPod::zeroed();
-            reader.read_exact(bytemuck::bytes_of_mut(&mut gaussian))?;
-            gaussians.push(gaussian.into());
-        }
+    fn read_ply_gaussians(
+        reader: &mut impl BufRead,
+        ply_type: PlyType,
+    ) -> Result<Vec<Gaussian>, Error> {
+        match ply_type {
+            PlyType::Inria(count) => {
+                log::info!("Reading Inria PLY format with {} Gaussians", count);
 
-        Ok(gaussians)
+                let mut gaussians = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let mut gaussian = PlyGaussianPod::zeroed();
+                    reader.read_exact(bytemuck::bytes_of_mut(&mut gaussian))?;
+                    gaussians.push(gaussian.into());
+                }
+
+                Ok(gaussians)
+            }
+            PlyType::Custom(header) => {
+                log::info!("Reading custom PLY format");
+
+                let vertex = header
+                    .elements
+                    .get("vertex")
+                    .ok_or(Error::PlyVertexNotFound)?;
+
+                let parser = ply_rs::parser::Parser::<PlyGaussianPod>::new();
+                let mut gaussians = Vec::with_capacity(vertex.count);
+                for _ in 0..vertex.count {
+                    let gaussian = match header.encoding {
+                        ply_rs::ply::Encoding::Ascii => {
+                            let mut line = String::new();
+                            reader.read_line(&mut line)?;
+
+                            let mut gaussian = PlyGaussianPod::zeroed();
+                            line.split(' ')
+                                .map(|s| s.parse::<f32>())
+                                .zip(vertex.properties.keys())
+                                .try_for_each(|(value, name)| match value {
+                                    Ok(value) => {
+                                        gaussian.set_value(name, value);
+                                        Ok(())
+                                    }
+                                    Err(_) => Err(Error::PlyVertexPropertyNotFound(name.clone())),
+                                })?;
+
+                            gaussian
+                        }
+                        ply_rs::ply::Encoding::BinaryLittleEndian => {
+                            parser.read_little_endian_element(reader, vertex)?
+                        }
+                        ply_rs::ply::Encoding::BinaryBigEndian => {
+                            parser.read_big_endian_element(reader, vertex)?
+                        }
+                    };
+
+                    gaussians.push(gaussian.into());
+                }
+
+                Ok(gaussians)
+            }
+        }
     }
 
     /// Write the Gaussians to a PLY file.
@@ -68,69 +129,10 @@ impl Gaussians {
     ) -> Result<(), Error> {
         writeln!(writer, "ply")?;
         writeln!(writer, "format binary_little_endian 1.0")?;
-        writeln!(writer, "element vertex 597903")?;
-        writeln!(writer, "property float x")?;
-        writeln!(writer, "property float y")?;
-        writeln!(writer, "property float z")?;
-        writeln!(writer, "property float nx")?;
-        writeln!(writer, "property float ny")?;
-        writeln!(writer, "property float nz")?;
-        writeln!(writer, "property float f_dc_0")?;
-        writeln!(writer, "property float f_dc_1")?;
-        writeln!(writer, "property float f_dc_2")?;
-        writeln!(writer, "property float f_rest_0")?;
-        writeln!(writer, "property float f_rest_1")?;
-        writeln!(writer, "property float f_rest_2")?;
-        writeln!(writer, "property float f_rest_3")?;
-        writeln!(writer, "property float f_rest_4")?;
-        writeln!(writer, "property float f_rest_5")?;
-        writeln!(writer, "property float f_rest_6")?;
-        writeln!(writer, "property float f_rest_7")?;
-        writeln!(writer, "property float f_rest_8")?;
-        writeln!(writer, "property float f_rest_9")?;
-        writeln!(writer, "property float f_rest_10")?;
-        writeln!(writer, "property float f_rest_11")?;
-        writeln!(writer, "property float f_rest_12")?;
-        writeln!(writer, "property float f_rest_13")?;
-        writeln!(writer, "property float f_rest_14")?;
-        writeln!(writer, "property float f_rest_15")?;
-        writeln!(writer, "property float f_rest_16")?;
-        writeln!(writer, "property float f_rest_17")?;
-        writeln!(writer, "property float f_rest_18")?;
-        writeln!(writer, "property float f_rest_19")?;
-        writeln!(writer, "property float f_rest_20")?;
-        writeln!(writer, "property float f_rest_21")?;
-        writeln!(writer, "property float f_rest_22")?;
-        writeln!(writer, "property float f_rest_23")?;
-        writeln!(writer, "property float f_rest_24")?;
-        writeln!(writer, "property float f_rest_25")?;
-        writeln!(writer, "property float f_rest_26")?;
-        writeln!(writer, "property float f_rest_27")?;
-        writeln!(writer, "property float f_rest_28")?;
-        writeln!(writer, "property float f_rest_29")?;
-        writeln!(writer, "property float f_rest_30")?;
-        writeln!(writer, "property float f_rest_31")?;
-        writeln!(writer, "property float f_rest_32")?;
-        writeln!(writer, "property float f_rest_33")?;
-        writeln!(writer, "property float f_rest_34")?;
-        writeln!(writer, "property float f_rest_35")?;
-        writeln!(writer, "property float f_rest_36")?;
-        writeln!(writer, "property float f_rest_37")?;
-        writeln!(writer, "property float f_rest_38")?;
-        writeln!(writer, "property float f_rest_39")?;
-        writeln!(writer, "property float f_rest_40")?;
-        writeln!(writer, "property float f_rest_41")?;
-        writeln!(writer, "property float f_rest_42")?;
-        writeln!(writer, "property float f_rest_43")?;
-        writeln!(writer, "property float f_rest_44")?;
-        writeln!(writer, "property float opacity")?;
-        writeln!(writer, "property float scale_0")?;
-        writeln!(writer, "property float scale_1")?;
-        writeln!(writer, "property float scale_2")?;
-        writeln!(writer, "property float rot_0")?;
-        writeln!(writer, "property float rot_1")?;
-        writeln!(writer, "property float rot_2")?;
-        writeln!(writer, "property float rot_3")?;
+        writeln!(writer, "element vertex {}", self.gaussians.len())?;
+        for property in PLY_PROPERTIES {
+            writeln!(writer, "property float {property}")?;
+        }
         writeln!(writer, "end_header")?;
 
         match edits {
@@ -335,3 +337,68 @@ impl From<&PlyGaussianPod> for Gaussian {
         Self::from_ply(ply)
     }
 }
+
+const PLY_PROPERTIES: &[&str] = &[
+    "x",
+    "y",
+    "z",
+    "nx",
+    "ny",
+    "nz",
+    "f_dc_0",
+    "f_dc_1",
+    "f_dc_2",
+    "f_rest_0",
+    "f_rest_1",
+    "f_rest_2",
+    "f_rest_3",
+    "f_rest_4",
+    "f_rest_5",
+    "f_rest_6",
+    "f_rest_7",
+    "f_rest_8",
+    "f_rest_9",
+    "f_rest_10",
+    "f_rest_11",
+    "f_rest_12",
+    "f_rest_13",
+    "f_rest_14",
+    "f_rest_15",
+    "f_rest_16",
+    "f_rest_17",
+    "f_rest_18",
+    "f_rest_19",
+    "f_rest_20",
+    "f_rest_21",
+    "f_rest_22",
+    "f_rest_23",
+    "f_rest_24",
+    "f_rest_25",
+    "f_rest_26",
+    "f_rest_27",
+    "f_rest_28",
+    "f_rest_29",
+    "f_rest_30",
+    "f_rest_31",
+    "f_rest_32",
+    "f_rest_33",
+    "f_rest_34",
+    "f_rest_35",
+    "f_rest_36",
+    "f_rest_37",
+    "f_rest_38",
+    "f_rest_39",
+    "f_rest_40",
+    "f_rest_41",
+    "f_rest_42",
+    "f_rest_43",
+    "f_rest_44",
+    "opacity",
+    "scale_0",
+    "scale_1",
+    "scale_2",
+    "rot_0",
+    "rot_1",
+    "rot_2",
+    "rot_3",
+];
