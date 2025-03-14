@@ -94,17 +94,21 @@ impl Gaussians {
             false => ply_rs::ply::Encoding::BinaryBigEndian,
         };
 
-        let ply_header = match vertex
-            .properties
-            .iter()
-            .map(|(name, _)| name.as_str())
-            .zip(PLY_PROPERTIES.iter())
-            .all(|(a, b)| a == *b)
-            && header.encoding == SYSTEM_ENDIANNESS
-        {
-            true => PlyHeader::Inria(vertex.count),
-            false => PlyHeader::Custom(header),
-        };
+        let ply_header =
+            match vertex
+                .properties
+                .iter()
+                .zip(PLY_PROPERTIES.iter())
+                .all(|((a, property), b)| {
+                    a == *b
+                        && property.data_type
+                            == ply_rs::ply::PropertyType::Scalar(ply_rs::ply::ScalarType::Float)
+                })
+                && header.encoding == SYSTEM_ENDIANNESS
+            {
+                true => PlyHeader::Inria(vertex.count),
+                false => PlyHeader::Custom(header),
+            };
 
         Ok(ply_header)
     }
@@ -167,28 +171,35 @@ impl Gaussians {
         writer: &mut impl Write,
         edits: Option<impl IntoIterator<Item = &'a GaussianEditPod>>,
     ) -> Result<(), Error> {
+        let edited_gaussians = edits.map(|edits| {
+            self.gaussians
+                .iter()
+                .zip(edits)
+                .filter_map(|(gaussian, edit)| gaussian.with_edit(edit))
+                .collect::<Vec<_>>()
+        });
+
         writeln!(writer, "ply")?;
         writeln!(writer, "format binary_little_endian 1.0")?;
-        writeln!(writer, "element vertex {}", self.gaussians.len())?;
+        writeln!(
+            writer,
+            "element vertex {}",
+            edited_gaussians
+                .as_ref()
+                .map(|g| g.len())
+                .unwrap_or(self.gaussians.len())
+        )?;
         for property in PLY_PROPERTIES {
             writeln!(writer, "property float {property}")?;
         }
         writeln!(writer, "end_header")?;
 
-        match edits {
-            Some(edits) => self
-                .gaussians
-                .iter()
-                .zip(edits.into_iter())
-                .filter_map(|(gaussian, edit)| gaussian.with_edit(edit))
-                .map(|gaussian| gaussian.to_ply())
-                .try_for_each(|gaussian| writer.write_all(bytemuck::bytes_of(&gaussian)))?,
-            None => self
-                .gaussians
-                .iter()
-                .map(|gaussian| gaussian.to_ply())
-                .try_for_each(|gaussian| writer.write_all(bytemuck::bytes_of(&gaussian)))?,
-        }
+        edited_gaussians
+            .as_ref()
+            .unwrap_or(&self.gaussians)
+            .iter()
+            .map(|gaussian| gaussian.to_ply())
+            .try_for_each(|gaussian| writer.write_all(bytemuck::bytes_of(&gaussian)))?;
 
         Ok(())
     }
