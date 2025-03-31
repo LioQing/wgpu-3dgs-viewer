@@ -5,6 +5,7 @@
 ### Added
 
 - 🔢 Multi-model viewer to see multiple Gaussian models, enabled by `multi-model` feature.
+- 🎭 Masking with composite shapes, i.e. boxes and ellipsoids, enabled by `mask` feature.
 - 🎥 Depth stencil as an option to render with.
 - ⏬ Download for Gaussian edits.
 

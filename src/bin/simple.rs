@@ -1,15 +1,8 @@
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use clap::Parser;
 use glam::*;
-use winit::{
-    application::ApplicationHandler,
-    error::EventLoopError,
-    event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::{Window, WindowId},
-};
+use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
 
 use wgpu_3dgs_viewer as gs;
 
@@ -21,7 +14,7 @@ use wgpu_3dgs_viewer as gs;
     long_about = "\
     A 3D Gaussian splatting viewer written in Rust using wgpu.\n\
     \n\
-    In default mode, use W, A, S, D, Space, Shift to move, use mouse to rotate.\n\
+    Use W, A, S, D, Space, Shift to move, use mouse to rotate.\n\
     "
 )]
 struct Args {
@@ -34,187 +27,8 @@ fn main() -> Result<(), EventLoopError> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let event_loop = EventLoop::new()?;
-    event_loop.run_app(&mut App::new(Args::parse()))?;
+    event_loop.run_app(&mut gs::bin_core::App::<System>::new(Args::parse()))?;
     Ok(())
-}
-
-/// The input state.
-struct Input {
-    pub pressed_keys: HashSet<KeyCode>,
-    pub held_keys: HashSet<KeyCode>,
-    pub pressed_mouse: HashSet<MouseButton>,
-    pub held_mouse: HashSet<MouseButton>,
-    pub released_mouse: HashSet<MouseButton>,
-    pub scroll_diff: f32,
-    pub mouse_diff: Vec2,
-    pub mouse_pos: Vec2,
-}
-
-impl Input {
-    fn new() -> Self {
-        Self {
-            pressed_keys: HashSet::new(),
-            held_keys: HashSet::new(),
-            pressed_mouse: HashSet::new(),
-            held_mouse: HashSet::new(),
-            released_mouse: HashSet::new(),
-            scroll_diff: 0.0,
-            mouse_diff: Vec2::ZERO,
-            mouse_pos: Vec2::ZERO,
-        }
-    }
-
-    /// Update the input state based on [`DeviceEvent`].
-    fn device_event(&mut self, event: &DeviceEvent) {
-        match event {
-            DeviceEvent::Key(input) => match input.physical_key {
-                PhysicalKey::Unidentified(..) => {}
-                PhysicalKey::Code(key) => match input.state {
-                    ElementState::Pressed => {
-                        if !self.held_keys.contains(&key) {
-                            self.pressed_keys.insert(key);
-                            self.held_keys.insert(key);
-                        }
-                    }
-                    ElementState::Released => {
-                        self.held_keys.remove(&key);
-                    }
-                },
-            },
-            DeviceEvent::MouseMotion { delta: (x, y) } => {
-                self.mouse_diff += vec2(*x as f32, *y as f32);
-            }
-            _ => {}
-        }
-    }
-
-    /// Update the input state based on [`WindowEvent`].
-    fn window_event(&mut self, event: &WindowEvent) {
-        match event {
-            WindowEvent::MouseInput { state, button, .. } => match *state {
-                ElementState::Pressed => {
-                    self.pressed_mouse.insert(*button);
-                    self.held_mouse.insert(*button);
-                }
-                ElementState::Released => {
-                    self.released_mouse.insert(*button);
-                    self.held_mouse.remove(button);
-                }
-            },
-            WindowEvent::MouseWheel { delta, .. } => match delta {
-                winit::event::MouseScrollDelta::LineDelta(_, y) => {
-                    self.scroll_diff += y;
-                }
-                winit::event::MouseScrollDelta::PixelDelta(pos) => {
-                    self.scroll_diff += pos.y as f32;
-                }
-            },
-            WindowEvent::CursorMoved { position, .. } => {
-                self.mouse_pos = vec2(position.x as f32, position.y as f32);
-            }
-            _ => {}
-        }
-    }
-
-    /// Clear states for a new frame.
-    fn new_frame(&mut self) {
-        self.pressed_keys.clear();
-        self.scroll_diff = 0.0;
-        self.pressed_mouse.clear();
-        self.released_mouse.clear();
-        self.mouse_diff = Vec2::ZERO;
-    }
-}
-
-/// The application.
-struct App {
-    input: Input,
-    system: Option<System>,
-    window: Option<Arc<Window>>,
-    args: Args,
-    timer: std::time::SystemTime,
-}
-
-impl App {
-    fn new(args: Args) -> Self {
-        Self {
-            input: Input::new(),
-            system: None,
-            window: None,
-            args,
-            timer: std::time::SystemTime::now(),
-        }
-    }
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        log::debug!("Creating window");
-        self.window = Some(Arc::new(
-            event_loop
-                .create_window(Window::default_attributes())
-                .expect("window"),
-        ));
-
-        log::debug!("Creating system");
-        self.system = Some(futures::executor::block_on(System::new(
-            self.window.as_ref().expect("window").clone(),
-            &self.args.model,
-        )));
-
-        event_loop.set_control_flow(ControlFlow::Poll);
-
-        self.timer = std::time::SystemTime::now();
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
-        event: WindowEvent,
-    ) {
-        self.input.window_event(&event);
-
-        match event {
-            WindowEvent::RedrawRequested => {
-                // Capture frame rate
-                let delta_time = self.timer.elapsed().expect("elapsed time").as_secs_f32();
-                self.timer = std::time::SystemTime::now();
-
-                // Update system
-                self.system
-                    .as_mut()
-                    .expect("system")
-                    .update(&self.input, delta_time);
-
-                self.system.as_mut().expect("system").render();
-
-                // Request redraw
-                self.window.as_mut().expect("window").request_redraw();
-
-                // Clear input states
-                self.input.new_frame();
-            }
-            WindowEvent::Resized(size) => {
-                log::info!("Window resized to {size:?}");
-                self.system.as_mut().expect("system").resize(size);
-            }
-            WindowEvent::CloseRequested | WindowEvent::Destroyed => {
-                log::info!("The application was requested to close, quitting the application");
-                event_loop.exit();
-            }
-            _ => {}
-        }
-    }
-
-    fn device_event(
-        &mut self,
-        _event_loop: &ActiveEventLoop,
-        _device_id: DeviceId,
-        event: DeviceEvent,
-    ) {
-        self.input.device_event(&event);
-    }
 }
 
 /// The application system.
@@ -230,8 +44,11 @@ struct System {
     viewer: gs::Viewer,
 }
 
-impl System {
-    pub async fn new(window: Arc<Window>, model_path: &str) -> Self {
+impl gs::bin_core::System for System {
+    type Args = Args;
+
+    async fn init(window: Arc<Window>, args: &Args) -> Self {
+        let model_path = &args.model;
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
@@ -327,7 +144,7 @@ impl System {
         }
     }
 
-    pub fn update(&mut self, input: &Input, delta_time: f32) {
+    fn update(&mut self, input: &gs::bin_core::Input, delta_time: f32) {
         // Camera movement
         const SPEED: f32 = 1.0;
 
@@ -376,7 +193,7 @@ impl System {
         );
     }
 
-    pub fn render(&mut self) {
+    fn render(&mut self) {
         let texture = match self.surface.get_current_texture() {
             Ok(texture) => texture,
             Err(e) => {
@@ -403,7 +220,7 @@ impl System {
         texture.present();
     }
 
-    pub fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
         if size.width > 0 && size.height > 0 {
             self.config.width = size.width;
             self.config.height = size.height;

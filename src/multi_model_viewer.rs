@@ -146,8 +146,7 @@ impl MultiModelViewerWorldBuffers {
 
 /// The buffers for [`Viewer`] related to the Guassian model.
 #[derive(Debug)]
-pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs>
-{
+pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = DefaultGaussianPod> {
     pub model_transform_buffer: ModelTransformBuffer,
     pub gaussians_buffer: GaussiansBuffer<G>,
     pub indirect_args_buffer: IndirectArgsBuffer,
@@ -159,6 +158,9 @@ pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = GaussianPodWithShNor
     pub postprocess_indirect_args_buffer: PostprocessIndirectArgsBuffer,
     pub selection_buffer: SelectionBuffer,
     pub gaussians_edit_buffer: GaussiansEditBuffer,
+
+    #[cfg(feature = "mask")]
+    pub mask_buffer: MaskBuffer,
 }
 
 impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
@@ -201,6 +203,12 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         let gaussians_edit_buffer =
             GaussiansEditBuffer::new(device, gaussians.gaussians.len() as u32);
 
+        #[cfg(feature = "mask")]
+        let mask_buffer = {
+            log::debug!("Creating mask buffer");
+            MaskBuffer::new(device, gaussians.gaussians.len() as u32)
+        };
+
         Self {
             model_transform_buffer,
             gaussians_buffer,
@@ -213,6 +221,9 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             postprocess_indirect_args_buffer,
             selection_buffer,
             gaussians_edit_buffer,
+
+            #[cfg(feature = "mask")]
+            mask_buffer,
         }
     }
 
@@ -251,6 +262,12 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         log::debug!("Creating gaussians edit buffer");
         let gaussians_edit_buffer = GaussiansEditBuffer::new(device, count as u32);
 
+        #[cfg(feature = "mask")]
+        let mask_buffer = {
+            log::debug!("Creating mask buffer");
+            MaskBuffer::new(device, count as u32)
+        };
+
         Self {
             model_transform_buffer,
             gaussians_buffer,
@@ -263,6 +280,9 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             postprocess_indirect_args_buffer,
             selection_buffer,
             gaussians_edit_buffer,
+
+            #[cfg(feature = "mask")]
+            mask_buffer,
         }
     }
 
@@ -324,6 +344,8 @@ impl MultiModelViewerBindGroups {
             &world_buffers.selection_edit_buffer,
             #[cfg(feature = "query-texture")]
             &world_buffers.query_texture,
+            #[cfg(feature = "mask")]
+            &gaussian_buffers.mask_buffer,
         );
         let radix_sorter = radix_sorter.create_bind_groups(
             device,
@@ -364,7 +386,7 @@ impl MultiModelViewerBindGroups {
 
 /// The model of the [`MultiModelViewer`].
 #[derive(Debug)]
-pub struct MultiModelViewerModel<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
+pub struct MultiModelViewerModel<G: GaussianPod = DefaultGaussianPod> {
     /// Buffers for the model.
     pub gaussian_buffers: MultiModelViewerGaussianBuffers<G>,
 
@@ -374,10 +396,7 @@ pub struct MultiModelViewerModel<G: GaussianPod = GaussianPodWithShNorm8Cov3dHal
 
 /// The 3D Gaussian splatting viewer for multiple models.
 #[derive(Debug)]
-pub struct MultiModelViewer<
-    G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs,
-    K: Hash + std::cmp::Eq = String,
-> {
+pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::cmp::Eq = String> {
     pub models: HashMap<K, MultiModelViewerModel<G>>,
     pub world_buffers: MultiModelViewerWorldBuffers,
     pub preprocessor: Preprocessor<()>,
@@ -613,6 +632,8 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
                 &model.gaussian_buffers.selection_buffer,
                 &self.world_buffers.selection_edit_buffer,
                 &self.world_buffers.query_texture,
+                #[cfg(feature = "mask")]
+                &model.gaussian_buffers.mask_buffer,
             );
         }
     }

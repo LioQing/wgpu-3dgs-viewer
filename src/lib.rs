@@ -28,6 +28,15 @@ mod query_cursor;
 #[cfg(feature = "multi-model")]
 mod multi_model_viewer;
 
+#[cfg(feature = "mask-evaluator")]
+mod mask_evaluator;
+
+#[cfg(feature = "mask-gizmo")]
+mod mask_gizmo;
+
+#[cfg(feature = "bin-core")]
+pub mod bin_core;
+
 use glam::*;
 
 pub use buffer::*;
@@ -57,9 +66,18 @@ pub use query_cursor::*;
 #[cfg(feature = "multi-model")]
 pub use multi_model_viewer::*;
 
+#[cfg(feature = "mask-evaluator")]
+pub use mask_evaluator::*;
+
+#[cfg(feature = "mask-gizmo")]
+pub use mask_gizmo::*;
+
+/// The default viewer [`GaussianPod`] type.
+pub type DefaultGaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs;
+
 /// The 3D Gaussian splatting viewer.
 #[derive(Debug)]
-pub struct Viewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
+pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
     pub camera_buffer: CameraBuffer,
     pub model_transform_buffer: ModelTransformBuffer,
     pub gaussian_transform_buffer: GaussianTransformBuffer,
@@ -79,6 +97,9 @@ pub struct Viewer<G: GaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs> {
 
     #[cfg(feature = "query-texture")]
     pub query_texture: QueryTexture,
+
+    #[cfg(feature = "mask")]
+    pub mask_buffer: MaskBuffer,
 
     pub preprocessor: Preprocessor,
     pub radix_sorter: RadixSorter,
@@ -170,6 +191,9 @@ impl<G: GaussianPod> Viewer<G> {
             QueryTexture::new(device, texture_size)
         };
 
+        #[cfg(feature = "mask")]
+        let mask_buffer = MaskBuffer::new(device, gaussians.gaussians.len() as u32);
+
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new(
             device,
@@ -188,6 +212,8 @@ impl<G: GaussianPod> Viewer<G> {
             &selection_edit_buffer,
             #[cfg(feature = "query-texture")]
             &query_texture,
+            #[cfg(feature = "mask")]
+            &mask_buffer,
         )?;
 
         log::debug!("Creating radix sorter");
@@ -244,6 +270,9 @@ impl<G: GaussianPod> Viewer<G> {
 
             #[cfg(feature = "query-texture")]
             query_texture,
+
+            #[cfg(feature = "mask")]
+            mask_buffer,
 
             preprocessor,
             radix_sorter,
@@ -375,6 +404,8 @@ impl<G: GaussianPod> Viewer<G> {
             &self.selection_buffer,
             &self.selection_edit_buffer,
             &self.query_texture,
+            #[cfg(feature = "mask")]
+            &self.mask_buffer,
         );
     }
 

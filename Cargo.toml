@@ -25,22 +25,25 @@ path = "src/bin/selection.rs"
 required-features = ["bin-selection"]
 
 [[bin]]
+name = "mask-wgpu-3dgs-viewer"
+path = "src/bin/mask.rs"
+required-features = ["bin-mask"]
+
+[[bin]]
 name = "dev-wgpu-3dgs-viewer"
 path = "src/bin/dev.rs"
 required-features = ["bin-dev"]
 
 [features]
-bin-simple = ["dep:clap", "dep:env_logger", "dep:futures", "dep:winit"]
-bin-selection = [
-    "query-cursor",
-    "query-toolset",
-    "query-texture-overlay",
+bin-simple = [
+    "bin-core",
     "dep:clap",
     "dep:env_logger",
     "dep:futures",
     "dep:winit",
 ]
-bin-dev = [
+bin-selection = [
+    "bin-core",
     "query-cursor",
     "query-toolset",
     "query-texture-overlay",
@@ -50,6 +53,23 @@ bin-dev = [
     "dep:futures",
     "dep:winit",
 ]
+bin-mask = [
+    "bin-core",
+    "mask-gizmo",
+    "dep:clap",
+    "dep:env_logger",
+    "dep:futures",
+    "dep:winit",
+]
+bin-dev = [
+    "bin-core",
+    "mask-gizmo",
+    "dep:clap",
+    "dep:env_logger",
+    "dep:futures",
+    "dep:winit",
+]
+bin-core = []
 query-cursor = []
 query-toolset = ["query-tool", "query-texture-tool"]
 query-tool = []
@@ -57,6 +77,9 @@ query-texture = []
 query-texture-tool = ["query-texture"]
 query-texture-overlay = ["query-texture"]
 multi-model = []
+mask = []
+mask-evaluator = ["mask"]
+mask-gizmo = ["mask-evaluator"]
 
 [dependencies]
 bytemuck = { version = "1.21.0", features = [

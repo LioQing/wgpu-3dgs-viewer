@@ -235,7 +235,7 @@ fn selection_edit_enabled() -> bool {
 
 // Feature query texture begin
 
-@group(0) @binding(13)
+@group(0) @binding({{query_texture_binding}})
 var query_texture_view: texture_2d<f32>;
 
 fn query_texture(gaussian_index: u32, ndc_pos: vec2<f32>) {
@@ -260,6 +260,20 @@ fn query_texture(gaussian_index: u32, ndc_pos: vec2<f32>) {
 }
 
 // Feature query texture end
+
+// Feature mask begin
+
+@group(0) @binding({{mask_binding}})
+var<storage, read> mask: array<u32>;
+
+fn mask_at(index: u32) -> bool {
+    let word_index = index / 32u;
+    let bit_index = index % 32u;
+    let mask_mask = 1u << bit_index;
+    return (mask[word_index] & mask_mask) != 0u;
+}
+
+// Feature mask end
 
 const workgroup_size = vec3<u32>({{workgroup_size}});
 const workgroup_count = workgroup_size.x * workgroup_size.y * workgroup_size.z;
@@ -288,11 +302,19 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     }
 
     // Cull
-    let proj_pos = camera.proj * camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let proj_pos = camera.proj * camera.view * world_pos;
     let ndc_pos = proj_pos.xyz / proj_pos.w;
     if !is_on_frustum(ndc_pos) {
         return;
     }
+
+    // Feature mask begin
+    // Mask
+    if !mask_at(index) {
+        return;
+    }
+    // Feature mask end
 
     let culled_index = atomicAdd(&indirect_args.instance_count, 1u);
     indirect_indices[culled_index] = index;

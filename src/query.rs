@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use glam::*;
 
 use crate::{
@@ -44,15 +46,95 @@ pub fn hit_pos_by_closest(
 ///
 /// This uses the most alpha contribution after alpha blending.
 ///
-/// This also sorts the results by depth.
+/// This also sorts the results by depth and set the alpha to the blended alpha.
 ///
-/// Returns the index of the hit result after being sorted, the blended alpha of the hit Gaussian,
-/// and the world position.
+/// Returns the index of the hit result after being sorted and the world position.
 pub fn hit_pos_by_most_alpha(
     query: &QueryHitPod,
     results: &mut [QueryHitResultPod],
     camera: &impl CameraTrait,
     texture_size: UVec2,
+) -> Option<(usize, Vec3)> {
+    results.sort_by(|a, b| {
+        a.depth()
+            .partial_cmp(&b.depth())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut src_alpha = 0.0;
+    for result in results.iter_mut() {
+        *result.alpha_mut() *= 1.0 - src_alpha;
+        src_alpha += result.alpha();
+    }
+
+    let (index, hit) = results.iter().enumerate().max_by(|(_, a), (_, b)| {
+        a.alpha()
+            .partial_cmp(&b.alpha())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    })?;
+
+    let world_pos = coords_and_depth_to_world(camera, query.coords(), hit.depth(), texture_size);
+
+    Some((index, world_pos))
+}
+
+/// Get the world position of the [`QueryType::Hit`](crate::QueryType::Hit) query.
+///
+/// This uses the most alpha contribution of a sliding window after alpha blending.
+///
+/// This also sorts the results by depth.
+///
+/// Returns the index of the first hit result after being sorted, the blended alpha of the first hit
+/// Gaussian, and the world position.
+pub fn hit_pos_by_alpha_window(
+    query: &QueryHitPod,
+    results: &mut [QueryHitResultPod],
+    camera: &impl CameraTrait,
+    texture_size: UVec2,
+    window_size: usize,
+) -> Option<(usize, f32, Vec3)> {
+    if window_size == 0 {
+        return None;
+    }
+
+    results.sort_by(|a, b| {
+        a.depth()
+            .partial_cmp(&b.depth())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut src_alpha = 0.0;
+    for result in results.iter_mut() {
+        *result.alpha_mut() *= 1.0 - src_alpha;
+        src_alpha += result.alpha();
+    }
+
+    let (index, alpha) = results
+        .windows(window_size)
+        .enumerate()
+        .map(|(i, window)| (i, window.iter().map(|h| h.alpha()).sum::<f32>()))
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))?;
+
+    let hit = &results[index];
+    let world_pos = coords_and_depth_to_world(camera, query.coords(), hit.depth(), texture_size);
+
+    Some((index, alpha, world_pos))
+}
+
+/// Get the world position of the [`QueryType::Hit`](crate::QueryType::Hit) query.
+///
+/// This uses the most alpha contribution of a sliding distance range after alpha blending.
+///
+/// This also sorts the results by depth.
+///
+/// Returns the index of the first hit result after being sorted, the blended alpha of the first hit
+/// Gaussian, and the world position.
+pub fn hit_pos_by_alpha_range(
+    query: &QueryHitPod,
+    results: &mut [QueryHitResultPod],
+    camera: &impl CameraTrait,
+    texture_size: UVec2,
+    range: f32,
 ) -> Option<(usize, f32, Vec3)> {
     results.sort_by(|a, b| {
         a.depth()
@@ -66,17 +148,26 @@ pub fn hit_pos_by_most_alpha(
         src_alpha = result.alpha();
     }
 
-    let (index, (alpha, hit)) = results
+    let cam_pos = camera.view().col(3).xyz();
+    let (index, alpha) = results
         .iter()
-        .scan(0.0, |src_alpha, result| {
-            let dst_alpha = result.alpha() * (1.0 - *src_alpha);
-            *src_alpha = dst_alpha;
-
-            Some((dst_alpha, result))
-        })
         .enumerate()
-        .max_by(|(_, (a, _)), (_, (b, _))| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))?;
+        .scan(VecDeque::new(), |queue, (i, hit)| {
+            let pos = coords_and_depth_to_world(camera, query.coords(), hit.depth(), texture_size);
+            let depth = (pos - cam_pos).length();
+            queue.push_back((depth, hit));
 
+            while queue.front().is_some_and(|(d, _)| depth - d > range) {
+                queue.pop_front();
+            }
+
+            let alpha = queue.iter().map(|(_, h)| h.alpha()).sum::<f32>();
+
+            Some((i, alpha))
+        })
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))?;
+
+    let hit = &results[index];
     let world_pos = coords_and_depth_to_world(camera, query.coords(), hit.depth(), texture_size);
 
     Some((index, alpha, world_pos))

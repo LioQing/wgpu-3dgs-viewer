@@ -10,6 +10,9 @@ use crate::{
 #[cfg(feature = "query-texture")]
 use crate::Texture;
 
+#[cfg(feature = "mask")]
+use crate::MaskBuffer;
+
 /// Preprocessor to preprocess the Gaussians.
 ///
 /// It computes the depth for [`RadixSorter`](crate::RadixSorter), do frustum culling,
@@ -32,6 +35,15 @@ pub struct Preprocessor<B = wgpu::BindGroup> {
 }
 
 impl<B> Preprocessor<B> {
+    /// The binding of query texture.
+    const QUERY_TEXTURE_BINDING: u32 = 13;
+
+    /// The binding of mask buffer.
+    const MASK_BINDING: u32 = match cfg!(feature = "query-texture") {
+        true => 14,
+        false => 13,
+    };
+
     /// Create the bind group.
     #[allow(clippy::too_many_arguments)]
     pub fn create_bind_group<G: GaussianPod>(
@@ -51,6 +63,7 @@ impl<B> Preprocessor<B> {
         selection: &SelectionBuffer,
         selection_edit: &SelectionEditBuffer,
         #[cfg(feature = "query-texture")] query_texture: &impl Texture,
+        #[cfg(feature = "mask")] mask: &MaskBuffer,
     ) -> wgpu::BindGroup {
         Preprocessor::create_bind_group_static(
             device,
@@ -70,6 +83,8 @@ impl<B> Preprocessor<B> {
             selection_edit,
             #[cfg(feature = "query-texture")]
             query_texture,
+            #[cfg(feature = "mask")]
+            mask,
         )
     }
 
@@ -228,15 +243,27 @@ impl Preprocessor {
                     },
                     count: None,
                 },
-                // Qeruy texture view
+                // Query texture view
                 #[cfg(feature = "query-texture")]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 13,
+                    binding: Self::QUERY_TEXTURE_BINDING,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: false },
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
+                    },
+                    count: None,
+                },
+                // Mask buffer
+                #[cfg(feature = "mask")]
+                wgpu::BindGroupLayoutEntry {
+                    binding: Self::MASK_BINDING,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -261,6 +288,7 @@ impl Preprocessor {
         selection: &SelectionBuffer,
         selection_edit: &SelectionEditBuffer,
         #[cfg(feature = "query-texture")] query_texture: &impl Texture,
+        #[cfg(feature = "mask")] mask: &MaskBuffer,
     ) -> Result<Self, Error> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
             return Err(Error::ModelSizeExceedsDeviceLimit {
@@ -289,6 +317,8 @@ impl Preprocessor {
             selection_edit,
             #[cfg(feature = "query-texture")]
             query_texture,
+            #[cfg(feature = "mask")]
+            mask,
         );
 
         Ok(Self {
@@ -361,6 +391,7 @@ impl Preprocessor {
         selection: &SelectionBuffer,
         selection_edit: &SelectionEditBuffer,
         query_texture: &impl Texture,
+        #[cfg(feature = "mask")] mask: &MaskBuffer,
     ) {
         self.bind_group = self.create_bind_group(
             device,
@@ -378,6 +409,8 @@ impl Preprocessor {
             selection,
             selection_edit,
             query_texture,
+            #[cfg(feature = "mask")]
+            mask,
         );
     }
 
@@ -400,6 +433,7 @@ impl Preprocessor {
         selection: &SelectionBuffer,
         selection_edit: &SelectionEditBuffer,
         #[cfg(feature = "query-texture")] query_texture: &impl Texture,
+        #[cfg(feature = "mask")] mask: &MaskBuffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Preprocessor Bind Group"),
@@ -473,8 +507,14 @@ impl Preprocessor {
                 // Query texture view
                 #[cfg(feature = "query-texture")]
                 wgpu::BindGroupEntry {
-                    binding: 13,
+                    binding: Self::QUERY_TEXTURE_BINDING,
                     resource: wgpu::BindingResource::TextureView(query_texture.view()),
+                },
+                // Mask buffer
+                #[cfg(feature = "mask")]
+                wgpu::BindGroupEntry {
+                    binding: Self::MASK_BINDING,
+                    resource: mask.buffer().as_entire_binding(),
                 },
             ],
         })
@@ -507,6 +547,58 @@ impl Preprocessor<()> {
             push_constant_ranges: &[],
         });
 
+        log::info!(
+            "{}",
+            include_str!("shader/preprocess.wgsl")
+                .replace(
+                    "{{workgroup_size}}",
+                    format!(
+                        "{}, {}, {}",
+                        workgroup_size.x, workgroup_size.y, workgroup_size.z
+                    )
+                    .as_str(),
+                )
+                .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
+                .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
+                .lines()
+                .scan(false, |state, line| {
+                    #[cfg(not(feature = "query-texture"))]
+                    if line.contains("// Feature query texture begin") {
+                        *state = true;
+                    } else if line.contains("// Feature query texture end") {
+                        *state = false;
+                    }
+
+                    #[cfg(not(feature = "mask"))]
+                    if line.contains("// Feature mask begin") {
+                        *state = true;
+                    } else if line.contains("// Feature mask end") {
+                        *state = false;
+                    }
+
+                    if *state {
+                        return Some(format!("// {line}\n"));
+                    }
+
+                    let mut line = line.to_string();
+
+                    if cfg!(feature = "query-texture") {
+                        line = line.replace(
+                            "{{query_texture_binding}}",
+                            Self::QUERY_TEXTURE_BINDING.to_string().as_str(),
+                        );
+                    }
+
+                    if cfg!(feature = "mask") {
+                        line = line
+                            .replace("{{mask_binding}}", Self::MASK_BINDING.to_string().as_str());
+                    }
+
+                    Some(format!("{line}\n"))
+                })
+                .collect::<String>()
+        );
+
         log::debug!("Creating preprocessor shader module");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Preprocessor Shader"),
@@ -531,11 +623,34 @@ impl Preprocessor<()> {
                             *state = false;
                         }
 
-                        if *state {
-                            Some(format!("// {line}\n"))
-                        } else {
-                            Some(format!("{line}\n"))
+                        #[cfg(not(feature = "mask"))]
+                        if line.contains("// Feature mask begin") {
+                            *state = true;
+                        } else if line.contains("// Feature mask end") {
+                            *state = false;
                         }
+
+                        if *state {
+                            return Some(format!("// {line}\n"));
+                        }
+
+                        let mut line = line.to_string();
+
+                        if cfg!(feature = "query-texture") {
+                            line = line.replace(
+                                "{{query_texture_binding}}",
+                                Self::QUERY_TEXTURE_BINDING.to_string().as_str(),
+                            );
+                        }
+
+                        if cfg!(feature = "mask") {
+                            line = line.replace(
+                                "{{mask_binding}}",
+                                Self::MASK_BINDING.to_string().as_str(),
+                            );
+                        }
+
+                        Some(format!("{line}\n"))
                     })
                     .collect::<String>()
                     .into(),
