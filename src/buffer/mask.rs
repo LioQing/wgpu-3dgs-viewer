@@ -210,14 +210,20 @@ pub enum MaskOp {
     /// The intersection operation.
     Intersection = 1,
 
+    /// The symmetric difference operation.
+    SymmetricDifference = 2,
+
     /// The difference operation.
-    Difference = 2,
+    Difference = 3,
 
     /// The complement operation.
-    Complement = 3,
+    Complement = 4,
 
     /// The shape operation.
-    Shape = 4,
+    Shape = 5,
+
+    /// The reset operation.
+    Reset = 6,
 }
 
 /// The POD representation of a mask gizmo.

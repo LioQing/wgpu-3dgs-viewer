@@ -72,7 +72,11 @@ viewer.render(
 );
 ```
 
-You may also take a look at [the `simple-wgpu-3dgs-viewer` binary](./src/bin/simple.rs) for a simple example, and [the `selection-wgpu-3dgs-viewer` binary](./src/bin/selection.rs) for an example with the selection related features enabled.
+You may also take a look at some binary examples:
+
+- [`simple-wgpu-3dgs-viewer`](./src/bin/simple.rs): a simple example
+- [`selection-wgpu-3dgs-viewer`](./src/bin/selection.rs): a selection and multi-model example
+- [`masking-wgpu-3dgs-viewer`](./src/bin/masking.rs): a masking and depth texture example
 
 ### Standalone Application
 

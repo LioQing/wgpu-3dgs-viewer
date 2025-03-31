@@ -247,16 +247,15 @@ impl gs::bin_core::System for System {
             self.mask_evaluator.evaluate(
                 &self.device,
                 &self.queue,
-                &gs::MaskOpTree::shape(&self.mask_shape.to_mask_op_shape_pod()).difference(
-                    gs::MaskOpTree::shape(
+                &gs::MaskOpTree::shape(&self.mask_shape.to_mask_op_shape_pod())
+                    .symmetric_difference(gs::MaskOpTree::shape(
                         &gs::MaskShape {
                             pos: self.mask_shape.pos + Vec3::new(0.0, 0.0, 10.0),
                             scale: self.mask_shape.scale * 0.5,
                             ..self.mask_shape.clone()
                         }
                         .to_mask_op_shape_pod(),
-                    ),
-                ),
+                    )),
                 &self.viewer.mask_buffer,
                 &self.viewer.model_transform_buffer,
                 &self.viewer.gaussians_buffer,
@@ -289,16 +288,15 @@ impl gs::bin_core::System for System {
             self.mask_evaluator.evaluate(
                 &self.device,
                 &self.queue,
-                &gs::MaskOpTree::shape(&self.mask_shape.to_mask_op_shape_pod()).difference(
-                    gs::MaskOpTree::shape(
+                &gs::MaskOpTree::shape(&self.mask_shape.to_mask_op_shape_pod())
+                    .symmetric_difference(gs::MaskOpTree::shape(
                         &gs::MaskShape {
                             pos: self.mask_shape.pos + Vec3::new(0.0, 0.0, 10.0),
                             scale: self.mask_shape.scale * 0.5,
                             ..self.mask_shape.clone()
                         }
                         .to_mask_op_shape_pod(),
-                    ),
-                ),
+                    )),
                 &self.viewer.mask_buffer,
                 &self.viewer.model_transform_buffer,
                 &self.viewer.gaussians_buffer,

@@ -8,11 +8,22 @@ use crate::{
 /// A mask operation tree.
 #[derive(Debug)]
 pub enum MaskOpTree<'a> {
+    /// Union of the two mask operations.
     Union(Box<MaskOpTree<'a>>, Box<MaskOpTree<'a>>),
+    /// Union of the two mask operations.
     Intersection(Box<MaskOpTree<'a>>, Box<MaskOpTree<'a>>),
+    /// Difference of the two mask operations.
     Difference(Box<MaskOpTree<'a>>, Box<MaskOpTree<'a>>),
+    /// Symmetric difference of the two mask operations.
+    SymmetricDifference(Box<MaskOpTree<'a>>, Box<MaskOpTree<'a>>),
+    /// Complement of the mask operation.
     Complement(Box<MaskOpTree<'a>>),
+    /// Shape operation.
     Shape(&'a MaskOpShapePod),
+    /// Reset the mask, i.e. set all bits to 1.
+    ///
+    /// Usually used as the only operation to reset the mask.
+    Reset,
 }
 
 impl<'a> MaskOpTree<'a> {
@@ -36,6 +47,11 @@ impl<'a> MaskOpTree<'a> {
         Self::Difference(Box::new(self), Box::new(other))
     }
 
+    /// Create a new [`MaskOpTree::SymmetricDifference`].
+    pub fn symmetric_difference(self, other: Self) -> Self {
+        Self::SymmetricDifference(Box::new(self), Box::new(other))
+    }
+
     /// Create a new [`MaskOpTree::Complement`].
     pub fn complement(self) -> Self {
         Self::Complement(Box::new(self))
@@ -51,20 +67,16 @@ impl<'a> MaskOpTree<'a> {
     /// Recursively get all [`MaskOpTree::Shape`]s in the tree.
     fn shapes_recursive(&self, shapes: &mut Vec<&'a MaskOpShapePod>) {
         match self {
-            MaskOpTree::Union(left, right) => {
-                left.shapes_recursive(shapes);
-                right.shapes_recursive(shapes);
-            }
-            MaskOpTree::Intersection(left, right) => {
-                left.shapes_recursive(shapes);
-                right.shapes_recursive(shapes);
-            }
-            MaskOpTree::Difference(left, right) => {
+            MaskOpTree::Union(left, right)
+            | MaskOpTree::Intersection(left, right)
+            | MaskOpTree::Difference(left, right)
+            | MaskOpTree::SymmetricDifference(left, right) => {
                 left.shapes_recursive(shapes);
                 right.shapes_recursive(shapes);
             }
             MaskOpTree::Complement(inner) => inner.shapes_recursive(shapes),
             MaskOpTree::Shape(shape) => shapes.push(shape),
+            MaskOpTree::Reset => (),
         }
     }
 }
@@ -428,6 +440,31 @@ impl MaskEvaluator {
 
                 self.create_bind_group(device, &op, &source, mask)
             }
+            MaskOpTree::SymmetricDifference(left, right) => {
+                let op = MaskOpBuffer::new(device, MaskOp::SymmetricDifference);
+                let source = MaskBuffer::new_with_label(device, "Source", gaussians.len() as u32);
+
+                self.evaluate_with_encoder(
+                    device,
+                    queue,
+                    encoder,
+                    left,
+                    mask,
+                    model_transform,
+                    gaussians,
+                );
+                self.evaluate_with_encoder(
+                    device,
+                    queue,
+                    encoder,
+                    right,
+                    &source,
+                    model_transform,
+                    gaussians,
+                );
+
+                self.create_bind_group(device, &op, &source, mask)
+            }
             MaskOpTree::Difference(left, right) => {
                 let op = MaskOpBuffer::new(device, MaskOp::Difference);
                 let source = MaskBuffer::new_with_label(device, "Source", gaussians.len() as u32);
@@ -476,6 +513,12 @@ impl MaskEvaluator {
                 let shape = MaskOpShapeBuffer::new(device, shape);
 
                 self.create_shape_bind_group(device, &op, &shape, mask, model_transform, gaussians)
+            }
+            MaskOpTree::Reset => {
+                let op = MaskOpBuffer::new(device, MaskOp::Reset);
+                let source = MaskBuffer::new_with_label(device, "Source", gaussians.len() as u32);
+
+                self.create_bind_group(device, &op, &source, mask)
             }
         };
 

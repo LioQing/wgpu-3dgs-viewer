@@ -3,9 +3,11 @@ var<uniform> op: u32;
 
 const op_union: u32 = 0;
 const op_intersection: u32 = 1;
-const op_difference: u32 = 2;
-const op_complement: u32 = 3;
-const op_shape: u32 = 4;
+const op_symmetric_difference: u32 = 2;
+const op_difference: u32 = 3;
+const op_complement: u32 = 4;
+const op_shape: u32 = 5;
+const op_reset: u32 = 6;
 
 struct OpShape {
     kind: u32,

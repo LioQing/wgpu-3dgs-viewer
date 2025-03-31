@@ -3,9 +3,11 @@ var<uniform> op: u32;
 
 const op_union: u32 = 0;
 const op_intersection: u32 = 1;
-const op_difference: u32 = 2;
-const op_complement: u32 = 3;
-const op_shape: u32 = 4;
+const op_symmetric_difference: u32 = 2;
+const op_difference: u32 = 3;
+const op_complement: u32 = 4;
+const op_shape: u32 = 5;
+const op_reset: u32 = 6;
 
 @group(0) @binding(1)
 var<storage, read> source: array<u32>;
@@ -33,9 +35,13 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
         atomicOr(&dest[index], mask);
     } else if op == op_intersection {
         atomicAnd(&dest[index], mask);
+    } else if op == op_symmetric_difference {
+        atomicXor(&dest[index], mask);
     } else if op == op_difference {
         atomicAnd(&dest[index], ~mask);
     } else if op == op_complement {
-        atomicStore(&dest[index], ~dest[index]);
+        atomicStore(&dest[index], ~atomicLoad(&dest[index]));
+    } else if op == op_reset {
+        atomicStore(&dest[index], ~0u);
     }
 }
