@@ -21,15 +21,15 @@ This crate provides a low-level interface to render 3D Gaussian splatting using 
 
 Simple (real-time rendering):
 
-![simple](media/simple.gif)
+![simple](https://github.com/LioQing/wgpu-3dgs-viewer/blob/93c4df6735027bb8c664fd9198de8b4d9e9c5e7b/media/simple.gif?raw=true)
 
 Selection & Editing (multi-model viewer, custom centroid based rendering order, Gaussian removal):
 
-![selection](media/selection.gif)
+![selection](https://github.com/LioQing/wgpu-3dgs-viewer/blob/93c4df6735027bb8c664fd9198de8b4d9e9c5e7b/media/selection.gif?raw=true)
 
 Masking (box and ellipsoid masks):
 
-![mask](media/mask.gif)
+![mask](https://github.com/LioQing/wgpu-3dgs-viewer/blob/93c4df6735027bb8c664fd9198de8b4d9e9c5e7b/media/mask.gif?raw=true)
 
 While there are examples provided, you can more directly see the viewer in action by going to my [3D Gaussian Splatting Viewer App](https://github.com/lioqing/wgpu-3dgs-viewer-app) which builds on this crate and provides a more user-friendly interface.
 
