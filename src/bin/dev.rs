@@ -351,7 +351,7 @@ impl gs::bin_core::System for System {
         self.camera.move_up(up);
 
         // Camera rotation
-        const SENSITIVITY: f32 = 0.3;
+        const SENSITIVITY: f32 = 0.15;
 
         let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
         let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;

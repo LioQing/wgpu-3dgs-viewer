@@ -63,6 +63,16 @@ impl QueryTextureOverlay {
         texture_format: wgpu::TextureFormat,
         query_texture: &QueryTexture,
     ) -> Self {
+        Self::new_with(device, texture_format, None, query_texture)
+    }
+
+    /// Create a new query texture overlay with all options.
+    pub fn new_with(
+        device: &wgpu::Device,
+        texture_format: wgpu::TextureFormat,
+        depth_stencil: Option<wgpu::DepthStencilState>,
+        query_texture: &QueryTexture,
+    ) -> Self {
         log::debug!("Creating query texture overlay sampler");
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Query Texture Overlay Sampler"),
@@ -136,7 +146,7 @@ impl QueryTextureOverlay {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,

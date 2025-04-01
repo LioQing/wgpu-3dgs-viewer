@@ -82,6 +82,16 @@ impl QueryCursor {
         texture_format: wgpu::TextureFormat,
         camera: &CameraBuffer,
     ) -> Self {
+        Self::new_with(device, texture_format, None, camera)
+    }
+
+    /// Create a new query cursor with all options.
+    pub fn new_with(
+        device: &wgpu::Device,
+        texture_format: wgpu::TextureFormat,
+        depth_stencil: Option<wgpu::DepthStencilState>,
+        camera: &CameraBuffer,
+    ) -> Self {
         log::debug!("Creating query cursor query buffer");
         let query_buffer = QueryBuffer::new(device);
 
@@ -146,7 +156,7 @@ impl QueryCursor {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,

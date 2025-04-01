@@ -1,14 +1,10 @@
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use clap::Parser;
 use glam::*;
 use winit::{
-    application::ApplicationHandler,
-    error::EventLoopError,
-    event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::{Window, WindowId},
+    error::EventLoopError, event::MouseButton, event_loop::EventLoop, keyboard::KeyCode,
+    window::Window,
 };
 
 use wgpu_3dgs_viewer as gs;
@@ -76,7 +72,9 @@ struct System {
 impl gs::bin_core::System for System {
     type Args = Args;
 
-    async fn init(window: Arc<Window>, model_paths: &[String], model_offset: Vec3) -> Self {
+    async fn init(window: Arc<Window>, args: &Args) -> Self {
+        let model_paths = &args.models;
+        let model_offset = Vec3::from_slice(&args.offset);
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
@@ -220,7 +218,7 @@ impl gs::bin_core::System for System {
         }
     }
 
-    fn update(&mut self, input: &Input, delta_time: f32) {
+    fn update(&mut self, input: &gs::bin_core::Input, delta_time: f32) {
         if input.pressed_keys.contains(&KeyCode::KeyC) {
             self.is_selecting = !self.is_selecting;
             self.viewer.update_query(&self.queue, &gs::QueryPod::none());
@@ -303,7 +301,7 @@ impl gs::bin_core::System for System {
             self.camera.move_up(up);
 
             // Camera rotation
-            const SENSITIVITY: f32 = 0.3;
+            const SENSITIVITY: f32 = 0.15;
 
             let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
             let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
