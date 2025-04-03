@@ -1,13 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0](https://crates.io/crates/wgpu-3dgs-viewer/0.2.0) - 2025-04-03
+
+Some major new features and improvements have been added to the viewer.
 
 ### Added
 
-- 🔢 Multi-model viewer to see multiple Gaussian models, enabled by `multi-model` feature.
-- 🎭 Masking with composite shapes, i.e. boxes and ellipsoids, enabled by `mask` feature.
+- 🔢 Multi-model viewer to see multiple Gaussian models.
+- 🎭 Masking with composite shapes, i.e. boxes and ellipsoids.
 - 🎥 Depth stencil as an option to render with.
-- ⏬ Download for Gaussian edits.
+- ⏬ Download for Gaussian edits and masks.
 
 ### Changed
 

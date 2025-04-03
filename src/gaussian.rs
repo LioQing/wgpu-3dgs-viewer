@@ -170,33 +170,50 @@ impl Gaussians {
         &self,
         writer: &mut impl Write,
         edits: Option<impl IntoIterator<Item = &'a GaussianEditPod>>,
+        masks: Option<impl IntoIterator<Item = u32>>,
     ) -> Result<(), Error> {
-        let edited_gaussians = edits.map(|edits| {
+        let edited_vec = edits.map(|edits| {
             self.gaussians
                 .iter()
                 .zip(edits)
-                .filter_map(|(gaussian, edit)| gaussian.with_edit(edit))
+                .map(|(gaussian, edit)| gaussian.with_edit(edit))
                 .collect::<Vec<_>>()
         });
 
+        let masks_vec = masks.map(|masks| {
+            masks
+                .into_iter()
+                .flat_map(|mask| {
+                    std::iter::repeat(mask)
+                        .take(32)
+                        .enumerate()
+                        .map(|(i, mask)| mask & (1 << i) != 0)
+                })
+                .collect::<Vec<_>>()
+        });
+
+        let export_gaussians = edited_vec
+            .as_ref()
+            .map(|edited| edited.iter().map(Option::as_ref).collect::<Vec<_>>())
+            .unwrap_or_else(|| self.gaussians.iter().map(Some).collect())
+            .iter()
+            .zip(masks_vec.unwrap_or_else(|| {
+                std::iter::repeat(true)
+                    .take(self.gaussians.len())
+                    .collect::<Vec<_>>()
+            }))
+            .filter_map(|(gaussian, mask)| if mask { *gaussian } else { None })
+            .collect::<Vec<_>>();
+
         writeln!(writer, "ply")?;
         writeln!(writer, "format binary_little_endian 1.0")?;
-        writeln!(
-            writer,
-            "element vertex {}",
-            edited_gaussians
-                .as_ref()
-                .map(|g| g.len())
-                .unwrap_or(self.gaussians.len())
-        )?;
+        writeln!(writer, "element vertex {}", export_gaussians.len())?;
         for property in PLY_PROPERTIES {
             writeln!(writer, "property float {property}")?;
         }
         writeln!(writer, "end_header")?;
 
-        edited_gaussians
-            .as_ref()
-            .unwrap_or(&self.gaussians)
+        export_gaussians
             .iter()
             .map(|gaussian| gaussian.to_ply())
             .try_for_each(|gaussian| writer.write_all(bytemuck::bytes_of(&gaussian)))?;

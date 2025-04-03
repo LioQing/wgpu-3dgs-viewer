@@ -88,14 +88,14 @@ You may also take a look at some binary examples:
 
 - [`simple-wgpu-3dgs-viewer`](./src/bin/simple.rs): a simple example
 - [`selection-wgpu-3dgs-viewer`](./src/bin/selection.rs): a selection and multi-model example
-- [`masking-wgpu-3dgs-viewer`](./src/bin/masking.rs): a masking and depth texture example
+- [`mask-wgpu-3dgs-viewer`](./src/bin/mask.rs): a masking and depth testing example
 
 ### Standalone Application
 
 To run the standalone application, use the following command:
 
 ```sh
-cargo run --bin simple-wgpu-3dgs-viewer --features="bin-simple" -- -m "path/to/model.ply"
+simple-wgpu-3dgs-viewer -m "path/to/model.ply"
 ```
 
 Usage:
@@ -123,7 +123,7 @@ Options:
 Or try the selection related features:
 
 ```sh
-cargo run --bin selection-wgpu-3dgs-viewer --features="bin-selection" -- -m "path/to/model.ply"
+selection-wgpu-3dgs-viewer -m "path/to/model.ply"
 ```
 
 Usage:
@@ -147,3 +147,9 @@ Options:
   -V, --version
           Print version
 ```
+
+## Acknowledgements
+
+This crate uses modified code from [KeKsBoTer's wgpu_sort](https://crates.io/crates/wgpu_sort).
+
+References are also taken from other 3D Gaussian splatting renderer implemntations, including [antimatter15's splat](https://github.com/antimatter15/splat), [KeKsBoTer's web-splat](https://github.com/KeKsBoTer/web-splat), and [Aras' Unity Gaussian Splatting](https://github.com/aras-p/UnityGaussianSplatting).
