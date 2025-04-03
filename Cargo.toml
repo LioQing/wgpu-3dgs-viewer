@@ -6,7 +6,14 @@ authors = ["Lio Qing"]
 license = "MIT"
 description = "A 3D Gaussian splatting viewer written in Rust using wgpu."
 readme = "README.md"
-include = ["README.md", "LICENSE", "CHANGELOG.md", "src/**/*"]
+include = [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "Cargo.toml",
+    "Cargo.lock",
+    "src/**/*",
+]
 repository = "https://github.com/LioQing/wgpu-3dgs-viewer"
 keywords = ["gaussian-splatting", "point-cloud", "wgpu", "graphics", "ply"]
 categories = ["graphics", "rendering", "wasm"]
