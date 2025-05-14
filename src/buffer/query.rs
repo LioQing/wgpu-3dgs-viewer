@@ -474,7 +474,7 @@ impl QueryResultCountBuffer {
                 log::error!("Error occurred while sending query result count: {e:?}");
             }
         });
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait)?;
         rx.await??;
 
         let count = bytemuck::pod_read_unaligned(&buffer_slice.get_mapped_range());
@@ -561,7 +561,7 @@ impl QueryResultsBuffer {
                 log::error!("Error occurred while sending query results: {e:?}");
             }
         });
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait)?;
         rx.await??;
 
         Ok(bytemuck::allocation::pod_collect_to_vec(

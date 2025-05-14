@@ -184,8 +184,7 @@ impl Gaussians {
             masks
                 .into_iter()
                 .flat_map(|mask| {
-                    std::iter::repeat(mask)
-                        .take(32)
+                    std::iter::repeat_n(mask, 32)
                         .enumerate()
                         .map(|(i, mask)| mask & (1 << i) != 0)
                 })
@@ -198,9 +197,7 @@ impl Gaussians {
             .unwrap_or_else(|| self.gaussians.iter().map(Some).collect())
             .iter()
             .zip(masks_vec.unwrap_or_else(|| {
-                std::iter::repeat(true)
-                    .take(self.gaussians.len())
-                    .collect::<Vec<_>>()
+                std::iter::repeat_n(true, self.gaussians.len()).collect::<Vec<_>>()
             }))
             .filter_map(|(gaussian, mask)| if mask { *gaussian } else { None })
             .collect::<Vec<_>>();

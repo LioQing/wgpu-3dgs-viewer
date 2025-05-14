@@ -95,15 +95,13 @@ impl gs::bin_core::System for System {
 
         log::debug!("Requesting device");
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("Device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: adapter.limits(),
-                    memory_hints: wgpu::MemoryHints::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: adapter.limits(),
+                memory_hints: wgpu::MemoryHints::default(),
+                trace: wgpu::Trace::Off,
+            })
             .await
             .expect("device");
 
@@ -396,7 +394,9 @@ impl gs::bin_core::System for System {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
-        self.device.poll(wgpu::Maintain::Wait);
+        if let Err(e) = self.device.poll(wgpu::PollType::Wait) {
+            log::error!("Failed to poll device: {e:?}");
+        }
         texture.present();
     }
 

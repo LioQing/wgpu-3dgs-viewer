@@ -21,6 +21,8 @@ pub enum Error {
     ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u32 },
     #[error("model count and keys length mismatch: {model_count} != {keys_len}")]
     ModelCountKeysLenMismatch { model_count: usize, keys_len: usize },
+    #[error("{0}")]
+    DeviceFailedToPoll(#[from] wgpu::PollError),
 
     #[cfg(feature = "query-texture-tool")]
     #[error("query texture tool already in use")]

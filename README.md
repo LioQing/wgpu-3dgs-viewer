@@ -33,6 +33,15 @@ Masking (box and ellipsoid masks, depth testing):
 
 While there are examples provided, you can more directly see the viewer in action by going to my [3D Gaussian Splatting Viewer App](https://github.com/lioqing/wgpu-3dgs-viewer-app) which builds on this crate and provides a more user-friendly interface.
 
+## Dependencies
+
+This crate depends on the following crates:
+
+| `wgpu-3dgs-viewer` | `wgpu` | `glam` |
+| ------------------ | ------ | ------ |
+| 0.1 - 0.2          | 24.0   | 0.29   |
+| 0.3                | 25.0   | 0.30   |
+
 ## Usage
 
 There are two ways to use this viewer:

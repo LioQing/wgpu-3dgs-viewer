@@ -815,7 +815,7 @@ impl GaussiansEditBuffer {
                 log::error!("Error occurred while sending Gaussian edit: {e:?}");
             }
         });
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait)?;
         rx.await??;
 
         let edits = bytemuck::allocation::pod_collect_to_vec(&buffer_slice.get_mapped_range());

@@ -90,15 +90,13 @@ impl gs::bin_core::System for System {
 
         log::debug!("Requesting device");
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("Device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: adapter.limits(),
-                    memory_hints: wgpu::MemoryHints::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: adapter.limits(),
+                memory_hints: wgpu::MemoryHints::default(),
+                trace: wgpu::Trace::Off,
+            })
             .await
             .expect("device");
 
@@ -155,17 +153,14 @@ impl gs::bin_core::System for System {
         log::debug!("Creating camera");
         let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
         let mut camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
-        camera.pos = gaussians
+        let centroid = gaussians
             .gaussians
             .iter()
             .map(|g| adjust_quat * g.pos)
             .sum::<Vec3>()
             / gaussians.gaussians.len() as f32;
-        camera.pos.z += gaussians
-            .gaussians
-            .iter()
-            .map(|g| (adjust_quat * g.pos).z - camera.pos.z)
-            .fold(f32::INFINITY, |a, b| a.min(b));
+        camera.pos = centroid;
+        camera.pos.z -= 1.0;
 
         log::debug!("Creating viewer");
         let mut viewer = gs::Viewer::new_with(
@@ -198,7 +193,8 @@ impl gs::bin_core::System for System {
         );
 
         log::debug!("Creating mask shape");
-        let mask_shape = gs::MaskShape::new(gs::MaskShapeKind::Box);
+        let mut mask_shape = gs::MaskShape::new(gs::MaskShapeKind::Box);
+        mask_shape.pos = centroid;
 
         log::info!("System initialized");
 
@@ -429,7 +425,9 @@ impl gs::bin_core::System for System {
         );
 
         self.queue.submit(std::iter::once(encoder.finish()));
-        self.device.poll(wgpu::Maintain::Wait);
+        if let Err(e) = self.device.poll(wgpu::PollType::Wait) {
+            log::error!("Failed to poll device: {e:?}");
+        }
         texture.present();
     }
 
