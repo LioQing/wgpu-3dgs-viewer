@@ -122,7 +122,6 @@ impl gs::bin_core::System for System {
             gs::GaussianShDegree::new(3).expect("SH degree"),
             false,
         );
-        viewer.update_selection_highlight(&queue, vec4(1.0, 1.0, 0.0, 0.5));
 
         log::info!("System initialized");
 

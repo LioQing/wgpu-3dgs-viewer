@@ -3,7 +3,7 @@ use std::io::{BufRead, Write};
 use bytemuck::Zeroable;
 use glam::*;
 
-use crate::{Error, GaussianEditFlag, GaussianEditPod, PlyGaussianPod};
+use crate::{Error, PlyGaussianPod};
 
 /// Header of PLY file.
 #[derive(Debug, Clone)]
@@ -166,51 +166,16 @@ impl Gaussians {
     }
 
     /// Write the Gaussians to a PLY file.
-    pub fn write_ply<'a>(
-        &self,
-        writer: &mut impl Write,
-        edits: Option<impl IntoIterator<Item = &'a GaussianEditPod>>,
-        masks: Option<impl IntoIterator<Item = u32>>,
-    ) -> Result<(), Error> {
-        let edited_vec = edits.map(|edits| {
-            self.gaussians
-                .iter()
-                .zip(edits)
-                .map(|(gaussian, edit)| gaussian.with_edit(edit))
-                .collect::<Vec<_>>()
-        });
-
-        let masks_vec = masks.map(|masks| {
-            masks
-                .into_iter()
-                .flat_map(|mask| {
-                    std::iter::repeat_n(mask, 32)
-                        .enumerate()
-                        .map(|(i, mask)| mask & (1 << i) != 0)
-                })
-                .collect::<Vec<_>>()
-        });
-
-        let export_gaussians = edited_vec
-            .as_ref()
-            .map(|edited| edited.iter().map(Option::as_ref).collect::<Vec<_>>())
-            .unwrap_or_else(|| self.gaussians.iter().map(Some).collect())
-            .iter()
-            .zip(masks_vec.unwrap_or_else(|| {
-                std::iter::repeat_n(true, self.gaussians.len()).collect::<Vec<_>>()
-            }))
-            .filter_map(|(gaussian, mask)| if mask { *gaussian } else { None })
-            .collect::<Vec<_>>();
-
+    pub fn write_ply(&self, writer: &mut impl Write) -> Result<(), Error> {
         writeln!(writer, "ply")?;
         writeln!(writer, "format binary_little_endian 1.0")?;
-        writeln!(writer, "element vertex {}", export_gaussians.len())?;
+        writeln!(writer, "element vertex {}", self.gaussians.len())?;
         for property in PLY_PROPERTIES {
             writeln!(writer, "property float {property}")?;
         }
         writeln!(writer, "end_header")?;
 
-        export_gaussians
+        self.gaussians
             .iter()
             .map(|gaussian| gaussian.to_ply())
             .try_for_each(|gaussian| writer.write_all(bytemuck::bytes_of(&gaussian)))?;
@@ -309,85 +274,6 @@ impl Gaussian {
             scale,
             rotation,
         }
-    }
-
-    /// With a [`GaussianEditPod`] applied to the PLY Gaussian.
-    pub fn with_edit(mut self, edit: &GaussianEditPod) -> Option<Self> {
-        // None
-        if !edit.flag().contains(GaussianEditFlag::ENABLED) {
-            return Some(self);
-        }
-
-        // Hide
-        if edit.flag().contains(GaussianEditFlag::HIDDEN) {
-            return None;
-        }
-
-        let color = self.color.as_vec4() / 255.0;
-        let mut rgb = color.xyz();
-
-        // RGB
-        if edit.flag().contains(GaussianEditFlag::OVERRIDE_COLOR) {
-            rgb = edit.rgb();
-        } else {
-            fn rgb_to_hsv(c: Vec3) -> Vec3 {
-                const K: Vec4 = Vec4::new(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-                let p = if c.z < c.y {
-                    vec4(c.y, c.z, K.x, K.y)
-                } else {
-                    vec4(c.z, c.y, K.w, K.z)
-                };
-                let q = if p.x < c.x {
-                    vec4(c.x, p.y, p.z, p.x)
-                } else {
-                    vec4(p.x, p.y, p.w, c.x)
-                };
-
-                let d = q.x - q.w.min(q.y);
-                const E: f32 = 1.0e-10;
-                vec3(
-                    (q.z + (q.w - q.y) / (6.0 * d + E)).abs(),
-                    d / (q.x + E),
-                    q.x,
-                )
-            }
-
-            fn hsv_to_rgb(c: Vec3) -> Vec3 {
-                let k = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-                let p = ((c.xxx() + k.xyz()).fract() * 6.0 - k.www()).abs();
-                c.z * k
-                    .xxx()
-                    .lerp((p - k.xxx()).clamp(Vec3::ZERO, Vec3::ONE), c.y)
-            }
-
-            let hsv = rgb_to_hsv(rgb);
-            let hsv_edited = vec3(
-                (hsv.x + edit.hue()).fract(),
-                hsv.y * edit.saturation(),
-                hsv.z * edit.brightness(),
-            )
-            .clamp(Vec3::ZERO, Vec3::ONE);
-            rgb = hsv_to_rgb(hsv_edited);
-        }
-
-        // Contrast
-        const CONTRAST_CONST: f32 = 259.0 / 255.0;
-        let contrast = edit.contrast();
-        let contrast_factor = CONTRAST_CONST * (contrast + 1.0) / (CONTRAST_CONST - contrast);
-        rgb = (rgb - 0.5) * contrast_factor + 0.5;
-
-        // Exposure
-        rgb *= 2.0f32.powf(edit.exposure());
-
-        // Gamma
-        rgb = rgb.powf(edit.gamma());
-
-        // Alpha
-        let a = color.w * edit.alpha();
-
-        self.color = (rgb.extend(a) * 255.0).as_u8vec4();
-
-        Some(self)
     }
 }
 

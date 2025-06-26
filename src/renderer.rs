@@ -1,8 +1,7 @@
 use crate::{
     CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig,
-    GaussianTransformBuffer, GaussiansBuffer, GaussiansEditBuffer, IndirectArgsBuffer,
-    IndirectIndicesBuffer, ModelTransformBuffer, QueryBuffer, QueryResultCountBuffer,
-    QueryResultsBuffer, SelectionBuffer, SelectionHighlightBuffer,
+    GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
+    ModelTransformBuffer,
 };
 
 /// A renderer for Gaussians.
@@ -28,12 +27,6 @@ impl<B> Renderer<B> {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_indices: &IndirectIndicesBuffer,
-        query: &QueryBuffer,
-        query_result_count: &QueryResultCountBuffer,
-        query_results: &QueryResultsBuffer,
-        selection_highlight: &SelectionHighlightBuffer,
-        selection: &SelectionBuffer,
-        gaussians_edit: &GaussiansEditBuffer,
     ) -> wgpu::BindGroup {
         Renderer::create_bind_group_static(
             device,
@@ -43,12 +36,6 @@ impl<B> Renderer<B> {
             gaussian_transform,
             gaussians,
             indirect_indices,
-            query,
-            query_result_count,
-            query_results,
-            selection_highlight,
-            selection,
-            gaussians_edit,
         )
     }
 }
@@ -114,72 +101,6 @@ impl Renderer {
                     },
                     count: None,
                 },
-                // Query uniform buffer
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Query result count storage buffer
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Query results storage buffer
-                wgpu::BindGroupLayoutEntry {
-                    binding: 7,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Selection highlight uniform buffer
-                wgpu::BindGroupLayoutEntry {
-                    binding: 8,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Selection storage buffer
-                wgpu::BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Gaussians edit storage buffer
-                wgpu::BindGroupLayoutEntry {
-                    binding: 10,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
             ],
         };
 
@@ -194,12 +115,6 @@ impl Renderer {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_indices: &IndirectIndicesBuffer,
-        query: &QueryBuffer,
-        query_result_count: &QueryResultCountBuffer,
-        query_results: &QueryResultsBuffer,
-        selection_highlight: &SelectionHighlightBuffer,
-        selection: &SelectionBuffer,
-        gaussians_edit: &GaussiansEditBuffer,
     ) -> Result<Self, Error> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
             return Err(Error::ModelSizeExceedsDeviceLimit {
@@ -218,12 +133,6 @@ impl Renderer {
             gaussian_transform,
             gaussians,
             indirect_indices,
-            query,
-            query_result_count,
-            query_results,
-            selection_highlight,
-            selection,
-            gaussians_edit,
         );
 
         Ok(Self {
@@ -279,12 +188,6 @@ impl Renderer {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_indices: &IndirectIndicesBuffer,
-        query: &QueryBuffer,
-        query_result_count: &QueryResultCountBuffer,
-        query_results: &QueryResultsBuffer,
-        selection_highlight: &SelectionHighlightBuffer,
-        selection: &SelectionBuffer,
-        gaussians_edit: &GaussiansEditBuffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Renderer Bind Group"),
@@ -314,36 +217,6 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: indirect_indices.buffer().as_entire_binding(),
-                },
-                // Query uniform buffer
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: query.buffer().as_entire_binding(),
-                },
-                // Query result count storage buffer
-                wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: query_result_count.buffer().as_entire_binding(),
-                },
-                // Query results storage buffer
-                wgpu::BindGroupEntry {
-                    binding: 7,
-                    resource: query_results.buffer().as_entire_binding(),
-                },
-                // Selection highlight uniform buffer
-                wgpu::BindGroupEntry {
-                    binding: 8,
-                    resource: selection_highlight.buffer().as_entire_binding(),
-                },
-                // Selection storage buffer
-                wgpu::BindGroupEntry {
-                    binding: 9,
-                    resource: selection.buffer().as_entire_binding(),
-                },
-                // Gaussians edit storage buffer
-                wgpu::BindGroupEntry {
-                    binding: 10,
-                    resource: gaussians_edit.buffer().as_entire_binding(),
                 },
             ],
         })

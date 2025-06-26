@@ -211,9 +211,7 @@ fn gaussian_cov2d(gaussian_index: u32) -> vec3<f32> {
 
     let cov2d = (j * w * sr) * vrk * transpose(j * w * sr);
 
-    let low_pass = vec3<f32>(0.1, 0.0, 0.1);
-
-    return vec3<f32>(cov2d[0][0], cov2d[0][1], cov2d[1][1]) + low_pass;
+    return vec3<f32>(cov2d[0][0], cov2d[0][1], cov2d[1][1]);
 }
 
 fn gaussian_color(gaussian_index: u32, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> vec4<f32> {
@@ -228,7 +226,7 @@ fn gaussian_color(gaussian_index: u32, dir: vec3<f32>, sh_deg: u32, no_sh0: bool
     let y = dir.y;
     let z = dir.z;
 
-    let color = gaussians_edit_color(gaussian_index, unpack4x8unorm(gaussians[i].color));
+    let color = unpack4x8unorm(gaussians[i].color);
     var result = color.rgb; // 0.5 + SH_C0 * sh[0] already precomputed
 
     if no_sh0 {
@@ -276,139 +274,6 @@ fn gaussian_color(gaussian_index: u32, dir: vec3<f32>, sh_deg: u32, no_sh0: bool
 @group(0) @binding(4)
 var<storage, read> indirect_indices: array<u32>;
 
-struct Query {
-    content_u32: vec4<u32>,
-    content_f32: vec4<f32>,
-}
-@group(0) @binding(5)
-var<uniform> query: Query;
-
-const query_type_none = 0u << 24u;
-const query_type_hit = 1u << 24u;
-const query_type_rect = 2u << 24u;
-const query_type_brush = 3u << 24u;
-const query_type_texture = 4u << 24u;
-
-fn query_type() -> u32 {
-    return query.content_u32.x & 0xFF000000;
-}
-
-@group(0) @binding(6)
-var<storage, read_write> query_result_count: atomic<u32>;
-
-struct QueryResult {
-    content_u32: vec4<u32>,
-    content_f32: vec4<f32>,
-}
-@group(0) @binding(7)
-var<storage, read_write> query_results: array<QueryResult>;
-
-struct SelectionHighlight {
-    color: vec4<f32>,
-}
-@group(0) @binding(8)
-var<uniform> selection_highlight: SelectionHighlight;
-
-@group(0) @binding(9)
-var<storage, read> selection: array<u32>;
-
-fn selection_at(index: u32) -> bool {
-    let word_index = index / 32u;
-    let bit_index = index % 32u;
-    let mask = 1u << bit_index;
-    return (selection[word_index] & mask) != 0u;
-}
-
-struct GaussianEdit {
-    flag_hsv: u32,
-    contr_expo_gamma_alpha: u32,
-}
-@group(0) @binding(10)
-var<storage, read> gaussians_edit: array<GaussianEdit>;
-
-const gaussian_edit_flag_none = 0u;
-const gaussian_edit_flag_enabled = 1u << 0u;
-const gaussian_edit_flag_hidden = 1u << 1u;
-const gaussian_edit_flag_override_color = 1u << 2u;
-
-fn gaussians_edit_flag(index: u32) -> u32 {
-    return gaussians_edit[index].flag_hsv & 0x000000FF;
-}
-
-fn gaussians_edit_enabled(index: u32) -> bool {
-    return (gaussians_edit_flag(index) & gaussian_edit_flag_enabled) != 0;
-}
-
-fn gaussians_edit_flag_test(index: u32, test: u32) -> bool {
-    let mask = gaussian_edit_flag_enabled | test;
-    return (gaussians_edit_flag(index) & mask) == mask;
-}
-
-fn rgb_to_hsv(c: vec3<f32>) -> vec3<f32> {
-    const k = vec4<f32>(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-    let p = select(vec4<f32>(c.bg, k.wz), vec4<f32>(c.gb, k.xy), c.b < c.g);
-    let q = select(vec4<f32>(p.xyw, c.r), vec4<f32>(c.r, p.yzx), p.x < c.r);
-
-    let d = q.x - min(q.w, q.y);
-    const e = 1.0e-10;
-    return vec3<f32>(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-}
-
-fn hsv_to_rgb(c: vec3<f32>) -> vec3<f32> {
-    const k = vec4<f32>(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    let p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
-    return c.z * mix(k.xxx, saturate(p - k.xxx), c.y);
-}
-
-fn gaussians_edit_base_color(index: u32, color: vec4<f32>) -> vec4<f32> {
-    let hsv_or_rgb = unpack4x8unorm(gaussians_edit[index].flag_hsv).yzw;
-
-    if gaussians_edit_flag_test(index, gaussian_edit_flag_override_color) {
-        return vec4<f32>(hsv_or_rgb, color.a);
-    }
-
-    let hsv = rgb_to_hsv(color.rgb);
-    let hsv_edit = hsv_or_rgb * vec3<f32>(1.0, 2.0, 2.0);
-    let hsv_edited = saturate(vec3<f32>(
-        (hsv.x + hsv_edit.x) % 1.0,
-        hsv.y * hsv_edit.y,
-        hsv.z * hsv_edit.z,
-    ));
-
-    return vec4<f32>(hsv_to_rgb(hsv_edited), color.a);
-}
-
-fn gaussians_edit_contr_expo_gamma_alpha_color(index: u32, color: vec4<f32>) -> vec4<f32> {
-    let unorms = unpack4x8unorm(gaussians_edit[index].contr_expo_gamma_alpha);
-
-    let contrast = unorms.x * 2.0 - 1.0;
-    const contrast_const = 259.0 / 255.0;
-    let contrast_factor = contrast_const * (contrast + 1.0) / (contrast_const - contrast);
-    let contrasted = (color.rgb - 0.5) * contrast_factor + 0.5;
-
-    let exposure = unorms.y * 10.0 - 5.0;
-    let exposed = contrasted * exp2(exposure);
-
-    let gamma = unorms.z * 5.0;
-    let gammaed = pow(exposed, vec3<f32>(gamma));
-
-    let alpha = unorms.w * 2.0;
-    let colored = vec4<f32>(gammaed, color.a * alpha);
-
-    return colored;
-}
-
-fn gaussians_edit_color(index: u32, color: vec4<f32>) -> vec4<f32> {
-    if !gaussians_edit_enabled(index) {
-        return color;
-    }
-
-    let base = gaussians_edit_base_color(index, color);
-    let edited = gaussians_edit_contr_expo_gamma_alpha_color(index, base);
-
-    return edited;
-}
-
 fn quad_offset(vert_index: u32) -> vec2<f32> {
     switch vert_index {
         case 0u { return vec2<f32>(1.0, -1.0); }
@@ -422,13 +287,6 @@ fn quad_offset(vert_index: u32) -> vec2<f32> {
 }
 
 fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {
-    let selected = selection_at(gaussian_index);
-
-    if selected && selection_highlight.color.a == 1.0 {
-        let color = unpack4x8unorm(gaussians[gaussian_index].color);
-        return vec4<f32>(selection_highlight.color.rgb, color.a);
-    }
-
     let world_camera_pos = -(transpose(mat3x3<f32>(
         camera.view[0].xyz,
         camera.view[1].xyz,
@@ -443,13 +301,6 @@ fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {
         gaussian_transform_sh_deg(),
         gaussian_transform_no_sh0(),
     );
-
-    if selected && selection_highlight.color.a > 0.0 {
-        return vec4<f32>(
-            mix(color.rgb, selection_highlight.color.rgb, selection_highlight.color.a),
-            color.a,
-        );
-    }
 
     return color;
 }
@@ -481,9 +332,6 @@ fn vert_main(
         out.quad_offset = quad_offset;
         out.color = color;
         out.display_mode = display_mode;
-        out.index = gaussian_index;
-        out.coords = camera_coords(clip_pos / proj_pos.w);
-        out.depth = proj_pos.z / proj_pos.w;
         
         return out;
     }
@@ -517,9 +365,6 @@ fn vert_main(
     out.quad_offset = quad_offset;
     out.color = color;
     out.display_mode = display_mode;
-    out.index = gaussian_index;
-    out.coords = camera_coords(clip_pos / proj_pos.w);
-    out.depth = proj_pos.z / proj_pos.w;
 
     return out;
 }
@@ -530,9 +375,6 @@ struct FragmentInput {
     @location(0) quad_offset: vec2<f32>,
     @location(1) color: vec4<f32>,
     @location(2) @interpolate(flat) display_mode: u32,
-    @location(3) @interpolate(flat) index: u32,
-    @location(4) coords: vec2<f32>,
-    @location(5) @interpolate(flat) depth: f32,
 
     @builtin(position) clip_pos: vec4<f32>,
 }
@@ -562,21 +404,6 @@ fn point(in: FragmentInput) -> vec4<f32> {
     return vec4<f32>(in.color.rgb, 1.0);
 }
 
-fn query_hit(in: FragmentInput, color: vec4<f32>) {
-    let coords = query.content_f32.xy;
-    let diff = coords - in.coords;
-
-    if dot(diff, diff) >= 1.0 {
-        return;
-    }
-
-    let index = atomicAdd(&query_result_count, 1u);
-    query_results[index] = QueryResult(
-        vec4<u32>(in.index, vec3<u32>(0u)),
-        vec4<f32>(in.depth, color.a, 0.0, 0.0),
-    );
-}
-
 @fragment
 fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var color: vec4<f32>;
@@ -587,10 +414,6 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
         color = ellipse(in);
     } else if in.display_mode == gaussian_display_mode_point {
         color = point(in);
-    }
-
-    if query_type() == query_type_hit {
-        query_hit(in, color);
     }
 
     return color;

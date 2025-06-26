@@ -79,6 +79,9 @@ impl RadixSorter<()> {
     }
 
     /// Sort the Gaussians based on their depth.
+    ///
+    /// To create the bind groups with layout matched to this sorter, use the
+    /// [`RadixSorter::create_bind_groups`] method.
     pub fn sort(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -138,7 +141,7 @@ pub(crate) mod wgpu_sort {
     };
 
     use bytemuck::bytes_of;
-    use wgpu::{util::DeviceExt, ComputePassDescriptor};
+    use wgpu::{ComputePassDescriptor, util::DeviceExt};
 
     // IMPORTANT: the following constants have to be synced with the numbers in radix_sort.wgsl
 

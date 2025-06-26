@@ -23,20 +23,4 @@ pub enum Error {
     ModelCountKeysLenMismatch { model_count: usize, keys_len: usize },
     #[error("{0}")]
     DeviceFailedToPoll(#[from] wgpu::PollError),
-
-    #[cfg(feature = "query-texture-tool")]
-    #[error("query texture tool already in use")]
-    QueryTextureToolAlreadyInUse,
-
-    #[cfg(feature = "query-texture-tool")]
-    #[error("query texture tool not in use")]
-    QueryTextureToolNotInUse,
-
-    #[cfg(feature = "query-tool")]
-    #[error("query tool already in use")]
-    QueryToolAlreadyInUse,
-
-    #[cfg(feature = "query-tool")]
-    #[error("query tool not in use")]
-    QueryToolNotInUse,
 }

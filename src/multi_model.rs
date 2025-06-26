@@ -7,50 +7,20 @@ use crate::*;
 pub struct MultiModelViewerWorldBuffers {
     pub camera_buffer: CameraBuffer,
     pub gaussian_transform_buffer: GaussianTransformBuffer,
-    pub query_buffer: QueryBuffer,
-    pub selection_highlight_buffer: SelectionHighlightBuffer,
-    pub selection_edit_buffer: SelectionEditBuffer,
-
-    #[cfg(feature = "query-texture")]
-    pub query_texture: QueryTexture,
 }
 
 impl MultiModelViewerWorldBuffers {
     /// Create a new viewer world buffers.
-    pub fn new(
-        device: &wgpu::Device,
-        #[cfg(feature = "query-texture")] texture_size: UVec2,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device) -> Self {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 
         log::debug!("Creating gaussian transform buffer");
         let gaussian_transform_buffer = GaussianTransformBuffer::new(device);
 
-        log::debug!("Creating query buffer");
-        let query_buffer = QueryBuffer::new(device);
-
-        log::debug!("Creating selection highlight buffer");
-        let selection_highlight_buffer = SelectionHighlightBuffer::new(device);
-
-        log::debug!("Creating selection edit buffer");
-        let selection_edit_buffer = SelectionEditBuffer::new(device);
-
-        #[cfg(feature = "query-texture")]
-        let query_texture = {
-            log::debug!("Creating query texture");
-            QueryTexture::new(device, texture_size)
-        };
-
         Self {
             camera_buffer,
             gaussian_transform_buffer,
-            query_buffer,
-            selection_highlight_buffer,
-            selection_edit_buffer,
-
-            #[cfg(feature = "query-texture")]
-            query_texture,
         }
     }
 
@@ -67,13 +37,6 @@ impl MultiModelViewerWorldBuffers {
     /// Update the camera with [`CameraPod`].
     pub fn update_camera_with_pod(&mut self, queue: &wgpu::Queue, pod: &CameraPod) {
         self.camera_buffer.update_with_pod(queue, pod);
-    }
-
-    /// Update the query.
-    ///
-    /// There can only be one query at a time.
-    pub fn update_query(&mut self, queue: &wgpu::Queue, query: &QueryPod) {
-        self.query_buffer.update(queue, query);
     }
 
     /// Update the Gaussian transform.
@@ -97,51 +60,6 @@ impl MultiModelViewerWorldBuffers {
     ) {
         self.gaussian_transform_buffer.update_with_pod(queue, pod);
     }
-
-    /// Update the selection highlight.
-    pub fn update_selection_highlight(&mut self, queue: &wgpu::Queue, color: Vec4) {
-        self.selection_highlight_buffer.update(queue, color);
-    }
-
-    /// Update the selection highlight with [`SelectionHighlightPod`].
-    pub fn update_selection_highlight_with_pod(
-        &mut self,
-        queue: &wgpu::Queue,
-        pod: &SelectionHighlightPod,
-    ) {
-        self.selection_highlight_buffer.update_with_pod(queue, pod);
-    }
-
-    /// Update the selection edit.
-    ///
-    /// Set [`GaussianEditFlag::ENABLED`] to apply the edits on the selected Gaussians.
-    #[allow(clippy::too_many_arguments)]
-    pub fn update_selection_edit(
-        &mut self,
-        queue: &wgpu::Queue,
-        flag: GaussianEditFlag,
-        hsv: Vec3,
-        contrast: f32,
-        exposure: f32,
-        gamma: f32,
-        alpha: f32,
-    ) {
-        self.selection_edit_buffer
-            .update(queue, flag, hsv, contrast, exposure, gamma, alpha);
-    }
-
-    /// Update the selection edit with [`GaussianEditPod`].
-    pub fn update_selection_edit_with_pod(&mut self, queue: &wgpu::Queue, pod: &GaussianEditPod) {
-        self.selection_edit_buffer.update_with_pod(queue, pod);
-    }
-
-    /// Update the query texture size.
-    ///
-    /// This requires the `query-texture` feature.
-    #[cfg(feature = "query-texture")]
-    pub fn update_query_texture_size(&mut self, device: &wgpu::Device, size: UVec2) {
-        self.query_texture.update_size(device, size);
-    }
 }
 
 /// The buffers for [`Viewer`] related to the Guassian model.
@@ -153,14 +71,6 @@ pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = DefaultGaussianPod> 
     pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
-    pub query_result_count_buffer: QueryResultCountBuffer,
-    pub query_results_buffer: QueryResultsBuffer,
-    pub postprocess_indirect_args_buffer: PostprocessIndirectArgsBuffer,
-    pub selection_buffer: SelectionBuffer,
-    pub gaussians_edit_buffer: GaussiansEditBuffer,
-
-    #[cfg(feature = "mask")]
-    pub mask_buffer: MaskBuffer,
 }
 
 impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
@@ -186,29 +96,6 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         let gaussians_depth_buffer =
             GaussiansDepthBuffer::new(device, gaussians.gaussians.len() as u32);
 
-        log::debug!("Creating query result count buffer");
-        let query_result_count_buffer = QueryResultCountBuffer::new(device);
-
-        log::debug!("Creating query results buffer");
-        let query_results_buffer =
-            QueryResultsBuffer::new(device, gaussians.gaussians.len() as u32);
-
-        log::debug!("Creating postprocess indirect args buffer");
-        let postprocess_indirect_args_buffer = PostprocessIndirectArgsBuffer::new(device);
-
-        log::debug!("Creating selection buffer");
-        let selection_buffer = SelectionBuffer::new(device, gaussians.gaussians.len() as u32);
-
-        log::debug!("Creating gaussians edit buffer");
-        let gaussians_edit_buffer =
-            GaussiansEditBuffer::new(device, gaussians.gaussians.len() as u32);
-
-        #[cfg(feature = "mask")]
-        let mask_buffer = {
-            log::debug!("Creating mask buffer");
-            MaskBuffer::new(device, gaussians.gaussians.len() as u32)
-        };
-
         Self {
             model_transform_buffer,
             gaussians_buffer,
@@ -216,14 +103,6 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             radix_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
-            query_result_count_buffer,
-            query_results_buffer,
-            postprocess_indirect_args_buffer,
-            selection_buffer,
-            gaussians_edit_buffer,
-
-            #[cfg(feature = "mask")]
-            mask_buffer,
         }
     }
 
@@ -247,27 +126,6 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         log::debug!("Creating gaussians depth buffer");
         let gaussians_depth_buffer = GaussiansDepthBuffer::new(device, count as u32);
 
-        log::debug!("Creating query result count buffer");
-        let query_result_count_buffer = QueryResultCountBuffer::new(device);
-
-        log::debug!("Creating query results buffer");
-        let query_results_buffer = QueryResultsBuffer::new(device, count as u32);
-
-        log::debug!("Creating postprocess indirect args buffer");
-        let postprocess_indirect_args_buffer = PostprocessIndirectArgsBuffer::new(device);
-
-        log::debug!("Creating selection buffer");
-        let selection_buffer = SelectionBuffer::new(device, count as u32);
-
-        log::debug!("Creating gaussians edit buffer");
-        let gaussians_edit_buffer = GaussiansEditBuffer::new(device, count as u32);
-
-        #[cfg(feature = "mask")]
-        let mask_buffer = {
-            log::debug!("Creating mask buffer");
-            MaskBuffer::new(device, count as u32)
-        };
-
         Self {
             model_transform_buffer,
             gaussians_buffer,
@@ -275,14 +133,6 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             radix_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
-            query_result_count_buffer,
-            query_results_buffer,
-            postprocess_indirect_args_buffer,
-            selection_buffer,
-            gaussians_edit_buffer,
-
-            #[cfg(feature = "mask")]
-            mask_buffer,
         }
     }
 
@@ -313,7 +163,6 @@ pub struct MultiModelViewerBindGroups {
     pub preprocessor: wgpu::BindGroup,
     pub radix_sorter: RadixSorterBindGroups,
     pub renderer: wgpu::BindGroup,
-    pub postprocessor: (wgpu::BindGroup, wgpu::BindGroup),
 }
 
 impl MultiModelViewerBindGroups {
@@ -323,7 +172,6 @@ impl MultiModelViewerBindGroups {
         preprocessor: &Preprocessor<()>,
         radix_sorter: &RadixSorter<()>,
         renderer: &Renderer<()>,
-        postprocessor: &Postprocessor<()>,
         gaussian_buffers: &MultiModelViewerGaussianBuffers<G>,
         world_buffers: &MultiModelViewerWorldBuffers,
     ) -> Self {
@@ -336,16 +184,6 @@ impl MultiModelViewerBindGroups {
             &gaussian_buffers.radix_sort_indirect_args_buffer,
             &gaussian_buffers.indirect_indices_buffer,
             &gaussian_buffers.gaussians_depth_buffer,
-            &world_buffers.query_buffer,
-            &gaussian_buffers.query_result_count_buffer,
-            &gaussian_buffers.query_results_buffer,
-            &gaussian_buffers.gaussians_edit_buffer,
-            &gaussian_buffers.selection_buffer,
-            &world_buffers.selection_edit_buffer,
-            #[cfg(feature = "query-texture")]
-            &world_buffers.query_texture,
-            #[cfg(feature = "mask")]
-            &gaussian_buffers.mask_buffer,
         );
         let radix_sorter = radix_sorter.create_bind_groups(
             device,
@@ -359,27 +197,12 @@ impl MultiModelViewerBindGroups {
             &world_buffers.gaussian_transform_buffer,
             &gaussian_buffers.gaussians_buffer,
             &gaussian_buffers.indirect_indices_buffer,
-            &world_buffers.query_buffer,
-            &gaussian_buffers.query_result_count_buffer,
-            &gaussian_buffers.query_results_buffer,
-            &world_buffers.selection_highlight_buffer,
-            &gaussian_buffers.selection_buffer,
-            &gaussian_buffers.gaussians_edit_buffer,
-        );
-        let postprocessor = postprocessor.create_bind_groups(
-            device,
-            &gaussian_buffers.postprocess_indirect_args_buffer,
-            &world_buffers.query_buffer,
-            &gaussian_buffers.query_result_count_buffer,
-            &gaussian_buffers.query_results_buffer,
-            &gaussian_buffers.selection_buffer,
         );
 
         Self {
             preprocessor,
             radix_sorter,
             renderer,
-            postprocessor,
         }
     }
 }
@@ -402,23 +225,12 @@ pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::
     pub preprocessor: Preprocessor<()>,
     pub radix_sorter: RadixSorter<()>,
     pub renderer: Renderer<()>,
-    pub postprocessor: Postprocessor<()>,
 }
 
 impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
     /// Create a new viewer.
-    pub fn new(
-        device: &wgpu::Device,
-        texture_format: wgpu::TextureFormat,
-        #[cfg(feature = "query-texture")] texture_size: UVec2,
-    ) -> Self {
-        Self::new_with(
-            device,
-            texture_format,
-            None,
-            #[cfg(feature = "query-texture")]
-            texture_size,
-        )
+    pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Self {
+        Self::new_with(device, texture_format, None)
     }
 
     /// Create a new viewer with all options.
@@ -426,12 +238,11 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
-        #[cfg(feature = "query-texture")] texture_size: UVec2,
     ) -> Self {
         let models = HashMap::new();
 
         log::debug!("Creating world buffers");
-        let world_buffers = MultiModelViewerWorldBuffers::new(device, texture_size);
+        let world_buffers = MultiModelViewerWorldBuffers::new(device);
 
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new_without_bind_group::<G>(device);
@@ -442,9 +253,6 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         log::debug!("Creating renderer");
         let renderer = Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil);
 
-        log::debug!("Creating postprocessor");
-        let postprocessor = Postprocessor::new_without_bind_groups(device);
-
         log::info!("Viewer created");
 
         Self {
@@ -453,7 +261,6 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             preprocessor,
             radix_sorter,
             renderer,
-            postprocessor,
         }
     }
 
@@ -465,7 +272,6 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             &self.preprocessor,
             &self.radix_sorter,
             &self.renderer,
-            &self.postprocessor,
             &gaussian_buffers,
             &self.world_buffers,
         );
@@ -497,13 +303,6 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
     /// Update the camera with [`CameraPod`].
     pub fn update_camera_with_pod(&mut self, queue: &wgpu::Queue, pod: &CameraPod) {
         self.world_buffers.update_camera_with_pod(queue, pod);
-    }
-
-    /// Update the query.
-    ///
-    /// There can only be one query at a time.
-    pub fn update_query(&mut self, queue: &wgpu::Queue, query: &QueryPod) {
-        self.world_buffers.update_query(queue, query);
     }
 
     /// Update the model transform.
@@ -565,79 +364,6 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             .update_with_pod(queue, pod);
     }
 
-    /// Update the selection highlight.
-    pub fn update_selection_highlight(&mut self, queue: &wgpu::Queue, color: Vec4) {
-        self.world_buffers
-            .selection_highlight_buffer
-            .update(queue, color);
-    }
-
-    /// Update the selection highlight with [`SelectionHighlightPod`].
-    pub fn update_selection_highlight_with_pod(
-        &mut self,
-        queue: &wgpu::Queue,
-        pod: &SelectionHighlightPod,
-    ) {
-        self.world_buffers
-            .selection_highlight_buffer
-            .update_with_pod(queue, pod);
-    }
-
-    /// Update the selection edit.
-    ///
-    /// Set [`GaussianEditFlag::ENABLED`] to apply the edits on the selected Gaussians.
-    #[allow(clippy::too_many_arguments)]
-    pub fn update_selection_edit(
-        &mut self,
-        queue: &wgpu::Queue,
-        flag: GaussianEditFlag,
-        hsv: Vec3,
-        contrast: f32,
-        exposure: f32,
-        gamma: f32,
-        alpha: f32,
-    ) {
-        self.world_buffers
-            .selection_edit_buffer
-            .update(queue, flag, hsv, contrast, exposure, gamma, alpha);
-    }
-
-    /// Update the selection edit with [`GaussianEditPod`].
-    pub fn update_selection_edit_with_pod(&mut self, queue: &wgpu::Queue, pod: &GaussianEditPod) {
-        self.world_buffers
-            .selection_edit_buffer
-            .update_with_pod(queue, pod);
-    }
-
-    /// Update the query texture size.
-    ///
-    /// This requires the `query-texture` feature.
-    #[cfg(feature = "query-texture")]
-    pub fn update_query_texture_size(&mut self, device: &wgpu::Device, size: UVec2) {
-        self.world_buffers.update_query_texture_size(device, size);
-        for model in self.models.values_mut() {
-            model.bind_groups.preprocessor = self.preprocessor.create_bind_group(
-                device,
-                &self.world_buffers.camera_buffer,
-                &model.gaussian_buffers.model_transform_buffer,
-                &model.gaussian_buffers.gaussians_buffer,
-                &model.gaussian_buffers.indirect_args_buffer,
-                &model.gaussian_buffers.radix_sort_indirect_args_buffer,
-                &model.gaussian_buffers.indirect_indices_buffer,
-                &model.gaussian_buffers.gaussians_depth_buffer,
-                &self.world_buffers.query_buffer,
-                &model.gaussian_buffers.query_result_count_buffer,
-                &model.gaussian_buffers.query_results_buffer,
-                &model.gaussian_buffers.gaussians_edit_buffer,
-                &model.gaussian_buffers.selection_buffer,
-                &self.world_buffers.selection_edit_buffer,
-                &self.world_buffers.query_texture,
-                #[cfg(feature = "mask")]
-                &model.gaussian_buffers.mask_buffer,
-            );
-        }
-    }
-
     /// Render the viewer.
     pub fn render(
         &self,
@@ -692,58 +418,6 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             }
         }
 
-        for model in self.models.values() {
-            self.postprocessor.postprocess(
-                encoder,
-                &model.bind_groups.postprocessor.0,
-                &model.bind_groups.postprocessor.1,
-                model.gaussian_buffers.gaussians_buffer.len() as u32,
-                &model.gaussian_buffers.postprocess_indirect_args_buffer,
-            );
-        }
-
         Ok(())
-    }
-
-    /// Download the query results from the GPU.
-    pub async fn download_query_results(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        key: &K,
-    ) -> Result<Vec<QueryResultPod>, Error> {
-        query::download(
-            device,
-            queue,
-            &self
-                .models
-                .get(key)
-                .expect("model not found")
-                .gaussian_buffers
-                .query_result_count_buffer,
-            &self
-                .models
-                .get(key)
-                .expect("model not found")
-                .gaussian_buffers
-                .query_results_buffer,
-        )
-        .await
-    }
-
-    /// Download the Gaussian edits from the GPU.
-    pub async fn download_gaussians_edits(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        key: &K,
-    ) -> Result<Vec<GaussianEditPod>, Error> {
-        self.models
-            .get(key)
-            .expect("model not found")
-            .gaussian_buffers
-            .gaussians_edit_buffer
-            .download(device, queue)
-            .await
     }
 }
