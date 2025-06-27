@@ -23,4 +23,6 @@ pub enum Error {
     ModelCountKeysLenMismatch { model_count: usize, keys_len: usize },
     #[error("{0}")]
     DeviceFailedToPoll(#[from] wgpu::PollError),
+    #[error("{0}")]
+    WeslCompile(#[from] wesl::Error),
 }

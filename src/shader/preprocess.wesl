@@ -1,3 +1,5 @@
+import super::gaussian::Gaussian;
+
 struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
@@ -63,12 +65,6 @@ fn model_transform_mat() -> mat4x4<f32> {
     );
 }
 
-struct Gaussian {
-    pos: vec3<f32>,
-    color: u32,
-    {{gaussian_sh_field}}
-    {{gaussian_cov3d_field}}
-}
 @group(0) @binding(2)
 var<storage, read> gaussians: array<Gaussian>;
 
@@ -101,19 +97,14 @@ fn pre_main() {
     atomicStore(&indirect_args.instance_count, 0u);
 }
 
-fn is_on_frustum(ndc_pos: vec3<f32>) -> bool {
-    return all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0));
-}
+override workgroup_size_x: u32;
+override workgroup_size_y: u32;
+override workgroup_size_z: u32;
+override workgroup_count = workgroup_size_x * workgroup_size_y * workgroup_size_z;
 
-const workgroup_size = vec3<u32>({{workgroup_size}});
-const workgroup_count = workgroup_size.x * workgroup_size.y * workgroup_size.z;
-
-@compute @workgroup_size({{workgroup_size}})
+@compute @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)
 fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    let index = wid.x * workgroup_count +
-        lid.x +
-        lid.y * workgroup_size.x +
-        lid.z * workgroup_size.x * workgroup_size.y;
+    let index = wid.x * workgroup_count + lid.x + lid.y * workgroup_size_x + lid.z * workgroup_size_x * workgroup_size_y;
 
     if index >= arrayLength(&gaussians) {
         return;
@@ -125,7 +116,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
     let proj_pos = camera.proj * camera.view * world_pos;
     let ndc_pos = proj_pos.xyz / proj_pos.w;
-    if !is_on_frustum(ndc_pos) {
+    if !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0))) {
         return;
     }
 

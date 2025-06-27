@@ -1,7 +1,6 @@
 use crate::{
-    CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig,
-    GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    ModelTransformBuffer,
+    CameraBuffer, Error, GaussianPod, GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer,
+    IndirectIndicesBuffer, ModelTransformBuffer, wesl_utils,
 };
 
 /// A renderer for Gaussians.
@@ -248,11 +247,11 @@ impl Renderer<()> {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Renderer Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("shader/render.wgsl")
-                    .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
-                    .replace("{{gaussian_sh_unpack}}", G::ShConfig::sh_unpack())
-                    .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
-                    .replace("{{gaussian_cov3d_unpack}}", G::Cov3dConfig::cov3d_unpack())
+                wesl_utils::compiler(G::features())
+                    .compile("render")
+                    .inspect_err(|e| log::error!("{e}"))
+                    .unwrap()
+                    .to_string()
                     .into(),
             ),
         });
@@ -265,7 +264,7 @@ impl Renderer<()> {
                 module: &shader,
                 entry_point: Some("vert_main"),
                 buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -275,7 +274,7 @@ impl Renderer<()> {
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil,

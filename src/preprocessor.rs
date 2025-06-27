@@ -1,9 +1,8 @@
 use glam::*;
 
 use crate::{
-    CameraBuffer, Error, GaussianCov3dConfig, GaussianPod, GaussianShConfig, GaussiansBuffer,
-    GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer, ModelTransformBuffer,
-    RadixSortIndirectArgsBuffer,
+    CameraBuffer, Error, GaussianPod, GaussiansBuffer, GaussiansDepthBuffer, IndirectArgsBuffer,
+    IndirectIndicesBuffer, ModelTransformBuffer, RadixSortIndirectArgsBuffer, wesl_utils,
 };
 
 /// Preprocessor to preprocess the Gaussians.
@@ -307,39 +306,27 @@ impl Preprocessor<()> {
             push_constant_ranges: &[],
         });
 
-        log::info!(
-            "{}",
-            include_str!("shader/preprocess.wgsl")
-                .replace(
-                    "{{workgroup_size}}",
-                    format!(
-                        "{}, {}, {}",
-                        workgroup_size.x, workgroup_size.y, workgroup_size.z
-                    )
-                    .as_str(),
-                )
-                .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
-                .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
-        );
-
         log::debug!("Creating preprocessor shader module");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Preprocessor Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("shader/preprocess.wgsl")
-                    .replace(
-                        "{{workgroup_size}}",
-                        format!(
-                            "{}, {}, {}",
-                            workgroup_size.x, workgroup_size.y, workgroup_size.z
-                        )
-                        .as_str(),
-                    )
-                    .replace("{{gaussian_sh_field}}", G::ShConfig::sh_field())
-                    .replace("{{gaussian_cov3d_field}}", G::Cov3dConfig::cov3d_field())
+                wesl_utils::compiler(G::features())
+                    .compile("preprocess")
+                    .inspect_err(|e| log::error!("{e}"))
+                    .unwrap()
+                    .to_string()
                     .into(),
             ),
         });
+
+        let compilation_options = wgpu::PipelineCompilationOptions {
+            constants: &[
+                ("workgroup_size_x", workgroup_size.x as f64),
+                ("workgroup_size_y", workgroup_size.y as f64),
+                ("workgroup_size_z", workgroup_size.z as f64),
+            ],
+            ..Default::default()
+        };
 
         log::debug!("Creating preprocessor pre pipeline");
         let pre_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -347,7 +334,7 @@ impl Preprocessor<()> {
             layout: Some(&pipeline_layout),
             module: &shader,
             entry_point: Some("pre_main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            compilation_options: compilation_options.clone(),
             cache: None,
         });
 
@@ -357,7 +344,7 @@ impl Preprocessor<()> {
             layout: Some(&pipeline_layout),
             module: &shader,
             entry_point: Some("main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            compilation_options: compilation_options.clone(),
             cache: None,
         });
 
@@ -367,7 +354,7 @@ impl Preprocessor<()> {
             layout: Some(&pipeline_layout),
             module: &shader,
             entry_point: Some("post_main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            compilation_options,
             cache: None,
         });
 

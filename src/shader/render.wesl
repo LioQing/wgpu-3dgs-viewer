@@ -1,3 +1,5 @@
+import super::gaussian::{ Gaussian, gaussian_unpack_sh, gaussian_unpack_cov3d };
+
 // Vertex
 
 const max_radius = 2.0;
@@ -175,12 +177,6 @@ fn gaussian_transform_no_sh0() -> bool {
     return unpack4xU8(gaussian_transform.flags).z != 0u;
 }
 
-struct Gaussian {
-    pos: vec3<f32>,
-    color: u32,
-    {{gaussian_sh_field}}
-    {{gaussian_cov3d_field}}
-}
 @group(0) @binding(3)
 var<storage, read> gaussians: array<Gaussian>;
 
@@ -418,6 +414,3 @@ fn frag_main(in: FragmentInput) -> @location(0) vec4<f32> {
 
     return color;
 }
-
-{{gaussian_sh_unpack}}
-{{gaussian_cov3d_unpack}}

@@ -141,34 +141,13 @@ impl<G: GaussianPod> GaussiansBuffer<G> {
 
 /// The spherical harmonics configuration of Gaussian.
 pub trait GaussianShConfig {
-    /// The name of the configuration.
+    /// The feature name of the configuration.
     ///
-    /// Must match the name in the shader.
-    const NAME: &'static str;
-
-    /// The WGSL shader.
-    const WGSL: &'static str = include_str!("../shader/gaussian_configs.wgsl");
+    /// Must match the feature name in the shader.
+    const FEATURE: &'static str;
 
     /// The [`GaussianPod`] field type.
     type Field: bytemuck::Pod + bytemuck::Zeroable;
-
-    /// The spherical harmonics field definition.
-    fn sh_field() -> &'static str {
-        Self::WGSL
-            .split(format!("sh field - {}", Self::NAME).as_str())
-            .nth(1)
-            .expect("SH field")
-            .trim_matches('\n')
-    }
-
-    /// The spherical harmonics unpack definition.
-    fn sh_unpack() -> &'static str {
-        Self::WGSL
-            .split(format!("sh unpack - {}", Self::NAME).as_str())
-            .nth(1)
-            .expect("SH unpack")
-            .trim_matches('\n')
-    }
 
     /// Create from [`Gaussian.sh`].
     fn from_sh(sh: &[Vec3; 15]) -> Self::Field;
@@ -178,7 +157,7 @@ pub trait GaussianShConfig {
 pub struct GaussianShSingleConfig;
 
 impl GaussianShConfig for GaussianShSingleConfig {
-    const NAME: &'static str = "single";
+    const FEATURE: &'static str = "sh_single";
 
     type Field = [Vec3; 15];
 
@@ -191,7 +170,7 @@ impl GaussianShConfig for GaussianShSingleConfig {
 pub struct GaussianShHalfConfig;
 
 impl GaussianShConfig for GaussianShHalfConfig {
-    const NAME: &'static str = "half";
+    const FEATURE: &'static str = "sh_half";
 
     type Field = [f16; 3 * 15 + 1];
 
@@ -210,7 +189,7 @@ impl GaussianShConfig for GaussianShHalfConfig {
 pub struct GaussianShNorm8Config;
 
 impl GaussianShConfig for GaussianShNorm8Config {
-    const NAME: &'static str = "norm 8";
+    const FEATURE: &'static str = "sh_norm8";
 
     type Field = [u8; 4 + (3 * 15 + 3)]; // ([f16; 2], [U8Vec4; (3 * 15 + 3) / 4])
 
@@ -239,7 +218,7 @@ impl GaussianShConfig for GaussianShNorm8Config {
 pub struct GaussianShNoneConfig;
 
 impl GaussianShConfig for GaussianShNoneConfig {
-    const NAME: &'static str = "none";
+    const FEATURE: &'static str = "sh_none";
 
     type Field = ();
 
@@ -251,31 +230,10 @@ pub trait GaussianCov3dConfig {
     /// The name of the configuration.
     ///
     /// Must match the name in the shader.
-    const NAME: &'static str;
-
-    /// The WGSL shader.
-    const WGSL: &'static str = include_str!("../shader/gaussian_configs.wgsl");
+    const FEATURE: &'static str;
 
     /// The [`GaussianPod`] field type.
     type Field: bytemuck::Pod + bytemuck::Zeroable;
-
-    /// The covariance 3D field definition.
-    fn cov3d_field() -> &'static str {
-        Self::WGSL
-            .split(format!("cov3d field - {}", Self::NAME).as_str())
-            .nth(1)
-            .expect("Cov3d field")
-            .trim_matches('\n')
-    }
-
-    /// The covariance 3D unpack definition.
-    fn cov3d_unpack() -> &'static str {
-        Self::WGSL
-            .split(format!("cov3d unpack - {}", Self::NAME).as_str())
-            .nth(1)
-            .expect("Cov3d unpack")
-            .trim_matches('\n')
-    }
 
     /// Create from a single precision cov3d.
     fn from_cov3d(cov3d: [f32; 6]) -> Self::Field;
@@ -285,7 +243,7 @@ pub trait GaussianCov3dConfig {
 pub struct GaussianCov3dSingleConfig;
 
 impl GaussianCov3dConfig for GaussianCov3dSingleConfig {
-    const NAME: &'static str = "single";
+    const FEATURE: &'static str = "cov3d_single";
 
     type Field = [f32; 6];
 
@@ -298,7 +256,7 @@ impl GaussianCov3dConfig for GaussianCov3dSingleConfig {
 pub struct GaussianCov3dHalfConfig;
 
 impl GaussianCov3dConfig for GaussianCov3dHalfConfig {
-    const NAME: &'static str = "half";
+    const FEATURE: &'static str = "cov3d_half";
 
     type Field = [f16; 6];
 
@@ -318,6 +276,24 @@ pub trait GaussianPod: for<'a> From<&'a Gaussian> + bytemuck::NoUninit {
     /// Create a new Gaussian POD from the Gaussian.
     fn from_gaussian(gaussian: &Gaussian) -> Self {
         Self::from(gaussian)
+    }
+
+    /// Create the features for [`Wesl`](wesl::Wesl) compilation.
+    fn features() -> [(&'static str, bool); 6] {
+        [
+            GaussianShSingleConfig::FEATURE,
+            GaussianShHalfConfig::FEATURE,
+            GaussianShNorm8Config::FEATURE,
+            GaussianShNoneConfig::FEATURE,
+            GaussianCov3dSingleConfig::FEATURE,
+            GaussianCov3dHalfConfig::FEATURE,
+        ]
+        .map(|name| {
+            (
+                name,
+                name == Self::ShConfig::FEATURE || name == Self::Cov3dConfig::FEATURE,
+            )
+        })
     }
 }
 
