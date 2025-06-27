@@ -1,69 +1,14 @@
-import super::gaussian::Gaussian;
+import super::{
+    camera::Camera,
+    gaussian::Gaussian,
+    model_transform::{ ModelTransform, model_transform_mat },
+};
 
-struct Camera {
-    view: mat4x4<f32>,
-    proj: mat4x4<f32>,
-    size: vec2<f32>,
-}
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-fn camera_coords(ndc_pos: vec2<f32>) -> vec2<f32> {
-    return (ndc_pos * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0)) * camera.size * 0.5;
-}
-
-struct ModelTransform {
-    pos: vec3<f32>,
-    quat: vec4<f32>,
-    scale: vec3<f32>,
-}
 @group(0) @binding(1)
 var<uniform> model_transform: ModelTransform;
-
-fn model_transform_mat() -> mat4x4<f32> {
-    let pos = model_transform.pos;
-    let quat = model_transform.quat;
-    let scale = model_transform.scale;
-
-    let x2 = quat.x + quat.x;
-    let y2 = quat.y + quat.y;
-    let z2 = quat.z + quat.z;
-    let xx = quat.x * x2;
-    let xy = quat.x * y2;
-    let xz = quat.x * z2;
-    let yy = quat.y * y2;
-    let yz = quat.y * z2;
-    let zz = quat.z * z2;
-    let wx = quat.w * x2;
-    let wy = quat.w * y2;
-    let wz = quat.w * z2;
-
-    let sx = scale.x;
-    let sy = scale.y;
-    let sz = scale.z;
-
-    return mat4x4<f32>(
-        vec4<f32>(
-            (1.0 - (yy + zz)) * sx,
-            (xy + wz) * sx,
-            (xz - wy) * sx,
-            0.0,
-        ),
-        vec4<f32>(
-            (xy - wz) * sy,
-            (1.0 - (xx + zz)) * sy,
-            (yz + wx) * sy,
-            0.0,
-        ),
-        vec4<f32>(
-            (xz + wy) * sz,
-            (yz - wx) * sz,
-            (1.0 - (xx + yy)) * sz,
-            0.0,
-        ),
-        vec4<f32>(pos, 1.0),
-    );
-}
 
 @group(0) @binding(2)
 var<storage, read> gaussians: array<Gaussian>;
@@ -113,7 +58,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let gaussian = gaussians[index];
 
     // Cull
-    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
     let proj_pos = camera.proj * camera.view * world_pos;
     let ndc_pos = proj_pos.xyz / proj_pos.w;
     if !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0))) {

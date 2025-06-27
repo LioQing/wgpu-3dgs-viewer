@@ -1,181 +1,36 @@
-import super::gaussian::{ Gaussian, gaussian_unpack_sh, gaussian_unpack_cov3d };
+import super::{
+    camera::{ Camera, camera_aspect_ratio },
+    gaussian::{ Gaussian, gaussian_unpack_sh, gaussian_unpack_cov3d },
+    gaussian_transform::{
+        GaussianTransform,
+        gaussian_display_mode_splat,
+        gaussian_display_mode_ellipse,
+        gaussian_display_mode_point,
+        gaussian_transform_display_mode,
+        gaussian_transform_sh_deg,
+        gaussian_transform_no_sh0,
+    },
+    model_transform::{
+        ModelTransform,
+        model_transform_mat,
+        model_transform_inv_sr_mat,
+        model_scale_rotation_mat,
+    },
+};
 
 // Vertex
 
 const max_radius = 2.0;
 const point_size = 0.01;
 
-struct Camera {
-    view: mat4x4<f32>,
-    proj: mat4x4<f32>,
-    size: vec2<f32>,
-}
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-fn camera_coords(ndc_pos: vec2<f32>) -> vec2<f32> {
-    return (ndc_pos * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0)) * camera.size * 0.5;
-}
-
-fn camera_aspect_ratio() -> f32 {
-    return camera.size.y / camera.size.x;
-}
-
-struct ModelTransform {
-    pos: vec3<f32>,
-    quat: vec4<f32>,
-    scale: vec3<f32>,
-}
 @group(0) @binding(1)
 var<uniform> model_transform: ModelTransform;
 
-fn model_transform_mat() -> mat4x4<f32> {
-    let pos = model_transform.pos;
-    let quat = model_transform.quat;
-    let scale = model_transform.scale;
-
-    let x2 = quat.x + quat.x;
-    let y2 = quat.y + quat.y;
-    let z2 = quat.z + quat.z;
-    let xx = quat.x * x2;
-    let xy = quat.x * y2;
-    let xz = quat.x * z2;
-    let yy = quat.y * y2;
-    let yz = quat.y * z2;
-    let zz = quat.z * z2;
-    let wx = quat.w * x2;
-    let wy = quat.w * y2;
-    let wz = quat.w * z2;
-
-    let sx = scale.x;
-    let sy = scale.y;
-    let sz = scale.z;
-
-    return mat4x4<f32>(
-        vec4<f32>(
-            (1.0 - (yy + zz)) * sx,
-            (xy + wz) * sx,
-            (xz - wy) * sx,
-            0.0,
-        ),
-        vec4<f32>(
-            (xy - wz) * sy,
-            (1.0 - (xx + zz)) * sy,
-            (yz + wx) * sy,
-            0.0,
-        ),
-        vec4<f32>(
-            (xz + wy) * sz,
-            (yz - wx) * sz,
-            (1.0 - (xx + yy)) * sz,
-            0.0,
-        ),
-        vec4<f32>(pos, 1.0),
-    );
-}
-
-fn model_transform_inv_sr_mat() -> mat3x3<f32> {
-    let quat = model_transform.quat;
-    let scale = model_transform.scale;
-
-    let x2 = quat.x + quat.x;
-    let y2 = quat.y + quat.y;
-    let z2 = quat.z + quat.z;
-    let xx = quat.x * x2;
-    let xy = quat.x * y2;
-    let xz = quat.x * z2;
-    let yy = quat.y * y2;
-    let yz = quat.y * z2;
-    let zz = quat.z * z2;
-    let wx = quat.w * x2;
-    let wy = quat.w * y2;
-    let wz = quat.w * z2;
-
-    let sx = scale.x;
-    let sy = scale.y;
-    let sz = scale.z;
-
-    return mat3x3<f32>(
-        vec3<f32>(
-            (1.0 - (yy + zz)) / sx,
-            (xy - wz) / sy,
-            (xz + wy) / sz,
-        ),
-        vec3<f32>(
-            (xy + wz) / sx,
-            (1.0 - (xx + zz)) / sy,
-            (yz - wx) / sz,
-        ),
-        vec3<f32>(
-            (xz - wy) / sx,
-            (yz + wx) / sy,
-            (1.0 - (xx + yy)) / sz,
-        ),
-    );
-}
-
-fn model_scale_rotation_mat() -> mat3x3<f32> {
-    let quat = model_transform.quat;
-    let scale = model_transform.scale;
-
-    let x2 = quat.x + quat.x;
-    let y2 = quat.y + quat.y;
-    let z2 = quat.z + quat.z;
-    let xx = quat.x * x2;
-    let xy = quat.x * y2;
-    let xz = quat.x * z2;
-    let yy = quat.y * y2;
-    let yz = quat.y * z2;
-    let zz = quat.z * z2;
-    let wx = quat.w * x2;
-    let wy = quat.w * y2;
-    let wz = quat.w * z2;
-
-    let sx = scale.x;
-    let sy = scale.y;
-    let sz = scale.z;
-
-    return mat3x3<f32>(
-        vec3<f32>(
-            (1.0 - (yy + zz)) * sx,
-            (xy + wz) * sx,
-            (xz - wy) * sx,
-        ),
-        vec3<f32>(
-            (xy - wz) * sy,
-            (1.0 - (xx + zz)) * sy,
-            (yz + wx) * sy,
-        ),
-        vec3<f32>(
-            (xz + wy) * sz,
-            (yz - wx) * sz,
-            (1.0 - (xx + yy)) * sz,
-        ),
-    );
-}
-
-struct GaussianTransform {
-    size: f32,
-    flags: u32,
-}
 @group(0) @binding(2)
 var<uniform> gaussian_transform: GaussianTransform;
-
-const gaussian_display_mode_splat = 0u;
-const gaussian_display_mode_ellipse = 1u;
-const gaussian_display_mode_point = 2u;
-
-fn gaussian_transform_display_mode() -> u32 {
-    return unpack4xU8(gaussian_transform.flags).x;
-}
-
-fn gaussian_transform_sh_deg() -> u32 {
-    return unpack4xU8(gaussian_transform.flags).y;
-}
-
-fn gaussian_transform_no_sh0() -> bool {
-    return unpack4xU8(gaussian_transform.flags).z != 0u;
-}
 
 @group(0) @binding(3)
 var<storage, read> gaussians: array<Gaussian>;
@@ -187,7 +42,7 @@ fn gaussian_sh(gaussian_index: u32, sh_index: u32) -> vec3<f32> {
 fn gaussian_cov2d(gaussian_index: u32) -> vec3<f32> {
     let gaussian = gaussians[gaussian_index];
     let cov3d = gaussian_unpack_cov3d(gaussian_index);
-    let sr = model_scale_rotation_mat();
+    let sr = model_scale_rotation_mat(model_transform);
 
     let vrk = mat3x3<f32>(
         cov3d[0], cov3d[1], cov3d[2],
@@ -197,7 +52,7 @@ fn gaussian_cov2d(gaussian_index: u32) -> vec3<f32> {
 
     let focal = vec2<f32>(camera.proj[0][0], camera.proj[1][1]) * camera.size;
 
-    let t = camera.view * model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let t = camera.view * model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
     let j = transpose(mat3x3<f32>(
         focal.x / t.z, 0.0, -(focal.x * t.x) / (t.z * t.z),
         0.0, focal.y / t.z, -(focal.y * t.y) / (t.z * t.z),
@@ -289,13 +144,13 @@ fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {
         camera.view[2].xyz
     )) * camera.view[3].xyz);
     let world_view_dir = world_camera_pos - world_pos;
-    let model_view_dir = model_transform_inv_sr_mat() * world_view_dir;
+    let model_view_dir = model_transform_inv_sr_mat(model_transform) * world_view_dir;
 
     let color = gaussian_color(
         gaussian_index,
         -normalize(model_view_dir),
-        gaussian_transform_sh_deg(),
-        gaussian_transform_no_sh0(),
+        gaussian_transform_sh_deg(gaussian_transform.flags),
+        gaussian_transform_no_sh0(gaussian_transform.flags),
     );
 
     return color;
@@ -311,16 +166,16 @@ fn vert_main(
     let gaussian_index = indirect_indices[instance_index];
     let gaussian = gaussians[gaussian_index];
 
-    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
     let view_pos = camera.view * world_pos;
     let proj_pos = camera.proj * view_pos;
 
     let color = color(gaussian_index, world_pos.xyz);
-    let display_mode = gaussian_transform_display_mode();
+    let display_mode = gaussian_transform_display_mode(gaussian_transform.flags);
 
     if display_mode == gaussian_display_mode_point {
         let quad_offset = quad_offset(vert_index) * point_size * gaussian_transform.size;
-        let aspect_ratio = camera_aspect_ratio();
+        let aspect_ratio = camera_aspect_ratio(camera.size);
         let clip_pos = proj_pos.xy
             + quad_offset * proj_pos.w * vec2<f32>(aspect_ratio, 1.0) / length(view_pos.xyz);
 

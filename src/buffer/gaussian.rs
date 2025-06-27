@@ -149,7 +149,7 @@ pub trait GaussianShConfig {
     /// The [`GaussianPod`] field type.
     type Field: bytemuck::Pod + bytemuck::Zeroable;
 
-    /// Create from [`Gaussian.sh`].
+    /// Create from [`Gaussian::sh`].
     fn from_sh(sh: &[Vec3; 15]) -> Self::Field;
 }
 
