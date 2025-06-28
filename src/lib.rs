@@ -3,11 +3,10 @@
 mod buffer;
 mod camera;
 mod error;
-mod gaussian;
 mod preprocessor;
 mod radix_sorter;
 mod renderer;
-pub mod wesl_utils;
+mod wesl_utils;
 
 #[cfg(feature = "multi-model")]
 mod multi_model;
@@ -16,17 +15,19 @@ mod multi_model;
 pub mod bin_core;
 
 use glam::*;
+use wgpu_3dgs_core::*;
 
 pub use buffer::*;
 pub use camera::*;
-pub use error::*;
-pub use gaussian::*;
+pub use error::Error;
 pub use preprocessor::*;
 pub use radix_sorter::*;
 pub use renderer::*;
 
 #[cfg(feature = "multi-model")]
 pub use multi_model::*;
+
+pub use wgpu_3dgs_core as core;
 
 /// The default viewer [`GaussianPod`] type.
 pub type DefaultGaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs;

@@ -1,6 +1,6 @@
 [package]
 name = "wgpu-3dgs-viewer"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 authors = ["Lio Qing"]
 license = "MIT"
@@ -58,6 +58,7 @@ bin-core = []
 multi-model = []
 
 [dependencies]
+wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
 bytemuck = { version = "1.23", features = [
     "derive",
     "extern_crate_alloc",

@@ -1,5 +1,5 @@
-import super::{
-    camera::{ Camera, camera_aspect_ratio },
+import super::camera::{ Camera, camera_aspect_ratio };
+import wgpu_3dgs_core::{
     gaussian::{ Gaussian, gaussian_unpack_sh, gaussian_unpack_cov3d },
     gaussian_transform::{
         GaussianTransform,

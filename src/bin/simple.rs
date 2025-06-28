@@ -40,7 +40,7 @@ struct System {
     config: wgpu::SurfaceConfiguration,
 
     camera: gs::Camera,
-    gaussians: gs::Gaussians,
+    gaussians: gs::core::Gaussians,
     viewer: gs::Viewer,
 }
 
@@ -98,7 +98,7 @@ impl gs::bin_core::System for System {
         log::debug!("Creating gaussians");
         let f = std::fs::File::open(model_path).expect("ply file");
         let mut reader = std::io::BufReader::new(f);
-        let gaussians = gs::Gaussians::read_ply(&mut reader).expect("gaussians");
+        let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
 
         log::debug!("Creating camera");
         let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
@@ -118,8 +118,8 @@ impl gs::bin_core::System for System {
         viewer.update_gaussian_transform(
             &queue,
             1.0,
-            gs::GaussianDisplayMode::Splat,
-            gs::GaussianShDegree::new(3).expect("SH degree"),
+            gs::core::GaussianDisplayMode::Splat,
+            gs::core::GaussianShDegree::new(3).expect("SH degree"),
             false,
         );
 

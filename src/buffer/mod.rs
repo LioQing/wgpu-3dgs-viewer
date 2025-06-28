@@ -1,5 +1,7 @@
-mod gaussian;
-mod misc;
+mod camera;
+mod depth;
+mod indirect_args;
 
-pub use gaussian::*;
-pub use misc::*;
+pub use camera::*;
+pub use depth::*;
+pub use indirect_args::*;

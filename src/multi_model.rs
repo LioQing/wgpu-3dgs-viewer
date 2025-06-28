@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
-use crate::*;
+use crate::{Error, *};
 
 /// The buffers for [`Viewer`] related to the world.
 #[derive(Debug)]

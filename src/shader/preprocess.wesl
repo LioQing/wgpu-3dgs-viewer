@@ -1,5 +1,5 @@
-import super::{
-    camera::Camera,
+import super::camera::Camera;
+import wgpu_3dgs_core::{
     gaussian::Gaussian,
     model_transform::{ ModelTransform, model_transform_mat },
 };

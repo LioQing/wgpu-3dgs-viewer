@@ -50,7 +50,7 @@ struct System {
     config: wgpu::SurfaceConfiguration,
 
     camera: gs::Camera,
-    gaussians: Vec<gs::Gaussians>,
+    gaussians: Vec<gs::core::Gaussians>,
     gaussian_centroids: Vec<Vec3>,
     viewer: gs::MultiModelViewer<gs::DefaultGaussianPod, usize>,
 }
@@ -114,7 +114,7 @@ impl gs::bin_core::System for System {
                 log::debug!("Reading model from {model_path}");
                 let f = std::fs::File::open(model_path).expect("ply file");
                 let mut reader = std::io::BufReader::new(f);
-                gs::Gaussians::read_ply(&mut reader).expect("gaussians")
+                gs::core::Gaussians::read_ply(&mut reader).expect("gaussians")
             })
             .collect::<Vec<_>>();
 
@@ -139,8 +139,8 @@ impl gs::bin_core::System for System {
         viewer.update_gaussian_transform(
             &queue,
             1.0,
-            gs::GaussianDisplayMode::Splat,
-            gs::GaussianShDegree::new(3).expect("SH degree"),
+            gs::core::GaussianDisplayMode::Splat,
+            gs::core::GaussianShDegree::new(3).expect("SH degree"),
             false,
         );
 

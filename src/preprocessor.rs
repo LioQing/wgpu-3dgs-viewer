@@ -1,8 +1,10 @@
 use glam::*;
 
 use crate::{
-    CameraBuffer, Error, GaussianPod, GaussiansBuffer, GaussiansDepthBuffer, IndirectArgsBuffer,
-    IndirectIndicesBuffer, ModelTransformBuffer, RadixSortIndirectArgsBuffer, wesl_utils,
+    CameraBuffer, Error, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
+    RadixSortIndirectArgsBuffer,
+    core::{GaussianPod, GaussiansBuffer, ModelTransformBuffer},
+    wesl_utils,
 };
 
 /// Preprocessor to preprocess the Gaussians.
