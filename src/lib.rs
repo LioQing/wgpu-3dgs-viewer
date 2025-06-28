@@ -7,7 +7,7 @@ mod gaussian;
 mod preprocessor;
 mod radix_sorter;
 mod renderer;
-mod wesl_utils;
+pub mod wesl_utils;
 
 #[cfg(feature = "multi-model")]
 mod multi_model;

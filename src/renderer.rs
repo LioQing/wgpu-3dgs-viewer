@@ -122,7 +122,7 @@ impl Renderer {
             });
         }
 
-        let this = Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil);
+        let this = Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil)?;
 
         log::debug!("Creating renderer bind group");
         let bind_group = this.create_bind_group(
@@ -231,7 +231,7 @@ impl Renderer<()> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Renderer::BIND_GROUP_LAYOUT_DESCRIPTOR);
@@ -248,9 +248,7 @@ impl Renderer<()> {
             label: Some("Renderer Shader"),
             source: wgpu::ShaderSource::Wgsl(
                 wesl_utils::compiler(G::features())
-                    .compile("render")
-                    .inspect_err(|e| log::error!("{e}"))
-                    .unwrap()
+                    .compile("render")?
                     .to_string()
                     .into(),
             ),
@@ -285,11 +283,11 @@ impl Renderer<()> {
 
         log::info!("Renderer created");
 
-        Self {
+        Ok(Self {
             bind_group_layout,
             bind_group: (),
             pipeline,
-        }
+        })
     }
 
     /// Render the scene.

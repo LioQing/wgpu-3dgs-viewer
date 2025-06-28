@@ -163,7 +163,7 @@ impl Preprocessor {
             });
         }
 
-        let this = Preprocessor::new_without_bind_group::<G>(device);
+        let this = Preprocessor::new_without_bind_group::<G>(device)?;
 
         log::debug!("Creating preprocessor bind group");
         let bind_group = this.create_bind_group(
@@ -285,7 +285,7 @@ impl Preprocessor<()> {
     ///
     /// To create a bind group with layout matched to this preprocessor, use the
     /// [`Preprocessor::create_bind_group`] method.
-    pub fn new_without_bind_group<G: GaussianPod>(device: &wgpu::Device) -> Self {
+    pub fn new_without_bind_group<G: GaussianPod>(device: &wgpu::Device) -> Result<Self, Error> {
         let workgroup_size = uvec3(
             device
                 .limits()
@@ -311,9 +311,7 @@ impl Preprocessor<()> {
             label: Some("Preprocessor Shader"),
             source: wgpu::ShaderSource::Wgsl(
                 wesl_utils::compiler(G::features())
-                    .compile("preprocess")
-                    .inspect_err(|e| log::error!("{e}"))
-                    .unwrap()
+                    .compile("preprocess")?
                     .to_string()
                     .into(),
             ),
@@ -360,14 +358,14 @@ impl Preprocessor<()> {
 
         log::info!("Preprocessor created");
 
-        Self {
+        Ok(Self {
             workgroup_size,
             bind_group_layout,
             bind_group: (),
             pre_pipeline,
             pipeline,
             post_pipeline,
-        }
+        })
     }
 
     /// Preprocess the Gaussians.

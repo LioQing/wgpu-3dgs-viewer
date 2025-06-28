@@ -134,7 +134,8 @@ impl gs::bin_core::System for System {
         let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
         log::debug!("Creating viewer");
-        let mut viewer = gs::MultiModelViewer::new(&device, config.view_formats[0]);
+        let mut viewer =
+            gs::MultiModelViewer::new(&device, config.view_formats[0]).expect("viewer");
         viewer.update_gaussian_transform(
             &queue,
             1.0,

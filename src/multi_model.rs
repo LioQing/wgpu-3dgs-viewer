@@ -229,7 +229,7 @@ pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::
 
 impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
     /// Create a new viewer.
-    pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Result<Self, Error> {
         Self::new_with(device, texture_format, None)
     }
 
@@ -238,30 +238,31 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let models = HashMap::new();
 
         log::debug!("Creating world buffers");
         let world_buffers = MultiModelViewerWorldBuffers::new(device);
 
         log::debug!("Creating preprocessor");
-        let preprocessor = Preprocessor::new_without_bind_group::<G>(device);
+        let preprocessor = Preprocessor::new_without_bind_group::<G>(device)?;
 
         log::debug!("Creating radix sorter");
         let radix_sorter = RadixSorter::new_without_bind_groups(device);
 
         log::debug!("Creating renderer");
-        let renderer = Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil);
+        let renderer =
+            Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil)?;
 
         log::info!("Viewer created");
 
-        Self {
+        Ok(Self {
             models,
             world_buffers,
             preprocessor,
             radix_sorter,
             renderer,
-        }
+        })
     }
 
     /// Insert a new model to the viewer.
