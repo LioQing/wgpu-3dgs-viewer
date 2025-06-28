@@ -13,7 +13,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Preprocessor<B = wgpu::BindGroup> {
     /// The workgroup size.
-    workgroup_size: UVec3,
+    workgroup_size: u32,
     /// The bind group layout.
     #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
@@ -55,8 +55,8 @@ impl<B> Preprocessor<B> {
     }
 
     /// Get the number of invocations in one workgroup.
-    pub fn workgroup_count(&self) -> u32 {
-        self.workgroup_size.x * self.workgroup_size.y * self.workgroup_size.z
+    pub fn workgroup_size(&self) -> u32 {
+        self.workgroup_size
     }
 }
 
@@ -210,7 +210,7 @@ impl Preprocessor {
 
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_count()), 1, 1);
+            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_size()), 1, 1);
         }
 
         {
@@ -288,14 +288,10 @@ impl Preprocessor<()> {
     /// To create a bind group with layout matched to this preprocessor, use the
     /// [`Preprocessor::create_bind_group`] method.
     pub fn new_without_bind_group<G: GaussianPod>(device: &wgpu::Device) -> Result<Self, Error> {
-        let workgroup_size = uvec3(
-            device
-                .limits()
-                .max_compute_workgroup_size_x
-                .min(device.limits().max_compute_invocations_per_workgroup),
-            1,
-            1,
-        );
+        let workgroup_size = device
+            .limits()
+            .max_compute_workgroup_size_x
+            .min(device.limits().max_compute_invocations_per_workgroup);
 
         log::debug!("Creating preprocessor bind group layout");
         let bind_group_layout =
@@ -320,11 +316,7 @@ impl Preprocessor<()> {
         });
 
         let compilation_options = wgpu::PipelineCompilationOptions {
-            constants: &[
-                ("workgroup_size_x", workgroup_size.x as f64),
-                ("workgroup_size_y", workgroup_size.y as f64),
-                ("workgroup_size_z", workgroup_size.z as f64),
-            ],
+            constants: &[("workgroup_size", workgroup_size as f64)],
             ..Default::default()
         };
 
@@ -396,7 +388,7 @@ impl Preprocessor<()> {
 
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, bind_group, &[]);
-            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_count()), 1, 1);
+            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_size()), 1, 1);
         }
 
         {

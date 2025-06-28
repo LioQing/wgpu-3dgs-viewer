@@ -221,6 +221,7 @@ pub(crate) mod wgpu_sort {
             let raw_shader: &str = include_str!("shader/radix_sort.wgsl");
 
             // TODO replace with this with pipeline-overridable constants once they are available
+            #[allow(clippy::uninlined_format_args)]
             let shader_w_const = format!(
                 "const histogram_sg_size: u32 = {:}u;\n\
                 const histogram_wg_size: u32 = {:}u;\n\

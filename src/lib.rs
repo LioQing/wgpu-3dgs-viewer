@@ -6,6 +6,7 @@ mod error;
 mod preprocessor;
 mod radix_sorter;
 mod renderer;
+pub mod shader;
 mod wesl_utils;
 
 #[cfg(feature = "multi-model")]
@@ -15,11 +16,15 @@ mod multi_model;
 pub mod bin_core;
 
 use glam::*;
-use wgpu_3dgs_core::*;
+use wgpu_3dgs_core::{
+    GaussianDisplayMode, GaussianPod, GaussianPodWithShNorm8Cov3dHalfConfigs, GaussianShDegree,
+    GaussianTransformBuffer, GaussianTransformPod, Gaussians, GaussiansBuffer,
+    ModelTransformBuffer, ModelTransformPod,
+};
 
 pub use buffer::*;
 pub use camera::*;
-pub use error::Error;
+pub use error::*;
 pub use preprocessor::*;
 pub use radix_sorter::*;
 pub use renderer::*;

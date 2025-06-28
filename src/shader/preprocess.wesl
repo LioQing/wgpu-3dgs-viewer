@@ -42,14 +42,14 @@ fn pre_main() {
     atomicStore(&indirect_args.instance_count, 0u);
 }
 
-override workgroup_size_x: u32;
-override workgroup_size_y: u32;
-override workgroup_size_z: u32;
-override workgroup_count = workgroup_size_x * workgroup_size_y * workgroup_size_z;
+override workgroup_size: u32;
 
-@compute @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)
+@compute @workgroup_size(workgroup_size)
 fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    let index = wid.x * workgroup_count + lid.x + lid.y * workgroup_size_x + lid.z * workgroup_size_x * workgroup_size_y;
+    // Ensure model_transform is used to prevent dead code elimination
+    let _model_transform = model_transform;
+
+    let index = wid.x * workgroup_size + lid.x;
 
     if index >= arrayLength(&gaussians) {
         return;
@@ -58,7 +58,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let gaussian = gaussians[index];
 
     // Cull
-    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
+    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
     let proj_pos = camera.proj * camera.view * world_pos;
     let ndc_pos = proj_pos.xyz / proj_pos.w;
     if !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0))) {

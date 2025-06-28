@@ -4,9 +4,9 @@ use crate::core;
 
 pub fn compiler<'a>(
     features: impl IntoIterator<Item = (&'a str, bool)>,
-) -> Wesl<wesl::StandardResolver> {
-    let mut compiler = Wesl::new("src/shader");
-    compiler.add_package(&core::wesl::Mod);
+) -> Wesl<core::shader::Resolver> {
+    let resolver = core::shader::Resolver::new("src/shader").with_package(&core::shader::Mod);
+    let mut compiler = Wesl::new("src/shader").set_custom_resolver(resolver);
     compiler.set_features(features);
     compiler
 }

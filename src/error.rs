@@ -16,5 +16,11 @@ pub enum Error {
     #[error("model count and keys length mismatch: {model_count} != {keys_len}")]
     ModelCountKeysLenMismatch { model_count: usize, keys_len: usize },
     #[error("{0}")]
-    WeslCompile(#[from] wesl::Error),
+    WeslCompile(Box<wesl::Error>),
+}
+
+impl From<wesl::Error> for Error {
+    fn from(err: wesl::Error) -> Self {
+        Error::WeslCompile(Box::new(err))
+    }
 }
