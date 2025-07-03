@@ -1,6 +1,6 @@
 use crate::{
     CameraBuffer, Error, GaussianPod, GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer,
-    IndirectIndicesBuffer, ModelTransformBuffer, wesl_utils,
+    IndirectIndicesBuffer, ModelTransformBuffer, core::BufferWrapper, wesl_utils,
 };
 
 /// A renderer for Gaussians.

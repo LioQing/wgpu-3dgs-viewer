@@ -2802,7 +2802,6 @@ dependencies = [
  "log",
  "oneshot",
  "paste",
- "ply-rs",
  "thiserror 2.0.12",
  "wesl",
  "wgpu",

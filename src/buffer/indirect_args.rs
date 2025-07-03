@@ -1,6 +1,7 @@
 use glam::*;
 
 use wgpu::util::DeviceExt;
+use wgpu_3dgs_core::BufferWrapper;
 
 /// The indirect args storage buffer for [`Renderer`](crate::Renderer).
 #[derive(Debug, Clone)]
@@ -45,9 +46,10 @@ impl RadixSortIndirectArgsBuffer {
 
         Self(buffer)
     }
+}
 
-    /// Get the buffer.
-    pub fn buffer(&self) -> &wgpu::Buffer {
+impl BufferWrapper for RadixSortIndirectArgsBuffer {
+    fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }
 }
@@ -68,9 +70,10 @@ impl IndirectIndicesBuffer {
 
         Self(buffer)
     }
+}
 
-    /// Get the buffer.
-    pub fn buffer(&self) -> &wgpu::Buffer {
+impl BufferWrapper for IndirectIndicesBuffer {
+    fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }
 }

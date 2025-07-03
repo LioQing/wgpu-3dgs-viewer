@@ -5,7 +5,7 @@ use crate::core;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("{0}")]
-    Core(#[from] core::Error),
+    Core(Box<core::Error>),
     #[error(
         "\
         model size ({model_size} bytes) exceeds the device limit ({device_limit} bytes), \
@@ -17,6 +17,12 @@ pub enum Error {
     ModelCountKeysLenMismatch { model_count: usize, keys_len: usize },
     #[error("{0}")]
     WeslCompile(Box<wesl::Error>),
+}
+
+impl From<core::Error> for Error {
+    fn from(err: core::Error) -> Self {
+        Error::Core(Box::new(err))
+    }
 }
 
 impl From<wesl::Error> for Error {

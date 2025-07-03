@@ -1,3 +1,5 @@
+use wgpu_3dgs_core::BufferWrapper;
+
 use crate::wgpu_sort;
 
 /// The Gaussians depth storage buffer.
@@ -19,9 +21,10 @@ impl GaussiansDepthBuffer {
 
         Self(buffer)
     }
+}
 
-    /// Get the buffer.
-    pub fn buffer(&self) -> &wgpu::Buffer {
+impl BufferWrapper for GaussiansDepthBuffer {
+    fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }
 }

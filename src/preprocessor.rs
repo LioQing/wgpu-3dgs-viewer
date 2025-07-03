@@ -3,7 +3,7 @@ use glam::*;
 use crate::{
     CameraBuffer, Error, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
     RadixSortIndirectArgsBuffer,
-    core::{GaussianPod, GaussiansBuffer, ModelTransformBuffer},
+    core::{BufferWrapper, GaussianPod, GaussiansBuffer, ModelTransformBuffer},
     wesl_utils,
 };
 

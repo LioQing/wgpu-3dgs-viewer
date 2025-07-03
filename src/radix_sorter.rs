@@ -1,4 +1,6 @@
-use crate::{GaussiansDepthBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer};
+use crate::{
+    GaussiansDepthBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer, core::BufferWrapper,
+};
 
 pub type RadixSorterBindGroups = wgpu_sort::InternalSortBuffers;
 

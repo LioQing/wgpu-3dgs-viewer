@@ -1,4 +1,5 @@
 use glam::*;
+use wgpu_3dgs_core::BufferWrapper;
 
 use crate::CameraTrait;
 
@@ -28,9 +29,10 @@ impl CameraBuffer {
     pub fn update_with_pod(&self, queue: &wgpu::Queue, pod: &CameraPod) {
         queue.write_buffer(&self.0, 0, bytemuck::bytes_of(pod));
     }
+}
 
-    /// Get the buffer.
-    pub fn buffer(&self) -> &wgpu::Buffer {
+impl BufferWrapper for CameraBuffer {
+    fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }
 }
