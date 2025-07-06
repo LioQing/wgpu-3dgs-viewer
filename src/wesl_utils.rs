@@ -4,12 +4,15 @@ use crate::core;
 
 pub fn compiler<'a>(
     features: impl IntoIterator<Item = (&'a str, bool)>,
-) -> Wesl<core::wesl::VarStandardResolver> {
-    let mut compiler = Wesl::new("src/shader").set_custom_resolver(resolver());
+) -> Wesl<wesl::StandardResolver> {
+    let mut compiler = Wesl::new("src/shader");
+    compiler.add_package(&core::shader::Mod);
     compiler.set_features(features);
     compiler
 }
 
-pub fn resolver() -> core::wesl::VarStandardResolver {
-    core::wesl::VarStandardResolver::new("src/shader").with_package(&core::shader::Mod)
+pub fn resolver() -> wesl::StandardResolver {
+    let mut resolver = wesl::StandardResolver::new("src/shader");
+    resolver.add_package(&core::shader::Mod);
+    resolver
 }
