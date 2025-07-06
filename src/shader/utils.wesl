@@ -1,3 +1,4 @@
+import super::camera::{ Camera, world_to_camera };
 import wgpu_3dgs_core::{
     gaussian::{
         Gaussian,
@@ -6,10 +7,19 @@ import wgpu_3dgs_core::{
     },
     model_transform::{
         ModelTransform,
+        model_to_world,
         model_transform_mat,
         model_scale_rotation_mat,
     },
 };
+
+/// Determine if a Gaussian should be culled given a camera.
+fn cull(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> bool {
+    let world_pos = model_to_world(model_transform, gaussian.pos);
+    let proj_pos = world_to_camera(camera, world_pos);
+    let ndc_pos = proj_pos.xyz / proj_pos.w;
+    return !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0)));
+}
 
 // Project a 3D covariance matrix into a 2D covariance matrix.
 fn cov2d(gaussian: Gaussian, model_transform: ModelTransform) -> vec3<f32> {

@@ -1,8 +1,11 @@
 import wgpu_3dgs_core::model_transform::model_transform_mat;
-import super::camera::Camera;
+import super::{
+    camera::{ Camera, world_to_camera },
+    utils::cull as gaussian_cull,
+};
 import wgpu_3dgs_core::{
     gaussian::Gaussian,
-    model_transform::ModelTransform,
+    model_transform::{ ModelTransform, model_to_world },
 };
 
 @group(0) @binding(0)
@@ -50,10 +53,7 @@ fn main(index: u32) {
     let gaussian = gaussians[index];
 
     // Cull
-    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
-    let proj_pos = camera.proj * camera.view * world_pos;
-    let ndc_pos = proj_pos.xyz / proj_pos.w;
-    if !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0))) {
+    if gaussian_cull(gaussian, model_transform, camera) {
         return;
     }
 
@@ -61,6 +61,9 @@ fn main(index: u32) {
     indirect_indices[culled_index] = index;
 
     // Depth
+    let world_pos = model_to_world(model_transform, gaussian.pos);
+    let proj_pos = world_to_camera(camera, world_pos);
+    let ndc_pos = proj_pos.xyz / proj_pos.w;
     gaussians_depth[culled_index] = 1.0 - ndc_pos.z;
 }
 

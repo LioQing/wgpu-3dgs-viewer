@@ -10,21 +10,17 @@ impl wesl::PkgModule for Mod {
     }
 
     fn submodules(&self) -> &[&dyn wesl::PkgModule] {
-        static SUBMODULES: &[&dyn wesl::PkgModule] = &[
-            &camera::Mod,
-            &gaussian_render::Mod,
-            &preprocess::Mod,
-            &render::Mod,
-        ];
+        static SUBMODULES: &[&dyn wesl::PkgModule] =
+            &[&camera::Mod, &preprocess::Mod, &render::Mod, &utils::Mod];
         SUBMODULES
     }
 
     fn submodule(&self, name: &str) -> Option<&dyn wesl::PkgModule> {
         match name {
             "camera" => Some(&camera::Mod),
-            "gaussian_render" => Some(&gaussian_render::Mod),
             "preprocess" => Some(&preprocess::Mod),
             "render" => Some(&render::Mod),
+            "utils" => Some(&utils::Mod),
             _ => None,
         }
     }
@@ -59,6 +55,6 @@ macro_rules! submodule {
 }
 
 submodule!(camera);
-submodule!(gaussian_render);
 submodule!(preprocess);
 submodule!(render);
+submodule!(utils);

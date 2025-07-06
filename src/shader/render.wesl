@@ -1,6 +1,6 @@
 import super::{
     camera::{ Camera, camera_aspect_ratio },
-    gaussian_render::{
+    utils::{
         cov2d_axes as gaussian_cov2d_axes,
         color as gaussian_color,
     },
