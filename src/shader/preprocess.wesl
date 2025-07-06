@@ -1,7 +1,8 @@
+import wgpu_3dgs_core::model_transform::model_transform_mat;
 import super::camera::Camera;
 import wgpu_3dgs_core::{
     gaussian::Gaussian,
-    model_transform::{ ModelTransform, model_transform_mat },
+    model_transform::ModelTransform,
 };
 
 @group(0) @binding(0)
@@ -36,21 +37,12 @@ var<storage, read_write> indirect_indices: array<u32>;
 @group(0) @binding(6)
 var<storage, read_write> gaussians_depth: array<f32>;
 
-@compute @workgroup_size(1)
-fn pre_main() {
+fn pre() {
     // Reset instance count
     atomicStore(&indirect_args.instance_count, 0u);
 }
 
-override workgroup_size: u32;
-
-@compute @workgroup_size(workgroup_size)
-fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    // Ensure model_transform is used to prevent dead code elimination
-    let _model_transform = model_transform;
-
-    let index = wid.x * workgroup_size + lid.x;
-
+fn main(index: u32) {
     if index >= arrayLength(&gaussians) {
         return;
     }
@@ -58,7 +50,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let gaussian = gaussians[index];
 
     // Cull
-    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
     let proj_pos = camera.proj * camera.view * world_pos;
     let ndc_pos = proj_pos.xyz / proj_pos.w;
     if !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0))) {
@@ -72,8 +64,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     gaussians_depth[culled_index] = 1.0 - ndc_pos.z;
 }
 
-@compute @workgroup_size(1)
-fn post_main() {
+fn post() {
     let instance_count = atomicLoad(&indirect_args.instance_count);
 
     // Set radix sort indirect args

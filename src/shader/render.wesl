@@ -55,20 +55,20 @@ fn quad_offset(vert_index: u32) -> vec2<f32> {
     }
 }
 
-fn color(gaussian_index: u32, world_pos: vec3<f32>) -> vec4<f32> {
+fn color(gaussian: Gaussian, world_pos: vec3<f32>) -> vec4<f32> {
     let world_camera_pos = -(transpose(mat3x3<f32>(
         camera.view[0].xyz,
         camera.view[1].xyz,
         camera.view[2].xyz
     )) * camera.view[3].xyz);
     let world_view_dir = world_camera_pos - world_pos;
-    let model_view_dir = model_transform_inv_sr_mat() * world_view_dir;
+    let model_view_dir = model_transform_inv_sr_mat(model_transform) * world_view_dir;
 
     let color = gaussian_color(
-        gaussian_index,
+        gaussian,
         -normalize(model_view_dir),
-        gaussian_transform_sh_deg(),
-        gaussian_transform_no_sh0(),
+        gaussian_transform_sh_deg(gaussian_transform.flags),
+        gaussian_transform_no_sh0(gaussian_transform.flags),
     );
 
     return color;
@@ -87,12 +87,12 @@ fn vert_main(
     let gaussian_index = indirect_indices[instance_index];
     let gaussian = gaussians[gaussian_index];
 
-    let world_pos = model_transform_mat() * vec4<f32>(gaussian.pos, 1.0);
+    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
     let view_pos = camera.view * world_pos;
     let proj_pos = camera.proj * view_pos;
 
-    let color = color(gaussian_index, world_pos.xyz);
-    let display_mode = gaussian_transform_display_mode();
+    let color = color(gaussian, world_pos.xyz);
+    let display_mode = gaussian_transform_display_mode(gaussian_transform.flags);
 
     if display_mode == gaussian_display_mode_point {
         let quad_offset = quad_offset(vert_index) * point_size * gaussian_transform.size;
@@ -108,7 +108,7 @@ fn vert_main(
         return out;
     }
     
-    let axes = gaussian_cov2d_axes(gaussian_index);
+    let axes = gaussian_cov2d_axes(gaussian, model_transform);
     if all(axes == vec4<f32>(0.0, 0.0, 0.0, 0.0)) {
         out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);
         return out;

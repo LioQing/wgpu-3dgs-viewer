@@ -1,9 +1,10 @@
-use glam::*;
-
 use crate::{
     CameraBuffer, Error, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
     RadixSortIndirectArgsBuffer,
-    core::{BufferWrapper, GaussianPod, GaussiansBuffer, ModelTransformBuffer},
+    core::{
+        BufferWrapper, ComputeBundle, ComputeBundleBuilder, GaussianPod, GaussiansBuffer,
+        ModelTransformBuffer,
+    },
     wesl_utils,
 };
 
@@ -12,19 +13,17 @@ use crate::{
 /// It computes the depth for [`RadixSorter`](crate::RadixSorter) and do frustum culling.
 #[derive(Debug)]
 pub struct Preprocessor<B = wgpu::BindGroup> {
-    /// The workgroup size.
-    workgroup_size: u32,
     /// The bind group layout.
     #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
     /// The bind group.
     bind_group: B,
-    /// The pre compute pipeline.
-    pre_pipeline: wgpu::ComputePipeline,
-    /// The compute pipeline.
-    pipeline: wgpu::ComputePipeline,
-    /// The post compute pipeline.
-    post_pipeline: wgpu::ComputePipeline,
+    /// The pre preprocess bundle.
+    pre_bundle: ComputeBundle<()>,
+    /// The preprocess bundle.
+    bundle: ComputeBundle<()>,
+    /// The post preprocess bundle.
+    post_bundle: ComputeBundle<()>,
 }
 
 impl<B> Preprocessor<B> {
@@ -56,11 +55,19 @@ impl<B> Preprocessor<B> {
 
     /// Get the number of invocations in one workgroup.
     pub fn workgroup_size(&self) -> u32 {
-        self.workgroup_size
+        self.bundle.workgroup_size()
+    }
+
+    /// Get the bind group layouts.
+    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.bind_group_layout
     }
 }
 
 impl Preprocessor {
+    /// The label.
+    const LABEL: &str = "Preprocessor";
+
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
@@ -180,49 +187,22 @@ impl Preprocessor {
         );
 
         Ok(Self {
-            workgroup_size: this.workgroup_size,
             bind_group_layout: this.bind_group_layout,
             bind_group,
-            pre_pipeline: this.pre_pipeline,
-            pipeline: this.pipeline,
-            post_pipeline: this.post_pipeline,
+            pre_bundle: this.pre_bundle,
+            bundle: this.bundle,
+            post_bundle: this.post_bundle,
         })
     }
 
     /// Preprocess the Gaussians.
     pub fn preprocess(&self, encoder: &mut wgpu::CommandEncoder, gaussian_count: u32) {
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Preprocessor Pre Compute Pass"),
-                timestamp_writes: None,
-            });
+        self.pre_bundle.dispatch(encoder, [&self.bind_group], 1);
 
-            pass.set_pipeline(&self.pre_pipeline);
-            pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-        }
+        self.bundle
+            .dispatch(encoder, [&self.bind_group], gaussian_count);
 
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Preprocessor Compute Pass"),
-                timestamp_writes: None,
-            });
-
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_size()), 1, 1);
-        }
-
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Preprocessor Post Compute Pass"),
-                timestamp_writes: None,
-            });
-
-            pass.set_pipeline(&self.post_pipeline);
-            pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-        }
+        self.post_bundle.dispatch(encoder, [&self.bind_group], 1);
     }
 
     /// Create the bind group statically.
@@ -288,77 +268,50 @@ impl Preprocessor<()> {
     /// To create a bind group with layout matched to this preprocessor, use the
     /// [`Preprocessor::create_bind_group`] method.
     pub fn new_without_bind_group<G: GaussianPod>(device: &wgpu::Device) -> Result<Self, Error> {
-        let workgroup_size = device
-            .limits()
-            .max_compute_workgroup_size_x
-            .min(device.limits().max_compute_invocations_per_workgroup);
-
-        log::debug!("Creating preprocessor bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        log::debug!("Creating preprocessor pipeline layout");
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Preprocessor Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let pre_bundle = ComputeBundleBuilder::new()
+            .label(format!("Pre {}", Preprocessor::LABEL).as_str())
+            .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .main("super::preprocess::pre();")
+            .compile_options(wesl::CompileOptions {
+                features: G::features_map(),
+                ..Default::default()
+            })
+            .resolver(wesl_utils::resolver())
+            .build_without_bind_groups(device)?;
 
-        log::debug!("Creating preprocessor shader module");
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Preprocessor Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                wesl_utils::compiler(G::features())
-                    .compile("preprocess")?
-                    .to_string()
-                    .into(),
-            ),
-        });
+        let bundle = ComputeBundleBuilder::new()
+            .label(Preprocessor::LABEL)
+            .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .main("super::preprocess::main(index);")
+            .compile_options(wesl::CompileOptions {
+                features: G::features_map(),
+                ..Default::default()
+            })
+            .resolver(wesl_utils::resolver())
+            .build_without_bind_groups(device)?;
 
-        let compilation_options = wgpu::PipelineCompilationOptions {
-            constants: &[("workgroup_size", workgroup_size as f64)],
-            ..Default::default()
-        };
-
-        log::debug!("Creating preprocessor pre pipeline");
-        let pre_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Preprocessor Pre Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: Some("pre_main"),
-            compilation_options: compilation_options.clone(),
-            cache: None,
-        });
-
-        log::debug!("Creating preprocessor pipeline");
-        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Preprocessor Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: Some("main"),
-            compilation_options: compilation_options.clone(),
-            cache: None,
-        });
-
-        log::debug!("Creating preprocessor post pipeline");
-        let post_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Preprocessor Post Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: Some("post_main"),
-            compilation_options,
-            cache: None,
-        });
+        let post_bundle = ComputeBundleBuilder::new()
+            .label(format!("Post {}", Preprocessor::LABEL).as_str())
+            .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .main("super::preprocess::post();")
+            .compile_options(wesl::CompileOptions {
+                features: G::features_map(),
+                ..Default::default()
+            })
+            .resolver(wesl_utils::resolver())
+            .build_without_bind_groups(device)?;
 
         log::info!("Preprocessor created");
 
         Ok(Self {
-            workgroup_size,
             bind_group_layout,
             bind_group: (),
-            pre_pipeline,
-            pipeline,
-            post_pipeline,
+            pre_bundle,
+            bundle,
+            post_bundle,
         })
     }
 
@@ -369,37 +322,10 @@ impl Preprocessor<()> {
         bind_group: &wgpu::BindGroup,
         gaussian_count: u32,
     ) {
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Preprocessor Pre Compute Pass"),
-                timestamp_writes: None,
-            });
+        self.pre_bundle.dispatch(encoder, [bind_group], 1);
 
-            pass.set_pipeline(&self.pre_pipeline);
-            pass.set_bind_group(0, bind_group, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-        }
+        self.bundle.dispatch(encoder, [bind_group], gaussian_count);
 
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Preprocessor Compute Pass"),
-                timestamp_writes: None,
-            });
-
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, bind_group, &[]);
-            pass.dispatch_workgroups(gaussian_count.div_ceil(self.workgroup_size()), 1, 1);
-        }
-
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Preprocessor Post Compute Pass"),
-                timestamp_writes: None,
-            });
-
-            pass.set_pipeline(&self.post_pipeline);
-            pass.set_bind_group(0, bind_group, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-        }
+        self.post_bundle.dispatch(encoder, [bind_group], 1);
     }
 }
