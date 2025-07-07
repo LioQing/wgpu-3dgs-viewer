@@ -68,6 +68,9 @@ impl Preprocessor {
     /// The label.
     const LABEL: &str = "Preprocessor";
 
+    /// The main shader.
+    const MAIN_SHADER: &str = "preprocess.wesl";
+
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
@@ -274,7 +277,8 @@ impl Preprocessor<()> {
         let pre_bundle = ComputeBundleBuilder::new()
             .label(format!("Pre {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
-            .main("super::preprocess::pre();")
+            .entry_point("pre")
+            .main_shader(Preprocessor::MAIN_SHADER)
             .compile_options(wesl::CompileOptions {
                 features: G::features_map(),
                 ..Default::default()
@@ -285,7 +289,8 @@ impl Preprocessor<()> {
         let bundle = ComputeBundleBuilder::new()
             .label(Preprocessor::LABEL)
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
-            .main("super::preprocess::main(index);")
+            .entry_point("main")
+            .main_shader(Preprocessor::MAIN_SHADER)
             .compile_options(wesl::CompileOptions {
                 features: G::features_map(),
                 ..Default::default()
@@ -296,7 +301,8 @@ impl Preprocessor<()> {
         let post_bundle = ComputeBundleBuilder::new()
             .label(format!("Post {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
-            .main("super::preprocess::post();")
+            .entry_point("post")
+            .main_shader(Preprocessor::MAIN_SHADER)
             .compile_options(wesl::CompileOptions {
                 features: G::features_map(),
                 ..Default::default()

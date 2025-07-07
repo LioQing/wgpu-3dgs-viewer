@@ -6,6 +6,7 @@ import super::{
 import wgpu_3dgs_core::{
     gaussian::Gaussian,
     model_transform::{ ModelTransform, model_to_world },
+    compute_bundle::index,
 };
 
 @group(0) @binding(0)
@@ -40,12 +41,18 @@ var<storage, read_write> indirect_indices: array<u32>;
 @group(0) @binding(6)
 var<storage, read_write> gaussians_depth: array<f32>;
 
+@compute @workgroup_size(1, 1, 1)
 fn pre() {
     // Reset instance count
     atomicStore(&indirect_args.instance_count, 0u);
 }
 
-fn main(index: u32) {
+override workgroup_size: u32;
+
+@compute @workgroup_size(workgroup_size, 1, 1)
+fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let index = index(wid, workgroup_size, lid);
+
     if index >= arrayLength(&gaussians) {
         return;
     }
@@ -67,6 +74,7 @@ fn main(index: u32) {
     gaussians_depth[culled_index] = 1.0 - ndc_pos.z;
 }
 
+@compute @workgroup_size(1, 1, 1)
 fn post() {
     let instance_count = atomicLoad(&indirect_args.instance_count);
 
