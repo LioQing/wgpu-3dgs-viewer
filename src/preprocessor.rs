@@ -200,12 +200,12 @@ impl Preprocessor {
 
     /// Preprocess the Gaussians.
     pub fn preprocess(&self, encoder: &mut wgpu::CommandEncoder, gaussian_count: u32) {
-        self.pre_bundle.dispatch(encoder, [&self.bind_group], 1);
+        self.pre_bundle.dispatch(encoder, 1, [&self.bind_group]);
 
         self.bundle
-            .dispatch(encoder, [&self.bind_group], gaussian_count);
+            .dispatch(encoder, gaussian_count, [&self.bind_group]);
 
-        self.post_bundle.dispatch(encoder, [&self.bind_group], 1);
+        self.post_bundle.dispatch(encoder, 1, [&self.bind_group]);
     }
 
     /// Create the bind group statically.
@@ -274,7 +274,7 @@ impl Preprocessor<()> {
         let bind_group_layout =
             device.create_bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        let pre_bundle = ComputeBundleBuilder::new()
+        let pre_bundle = ComputeBundleBuilder::<wesl::StandardResolver>::new()
             .label(format!("Pre {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("pre")
@@ -286,7 +286,7 @@ impl Preprocessor<()> {
             .resolver(wesl_utils::resolver())
             .build_without_bind_groups(device)?;
 
-        let bundle = ComputeBundleBuilder::new()
+        let bundle = ComputeBundleBuilder::<wesl::StandardResolver>::new()
             .label(Preprocessor::LABEL)
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("main")
@@ -298,7 +298,7 @@ impl Preprocessor<()> {
             .resolver(wesl_utils::resolver())
             .build_without_bind_groups(device)?;
 
-        let post_bundle = ComputeBundleBuilder::new()
+        let post_bundle = ComputeBundleBuilder::<wesl::StandardResolver>::new()
             .label(format!("Post {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("post")
@@ -328,10 +328,10 @@ impl Preprocessor<()> {
         bind_group: &wgpu::BindGroup,
         gaussian_count: u32,
     ) {
-        self.pre_bundle.dispatch(encoder, [bind_group], 1);
+        self.pre_bundle.dispatch(encoder, 1, [bind_group]);
 
-        self.bundle.dispatch(encoder, [bind_group], gaussian_count);
+        self.bundle.dispatch(encoder, gaussian_count, [bind_group]);
 
-        self.post_bundle.dispatch(encoder, [bind_group], 1);
+        self.post_bundle.dispatch(encoder, 1, [bind_group]);
     }
 }
