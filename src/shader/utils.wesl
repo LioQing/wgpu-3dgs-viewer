@@ -1,7 +1,8 @@
-import super::camera::{ Camera, world_to_camera };
+import wgpu_3dgs_viewer::camera::{ Camera, world_to_camera };
 import wgpu_3dgs_core::{
     gaussian::{
         Gaussian,
+        gaussian_unpack_color,
         gaussian_unpack_cov3d,
         gaussian_unpack_sh,
     },
@@ -72,8 +73,8 @@ fn cov2d_axes(gaussian: Gaussian, model_transform: ModelTransform) -> vec4<f32> 
     return vec4<f32>(major_axis, minor_axis);
 }
 
-// Calculate the color of a Gaussian based on its SH coefficients and direction.
-fn color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> vec4<f32> {
+// Calculate the color of a Gaussian based on its SH coefficients and view direction.
+fn view_color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> vec4<f32> {
     const sh_c1 = 0.4886025;
     const sh_c2 = array<f32, 5>(1.0925484, -1.0925484, 0.3153916, -1.0925484, 0.5462742);
     const sh_c3 = array<f32, 7>(
@@ -84,8 +85,8 @@ fn color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> vec4<
     let y = dir.y;
     let z = dir.z;
 
-    let color = unpack4x8unorm(gaussian.color);
-    var result = color.rgb; // 0.5 + SH_C0 * sh[0] already precomputed
+    let c = gaussian_unpack_color(gaussian);
+    var result = c.rgb; // 0.5 + SH_C0 * sh[0] already precomputed
 
     if no_sh0 {
         result = vec3<f32>(0.5);
@@ -126,5 +127,5 @@ fn color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> vec4<
         }
     }
 
-    return vec4<f32>(max(result, vec3<f32>(0.0)), color.a);
+    return vec4<f32>(max(result, vec3<f32>(0.0)), c.a);
 }

@@ -1,8 +1,8 @@
-import super::{
+import wgpu_3dgs_viewer::{
     camera::{ Camera, camera_aspect_ratio },
     utils::{
-        cov2d_axes as gaussian_cov2d_axes,
-        color as gaussian_color,
+        cov2d_axes,
+        view_color,
     },
 };
 import wgpu_3dgs_core::{
@@ -64,14 +64,12 @@ fn color(gaussian: Gaussian, world_pos: vec3<f32>) -> vec4<f32> {
     let world_view_dir = world_camera_pos - world_pos;
     let model_view_dir = model_transform_inv_sr_mat(model_transform) * world_view_dir;
 
-    let color = gaussian_color(
+    return view_color(
         gaussian,
         -normalize(model_view_dir),
         gaussian_transform_sh_deg(gaussian_transform.flags),
         gaussian_transform_no_sh0(gaussian_transform.flags),
     );
-
-    return color;
 }
 
 @vertex
@@ -108,7 +106,7 @@ fn vert_main(
         return out;
     }
     
-    let axes = gaussian_cov2d_axes(gaussian, model_transform);
+    let axes = cov2d_axes(gaussian, model_transform);
     if all(axes == vec4<f32>(0.0, 0.0, 0.0, 0.0)) {
         out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);
         return out;

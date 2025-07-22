@@ -243,14 +243,27 @@ impl Renderer<()> {
             push_constant_ranges: &[],
         });
 
+        log::debug!("Compiling renderer shader");
+        let (syntax, sourcemap) = wesl::compile_sourcemap(
+            &"wgpu_3dgs_viewer/render".into(),
+            &wesl_utils::resolver(),
+            &wesl::NoMangler,
+            &wesl::CompileOptions {
+                features: G::features_map(),
+                ..Default::default()
+            },
+        );
+
         log::debug!("Creating renderer shader");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Renderer Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                wesl_utils::compiler(G::features())
-                    .compile("render")?
-                    .to_string()
-                    .into(),
+                wesl::CompileResult {
+                    syntax: syntax?,
+                    sourcemap: Some(sourcemap),
+                }
+                .to_string()
+                .into(),
             ),
         });
 

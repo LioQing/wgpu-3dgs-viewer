@@ -69,7 +69,7 @@ impl Preprocessor {
     const LABEL: &str = "Preprocessor";
 
     /// The main shader.
-    const MAIN_SHADER: &str = "preprocess.wesl";
+    const MAIN_SHADER: &str = "wgpu_3dgs_viewer/preprocess";
 
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
@@ -274,7 +274,7 @@ impl Preprocessor<()> {
         let bind_group_layout =
             device.create_bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        let pre_bundle = ComputeBundleBuilder::<wesl::StandardResolver>::new()
+        let pre_bundle = ComputeBundleBuilder::new()
             .label(format!("Pre {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("pre")
@@ -286,7 +286,7 @@ impl Preprocessor<()> {
             .resolver(wesl_utils::resolver())
             .build_without_bind_groups(device)?;
 
-        let bundle = ComputeBundleBuilder::<wesl::StandardResolver>::new()
+        let bundle = ComputeBundleBuilder::new()
             .label(Preprocessor::LABEL)
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("main")
@@ -298,7 +298,7 @@ impl Preprocessor<()> {
             .resolver(wesl_utils::resolver())
             .build_without_bind_groups(device)?;
 
-        let post_bundle = ComputeBundleBuilder::<wesl::StandardResolver>::new()
+        let post_bundle = ComputeBundleBuilder::new()
             .label(format!("Post {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("post")

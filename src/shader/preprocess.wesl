@@ -1,11 +1,10 @@
-import wgpu_3dgs_core::model_transform::model_transform_mat;
-import super::{
+import wgpu_3dgs_viewer::{
     camera::{ Camera, world_to_camera },
-    utils::cull as gaussian_cull,
+    utils::cull,
 };
 import wgpu_3dgs_core::{
     gaussian::Gaussian,
-    model_transform::{ ModelTransform, model_to_world },
+    model_transform::{ ModelTransform, model_to_world, model_transform_mat },
     compute_bundle::index,
 };
 
@@ -60,7 +59,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let gaussian = gaussians[index];
 
     // Cull
-    if gaussian_cull(gaussian, model_transform, camera) {
+    if cull(gaussian, model_transform, camera) {
         return;
     }
 
