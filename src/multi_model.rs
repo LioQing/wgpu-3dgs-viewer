@@ -141,10 +141,10 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         &mut self,
         queue: &wgpu::Queue,
         pos: Vec3,
-        quat: Quat,
+        rot: Quat,
         scale: Vec3,
     ) {
-        self.model_transform_buffer.update(queue, pos, quat, scale);
+        self.model_transform_buffer.update(queue, pos, rot, scale);
     }
 
     /// Update the model transform with [`ModelTransformPod`].
@@ -312,14 +312,14 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         queue: &wgpu::Queue,
         key: &K,
         pos: Vec3,
-        quat: Quat,
+        rot: Quat,
         scale: Vec3,
     ) {
         self.models
             .get_mut(key)
             .expect("model not found")
             .gaussian_buffers
-            .update_model_transform(queue, pos, quat, scale);
+            .update_model_transform(queue, pos, rot, scale);
     }
 
     /// Update the model transform with [`ModelTransformPod`].

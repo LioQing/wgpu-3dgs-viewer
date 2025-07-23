@@ -163,10 +163,10 @@ impl<G: GaussianPod> Viewer<G> {
         &mut self,
         queue: &wgpu::Queue,
         pos: Vec3,
-        quat: Quat,
+        rot: Quat,
         scale: Vec3,
     ) {
-        self.model_transform_buffer.update(queue, pos, quat, scale);
+        self.model_transform_buffer.update(queue, pos, rot, scale);
     }
 
     /// Update the model transform with [`ModelTransformPod`].
