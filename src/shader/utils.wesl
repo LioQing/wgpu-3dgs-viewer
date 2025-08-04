@@ -10,7 +10,7 @@ import wgpu_3dgs_core::{
         ModelTransform,
         model_to_world,
         model_transform_mat,
-        model_scale_rotation_mat,
+        model_scale_rot_mat,
     },
 };
 
@@ -25,7 +25,7 @@ fn cull(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> 
 // Project a 3D covariance matrix into a 2D covariance matrix.
 fn cov2d(gaussian: Gaussian, model_transform: ModelTransform) -> vec3<f32> {
     let cov3d = gaussian_unpack_cov3d(gaussian);
-    let sr = model_scale_rotation_mat(model_transform);
+    let sr = model_scale_rot_mat(model_transform);
 
     let vrk = mat3x3<f32>(
         cov3d[0], cov3d[1], cov3d[2],
