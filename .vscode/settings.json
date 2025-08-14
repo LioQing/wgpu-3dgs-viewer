@@ -6,7 +6,6 @@
         100
     ],
     "rust-analyzer.check.command": "clippy",
-    "rust-analyzer.cargo.features": ["bin-simple", "bin-multi-model"],
     "files.associations": {
         "*.wesl": "wgsl"
     }

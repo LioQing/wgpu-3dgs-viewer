@@ -6,6 +6,9 @@ use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, win
 
 use wgpu_3dgs_viewer as gs;
 
+mod utils;
+use utils::core;
+
 /// The command line arguments.
 #[derive(Parser, Debug)]
 #[command(
@@ -27,7 +30,7 @@ fn main() -> Result<(), EventLoopError> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let event_loop = EventLoop::new()?;
-    event_loop.run_app(&mut gs::bin_core::App::<System>::new(Args::parse()))?;
+    event_loop.run_app(&mut core::App::<System>::new(Args::parse()))?;
     Ok(())
 }
 
@@ -44,7 +47,7 @@ struct System {
     viewer: gs::Viewer,
 }
 
-impl gs::bin_core::System for System {
+impl core::System for System {
     type Args = Args;
 
     async fn init(window: Arc<Window>, args: &Args) -> Self {
@@ -112,9 +115,8 @@ impl gs::bin_core::System for System {
         camera.pos.z -= 1.0;
 
         log::debug!("Creating viewer");
-        let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians)
-            .inspect_err(|e| log::error!("{e}"))
-            .expect("viewer");
+        let mut viewer =
+            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
         viewer.update_gaussian_transform(
             &queue,
@@ -138,7 +140,7 @@ impl gs::bin_core::System for System {
         }
     }
 
-    fn update(&mut self, input: &gs::bin_core::Input, delta_time: f32) {
+    fn update(&mut self, input: &core::Input, delta_time: f32) {
         // Camera movement
         const SPEED: f32 = 1.0;
 

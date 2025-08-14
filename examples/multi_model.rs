@@ -6,6 +6,9 @@ use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, win
 
 use wgpu_3dgs_viewer as gs;
 
+mod utils;
+use utils::core;
+
 /// The command line arguments.
 #[derive(Parser, Debug)]
 #[command(
@@ -19,15 +22,25 @@ use wgpu_3dgs_viewer as gs;
 )]
 struct Args {
     /// Path to the .ply file.
-    #[arg(short, long)]
-    model: String,
+    #[arg(short, long, num_args = 1..)]
+    models: Vec<String>,
+
+    /// The offset of each model.
+    #[arg(
+        short,
+        long,
+        num_args = 3,
+        value_delimiter = ',',
+        default_value = "10.0,0.0,0.0"
+    )]
+    offset: Vec<f32>,
 }
 
 fn main() -> Result<(), EventLoopError> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let event_loop = EventLoop::new()?;
-    event_loop.run_app(&mut gs::bin_core::App::<System>::new(Args::parse()))?;
+    event_loop.run_app(&mut core::App::<System>::new(Args::parse()))?;
     Ok(())
 }
 
@@ -40,15 +53,17 @@ struct System {
     config: wgpu::SurfaceConfiguration,
 
     camera: gs::Camera,
-    gaussians: gs::Gaussians,
-    viewer: gs::Viewer,
+    gaussians: Vec<gs::core::Gaussians>,
+    gaussian_centroids: Vec<Vec3>,
+    viewer: gs::MultiModelViewer<gs::DefaultGaussianPod, usize>,
 }
 
-impl gs::bin_core::System for System {
+impl core::System for System {
     type Args = Args;
 
     async fn init(window: Arc<Window>, args: &Args) -> Self {
-        let model_path = &args.model;
+        let model_paths = &args.models;
+        let model_offset = Vec3::from_slice(&args.offset);
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
@@ -96,32 +111,54 @@ impl gs::bin_core::System for System {
         surface.configure(&device, &config);
 
         log::debug!("Creating gaussians");
-        let f = std::fs::File::open(model_path).expect("ply file");
-        let mut reader = std::io::BufReader::new(f);
-        let gaussians = gs::Gaussians::read_ply(&mut reader).expect("gaussians");
+        let gaussians = model_paths
+            .iter()
+            .map(|model_path| {
+                log::debug!("Reading model from {model_path}");
+                let f = std::fs::File::open(model_path).expect("ply file");
+                let mut reader = std::io::BufReader::new(f);
+                gs::core::Gaussians::read_ply(&mut reader).expect("gaussians")
+            })
+            .collect::<Vec<_>>();
+
+        log::debug!("Computing gaussian centroids");
+        let mut gaussian_centroids = gaussians
+            .iter()
+            .map(|g| {
+                let mut centroid = Vec3::ZERO;
+                for gaussian in &g.gaussians {
+                    centroid += gaussian.pos;
+                }
+                centroid / g.gaussians.len() as f32
+            })
+            .collect::<Vec<_>>();
 
         log::debug!("Creating camera");
-        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
-        let mut camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
-        camera.pos = gaussians
-            .gaussians
-            .iter()
-            .map(|g| adjust_quat * g.pos)
-            .sum::<Vec3>()
-            / gaussians.gaussians.len() as f32;
-        camera.pos.z -= 1.0;
+        let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
         log::debug!("Creating viewer");
-        let mut viewer =
-            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
-        viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
+        let mut viewer = gs::MultiModelViewer::new(&device, config.view_formats[0])
+            .inspect_err(|e| log::error!("{e}"))
+            .expect("viewer");
         viewer.update_gaussian_transform(
             &queue,
             1.0,
-            gs::GaussianDisplayMode::Splat,
-            gs::GaussianShDegree::new(3).expect("SH degree"),
+            gs::core::GaussianDisplayMode::Splat,
+            gs::core::GaussianShDegree::new(3).expect("SH degree"),
             false,
         );
+
+        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
+        for (i, gaussians) in gaussians.iter().enumerate() {
+            let offset = model_offset * i as f32;
+
+            log::debug!("Pushing model {i}");
+
+            viewer.insert_model(&device, i, gaussians);
+            viewer.update_model_transform(&queue, &i, offset, adjust_quat, Vec3::ONE);
+
+            gaussian_centroids[i] = adjust_quat.mul_vec3(gaussian_centroids[i]) + offset;
+        }
 
         log::info!("System initialized");
 
@@ -133,12 +170,12 @@ impl gs::bin_core::System for System {
 
             camera,
             gaussians,
+            gaussian_centroids,
             viewer,
         }
     }
 
-    fn update(&mut self, input: &gs::bin_core::Input, delta_time: f32) {
-        // Camera movement
+    fn update(&mut self, input: &core::Input, delta_time: f32) {
         const SPEED: f32 = 1.0;
 
         let mut forward = 0.0;
@@ -206,7 +243,32 @@ impl gs::bin_core::System for System {
                 label: Some("Command Encoder"),
             });
 
-        self.viewer.render(&mut encoder, &texture_view);
+        let mut render_keys = self
+            .gaussian_centroids
+            .iter()
+            .enumerate()
+            .map(|(i, centroid)| (i, centroid - self.camera.pos))
+            .collect::<Vec<_>>();
+
+        render_keys.sort_by(|(_, a), (_, b)| {
+            a.length()
+                .partial_cmp(&b.length())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let render_keys = render_keys
+            .into_iter()
+            .rev()
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+
+        self.viewer
+            .render(
+                &mut encoder,
+                &texture_view,
+                render_keys.iter().collect::<Vec<_>>().as_slice(),
+            )
+            .expect("render");
 
         self.queue.submit(std::iter::once(encoder.finish()));
         if let Err(e) = self.device.poll(wgpu::PollType::Wait) {

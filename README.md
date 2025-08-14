@@ -46,13 +46,9 @@ This crate depends on the following crates:
 
 ## Usage
 
-There are two ways to use this viewer:
-
-1. As a [library](#library)
-
-2. As a [standalone application](#standalone-application)
-
 ### Library
+
+You can use it as a library to render 3D Gaussian splatting in your own application. 
 
 Generally, the [`Viewer`] is sufficient for most use cases. However, you may directly use the individual components from the fields of [`Viewer`] if you want more control.
 
@@ -101,24 +97,23 @@ You may also take a look at some binary examples:
 - [`selection-wgpu-3dgs-viewer`](./src/bin/selection.rs): a selection and multi-model example
 - [`mask-wgpu-3dgs-viewer`](./src/bin/mask.rs): a masking and depth testing example
 
-### Standalone Application
+### Standalone Examples
 
-To run the standalone application, use the following command:
+To run the examples, you can use the following commands:
 
 ```sh
-simple-wgpu-3dgs-viewer -m "path/to/model.ply"
+cargo run --example simple -- "path/to/model.ply"
 ```
 
 Usage:
 
 ```text
-     Running `target\debug\simple-wgpu-3dgs-viewer.exe --help`
 A 3D Gaussian splatting viewer written in Rust using wgpu.
 
-In default mode, use W, A, S, D, Space, Shift to move, use mouse to rotate.
+Use W, A, S, D, Space, Shift to move, use mouse to rotate.
 
 
-Usage: simple-wgpu-3dgs-viewer.exe --model <MODEL>
+Usage: simple.exe --model <MODEL>
 
 Options:
   -m, --model <MODEL>
@@ -131,10 +126,10 @@ Options:
           Print version
 ```
 
-Or try the selection related features:
+Or try the multi-model example:
 
 ```sh
-selection-wgpu-3dgs-viewer -m "path/to/model.ply"
+cargo run --example multi-model --features multi-model -- -m "path/to/model1.ply" -m "path/to/model2.ply" .. -o offsetx offsety offsetz
 ```
 
 Usage:
@@ -142,15 +137,19 @@ Usage:
 ```text
 A 3D Gaussian splatting viewer written in Rust using wgpu.
 
-In default mode, use W, A, S, D, Space, Shift to move, use mouse to rotate.
-In selection mode, use left mouse button to brush select, use right mouse button to box select, hold space to use immediate selection, use delete to detele selected Gaussians.
-Use C to toggle between default and selection mode.
+Use W, A, S, D, Space, Shift to move, use mouse to rotate.
 
-Usage: selection-wgpu-3dgs-viewer.exe --model <MODEL>
+
+Usage: multi-model.exe [OPTIONS]
 
 Options:
-  -m, --model <MODEL>
+  -m, --models <MODELS>...
           Path to the .ply file
+
+  -o, --offset <OFFSET> <OFFSET> <OFFSET>
+          The offset of each model
+
+          [default: 10.0,0.0,0.0]
 
   -h, --help
           Print help (see a summary with '-h')

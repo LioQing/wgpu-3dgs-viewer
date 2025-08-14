@@ -12,9 +12,6 @@ mod wesl_utils;
 #[cfg(feature = "multi-model")]
 mod multi_model;
 
-#[cfg(feature = "bin-core")]
-pub mod bin_core;
-
 use glam::*;
 use wgpu_3dgs_core::{
     GaussianDisplayMode, GaussianPod, GaussianPodWithShNorm8Cov3dHalfConfigs, GaussianShDegree,

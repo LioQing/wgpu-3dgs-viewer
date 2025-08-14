@@ -22,39 +22,20 @@ categories = ["graphics", "rendering", "wasm"]
 name = "wgpu_3dgs_viewer"
 path = "src/lib.rs"
 
-[[bin]]
-name = "dev-wgpu-3dgs-viewer"
-path = "src/bin/dev.rs"
-required-features = ["bin-dev"]
+[[example]]
+name = "dev"
+path = "examples/dev.rs"
 
-[[bin]]
-name = "simple-wgpu-3dgs-viewer"
-path = "src/bin/simple.rs"
-required-features = ["bin-simple"]
+[[example]]
+name = "multi-model"
+path = "examples/multi_model.rs"
+required-features = ["multi-model"]
 
-[[bin]]
-name = "multi-model-wgpu-3dgs-viewer"
-path = "src/bin/multi_model.rs"
-required-features = ["bin-multi-model"]
+[[example]]
+name = "simple"
+path = "examples/simple.rs"
 
 [features]
-bin-dev = ["bin-core", "dep:clap", "dep:env_logger", "dep:futures", "dep:winit"]
-bin-simple = [
-    "bin-core",
-    "dep:clap",
-    "dep:env_logger",
-    "dep:futures",
-    "dep:winit",
-]
-bin-multi-model = [
-    "bin-core",
-    "multi-model",
-    "dep:clap",
-    "dep:env_logger",
-    "dep:futures",
-    "dep:winit",
-]
-bin-core = []
 multi-model = []
 
 [dependencies]
@@ -75,7 +56,8 @@ thiserror = "2.0"
 wgpu = "25.0"
 wesl = "0.1"
 
-clap = { version = "4.5", features = ["derive"], optional = true }
-env_logger = { version = "0.11", optional = true }
-futures = { version = "0.3", optional = true }
-winit = { version = "0.30", optional = true }
+[dev-dependencies]
+clap = { version = "4.5", features = ["derive"] }
+env_logger = { version = "0.11" }
+futures = { version = "0.3" }
+winit = { version = "0.30" }
