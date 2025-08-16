@@ -37,9 +37,12 @@ path = "examples/simple.rs"
 
 [features]
 multi-model = []
+selection = ["editor"]
+editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]
 wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
+wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", optional = true }
 
 bytemuck = { version = "1.23", features = [
     "derive",

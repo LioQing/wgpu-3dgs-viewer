@@ -14,7 +14,7 @@ import wgpu_3dgs_core::{
     },
 };
 
-/// Determine if a Gaussian should be culled given a camera.
+// Determine if a Gaussian should be culled given a camera.
 fn cull(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> bool {
     let world_pos = model_to_world(model_transform, gaussian.pos);
     let proj_pos = world_to_camera(camera, world_pos);

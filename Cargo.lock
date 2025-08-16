@@ -2790,6 +2790,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "wgpu-3dgs-editor"
+version = "0.4.0"
+dependencies = [
+ "bitflags 2.9.1",
+ "bytemuck",
+ "glam",
+ "half",
+ "log",
+ "paste",
+ "thiserror 2.0.12",
+ "wesl",
+ "wgpu",
+ "wgpu-3dgs-core",
+]
+
+[[package]]
 name = "wgpu-3dgs-viewer"
 version = "0.4.0"
 dependencies = [
@@ -2807,6 +2823,7 @@ dependencies = [
  "wesl",
  "wgpu",
  "wgpu-3dgs-core",
+ "wgpu-3dgs-editor",
  "winit",
 ]
 

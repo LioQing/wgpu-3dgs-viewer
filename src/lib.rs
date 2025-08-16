@@ -12,6 +12,9 @@ mod wesl_utils;
 #[cfg(feature = "multi-model")]
 mod multi_model;
 
+#[cfg(feature = "selection")]
+pub mod selection;
+
 use glam::*;
 use wgpu_3dgs_core::{
     GaussianDisplayMode, GaussianPod, GaussianPodWithShNorm8Cov3dHalfConfigs, GaussianShDegree,
@@ -30,6 +33,9 @@ pub use renderer::*;
 pub use multi_model::*;
 
 pub use wgpu_3dgs_core as core;
+
+#[cfg(feature = "editor")]
+pub use wgpu_3dgs_editor as editor;
 
 /// The default viewer [`GaussianPod`] type.
 pub type DefaultGaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs;
