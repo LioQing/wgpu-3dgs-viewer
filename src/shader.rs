@@ -88,17 +88,20 @@ pub mod selection {
         }
 
         fn submodules(&self) -> &[&dyn PkgModule] {
-            static SUBMODULES: &[&dyn PkgModule] = &[&viewport::Mod];
+            static SUBMODULES: &[&dyn PkgModule] =
+                &[&viewport::Mod, &viewport_texture_rectangle::Mod];
             SUBMODULES
         }
 
         fn submodule(&self, name: &str) -> Option<&dyn PkgModule> {
             match name {
                 "viewport" => Some(&viewport::Mod),
+                "viewport_texture_rectangle" => Some(&viewport_texture_rectangle::Mod),
                 _ => None,
             }
         }
     }
 
     selection_submodule!(viewport);
+    selection_submodule!(viewport_texture_rectangle);
 }

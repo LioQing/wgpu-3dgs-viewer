@@ -18,3 +18,8 @@ fn world_to_camera(camera: Camera, world_pos: vec4<f32>) -> vec4<f32> {
 fn ndc_to_camera_texture(ndc_pos: vec2<f32>, size: vec2<f32>) -> vec2<f32> {
     return (ndc_pos * vec2<f32>(1.0, -1.0) + vec2<f32>(1.0)) * size * 0.5;
 }
+
+// Transform a camera texture coordinate to NDC.
+fn camera_texture_to_ndc(coords: vec2<f32>, size: vec2<f32>) -> vec2<f32> {
+    return (coords / size * 2.0 - 1.0) * vec2<f32>(1.0, -1.0);
+}
