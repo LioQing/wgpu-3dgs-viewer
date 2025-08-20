@@ -32,6 +32,10 @@ path = "examples/multi_model.rs"
 required-features = ["multi-model"]
 
 [[example]]
+name = "selection"
+path = "examples/selection.rs"
+
+[[example]]
 name = "simple"
 path = "examples/simple.rs"
 

@@ -1,10 +1,7 @@
 use crate::{
     CameraBuffer, Error,
     core::BufferWrapper,
-    selection::{
-        ViewportTexture, ViewportTextureRectangleBottomRightBuffer,
-        ViewportTextureRectangleTopLeftBuffer,
-    },
+    selection::{ViewportTexture, ViewportTexturePosBuffer},
     wesl_utils,
 };
 
@@ -26,8 +23,8 @@ impl<B> ViewportTextureRectangleRenderer<B> {
         &self,
         device: &wgpu::Device,
         camera: &CameraBuffer,
-        top_left: &ViewportTextureRectangleTopLeftBuffer,
-        bottom_right: &ViewportTextureRectangleBottomRightBuffer,
+        top_left: &ViewportTexturePosBuffer,
+        bottom_right: &ViewportTexturePosBuffer,
     ) -> wgpu::BindGroup {
         ViewportTextureRectangleRenderer::create_bind_group_static(
             device,
@@ -86,8 +83,8 @@ impl ViewportTextureRectangleRenderer {
         device: &wgpu::Device,
         texture: &ViewportTexture,
         camera: &CameraBuffer,
-        top_left: &ViewportTextureRectangleTopLeftBuffer,
-        bottom_right: &ViewportTextureRectangleBottomRightBuffer,
+        top_left: &ViewportTexturePosBuffer,
+        bottom_right: &ViewportTexturePosBuffer,
     ) -> Result<Self, Error> {
         let this = ViewportTextureRectangleRenderer::new_without_bind_group(device, texture)?;
 
@@ -133,8 +130,8 @@ impl ViewportTextureRectangleRenderer {
         device: &wgpu::Device,
         bind_group_layout: &wgpu::BindGroupLayout,
         camera: &CameraBuffer,
-        top_left: &ViewportTextureRectangleTopLeftBuffer,
-        bottom_right: &ViewportTextureRectangleBottomRightBuffer,
+        top_left: &ViewportTexturePosBuffer,
+        bottom_right: &ViewportTexturePosBuffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Viewport Texture Rectangle Renderer Bind Group"),

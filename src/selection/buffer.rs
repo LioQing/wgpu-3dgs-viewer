@@ -43,15 +43,18 @@ impl ViewportTexture {
     }
 }
 
-/// The top left coordinate buffer for [`ViewportTextureRectangle`](crate::selection::ViewportTextureRectangle).
+/// The position buffer for [`ViewportTexture`].
+///
+/// This is used for [`ViewportTextureRectangleRenderer`](crate::selection::ViewportTextureRectangleRenderer)
+/// to indicate top left and bottom right coordinates of the rectangle.
 #[derive(Debug, Clone)]
-pub struct ViewportTextureRectangleTopLeftBuffer(wgpu::Buffer);
+pub struct ViewportTexturePosBuffer(wgpu::Buffer);
 
-impl ViewportTextureRectangleTopLeftBuffer {
-    /// Create a new top left coordinate buffer.
+impl ViewportTexturePosBuffer {
+    /// Create a new position buffer.
     pub fn new(device: &wgpu::Device) -> Self {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Viewport Selection Texture Rectangle Top Left Buffer"),
+            label: Some("Viewport Selection Texture Pos Buffer"),
             size: std::mem::size_of::<Vec2>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -66,36 +69,7 @@ impl ViewportTextureRectangleTopLeftBuffer {
     }
 }
 
-impl BufferWrapper for ViewportTextureRectangleTopLeftBuffer {
-    fn buffer(&self) -> &wgpu::Buffer {
-        &self.0
-    }
-}
-
-/// The bottom right coordinate buffer for [`ViewportTextureRectangle`](crate::selection::ViewportTextureRectangle).
-#[derive(Debug, Clone)]
-pub struct ViewportTextureRectangleBottomRightBuffer(wgpu::Buffer);
-
-impl ViewportTextureRectangleBottomRightBuffer {
-    /// Create a new bottom right coordinate buffer.
-    pub fn new(device: &wgpu::Device) -> Self {
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Viewport Selection Texture Rectangle Bottom Right Buffer"),
-            size: std::mem::size_of::<Vec2>() as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        Self(buffer)
-    }
-
-    /// Update the bottom right coordinate buffer.
-    pub fn update(&self, queue: &wgpu::Queue, bottom_right: Vec2) {
-        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(&bottom_right));
-    }
-}
-
-impl BufferWrapper for ViewportTextureRectangleBottomRightBuffer {
+impl BufferWrapper for ViewportTexturePosBuffer {
     fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }
