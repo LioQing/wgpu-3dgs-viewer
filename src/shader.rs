@@ -23,6 +23,7 @@ impl PkgModule for Mod {
             "preprocess" => Some(&preprocess::Mod),
             "render" => Some(&render::Mod),
             "utils" => Some(&utils::Mod),
+            "selection" => Some(&selection::Mod),
             _ => selection::Mod.submodule(name),
         }
     }

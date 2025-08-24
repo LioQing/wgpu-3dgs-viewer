@@ -44,7 +44,7 @@ pub struct CameraPod {
     pub view: Mat4,
     pub proj: Mat4,
     pub size: Vec2,
-    _padding_0: [u32; 2],
+    pub _padding: [u32; 2],
 }
 
 impl CameraPod {
@@ -54,7 +54,7 @@ impl CameraPod {
             view: camera.view(),
             proj: camera.projection(size.x as f32 / size.y as f32),
             size: size.as_vec2(),
-            _padding_0: [0; 2],
+            _padding: [0; 2],
         }
     }
 }

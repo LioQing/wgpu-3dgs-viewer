@@ -4,7 +4,7 @@ use clap::Parser;
 use glam::*;
 use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
 
-use wgpu_3dgs_viewer as gs;
+use wgpu_3dgs_viewer::{self as gs, core::BufferWrapper, editor::Modifier};
 
 mod utils;
 use utils::core;
@@ -50,6 +50,10 @@ struct System {
     camera: gs::Camera,
     gaussians: gs::core::Gaussians,
     viewer: gs::Viewer,
+    selector: gs::selection::ViewportSelector,
+
+    viewport_selection_modifier: gs::editor::BasicSelectionModifier,
+    viewport_texture_overlay_renderer: utils::selection::ViewportTextureOverlayRenderer,
 }
 
 impl core::System for System {
@@ -120,9 +124,8 @@ impl core::System for System {
         camera.pos.z -= 1.0;
 
         log::debug!("Creating viewer");
-        let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians)
-            .inspect_err(|e| log::error!("{e}"))
-            .expect("viewer");
+        let mut viewer =
+            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
         viewer.update_gaussian_transform(
             &queue,
@@ -131,6 +134,61 @@ impl core::System for System {
             gs::core::GaussianShDegree::new(3).expect("SH degree"),
             false,
         );
+
+        log::debug!("Creating selector");
+        let selector = gs::selection::ViewportSelector::new(
+            &device,
+            UVec2::new(size.width, size.height),
+            &viewer.camera_buffer,
+        )
+        .expect("selector");
+
+        log::debug!("Creating selection viewport selection compute bundle");
+        let viewport_selection_compute_bundle =
+            gs::selection::create_viewport_bundle::<gs::DefaultGaussianPod>(&device);
+
+        log::debug!("Creating selection viewport selection modifier");
+        let mut viewport_selection_modifier = gs::editor::BasicSelectionModifier::new(
+            &device,
+            &viewer.gaussians_buffer,
+            &viewer.model_transform_buffer,
+            &viewer.gaussian_transform_buffer,
+            vec![viewport_selection_compute_bundle],
+        );
+
+        let viewport_selection_bind_group = viewport_selection_modifier.selection.bundles[0]
+            .create_bind_group(
+                &device,
+                // index 0 is the Gaussians buffer, so we use 1,
+                // see docs of create_sphere_bundle or create_box_bundle
+                1,
+                [
+                    viewer.camera_buffer.buffer().as_entire_binding(),
+                    wgpu::BindingResource::TextureView(selector.viewport_texture.view()),
+                ],
+            )
+            .expect("bind group");
+
+        viewport_selection_modifier.selection_expr =
+            gs::editor::SelectionExpr::Selection(0, vec![viewport_selection_bind_group]);
+
+        viewport_selection_modifier
+            .basic_color_modifiers_buffer
+            .update_with_pod(
+                &queue,
+                &gs::editor::BasicColorModifiersPod {
+                    alpha: 0.0,
+                    ..Default::default()
+                },
+            );
+
+        log::debug!("Creating selection viewport texture overlay renderer");
+        let viewport_texture_overlay_renderer =
+            utils::selection::ViewportTextureOverlayRenderer::new(
+                &device,
+                config.view_formats[0],
+                &selector.viewport_texture,
+            );
 
         log::info!("System initialized");
 
@@ -145,10 +203,147 @@ impl core::System for System {
             camera,
             gaussians,
             viewer,
+            selector,
+
+            viewport_selection_modifier,
+            viewport_texture_overlay_renderer,
         }
     }
 
     fn update(&mut self, input: &core::Input, delta_time: f32) {
+        // Toggle selection mode
+        if input.pressed_keys.contains(&KeyCode::KeyC) {
+            self.selection_mode = !self.selection_mode;
+            log::info!(
+                "Selection mode {}",
+                if self.selection_mode {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            );
+        }
+
+        if self.selection_mode {
+            self.update_selection(input, delta_time);
+        } else {
+            self.update_movement(input, delta_time);
+        }
+    }
+
+    fn render(&mut self) {
+        let texture = match self.surface.get_current_texture() {
+            Ok(texture) => texture,
+            Err(e) => {
+                log::error!("Failed to get current texture: {e:?}");
+                return;
+            }
+        };
+        let texture_view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Texture View"),
+            format: Some(self.config.view_formats[0]),
+            ..Default::default()
+        });
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+
+        self.viewer.render(&mut encoder, &texture_view);
+
+        if self.selection_mode {
+            self.viewport_texture_overlay_renderer
+                .render(&mut encoder, &texture_view);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        if let Err(e) = self.device.poll(wgpu::PollType::Wait) {
+            log::error!("Failed to poll device: {e:?}");
+        }
+        texture.present();
+    }
+
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        if size.width > 0 && size.height > 0 {
+            self.config.width = size.width;
+            self.config.height = size.height;
+            self.surface.configure(&self.device, &self.config);
+
+            // Update selector viewport texture
+            self.selector
+                .resize(&self.device, UVec2::new(size.width, size.height));
+
+            // Update viewport selection bundle
+            let viewport_selection_bind_group = self.viewport_selection_modifier.selection.bundles
+                [0]
+            .create_bind_group(
+                &self.device,
+                // index 0 is the Gaussians buffer, so we use 1,
+                // see docs of create_sphere_bundle or create_box_bundle
+                1,
+                [
+                    self.viewer.camera_buffer.buffer().as_entire_binding(),
+                    wgpu::BindingResource::TextureView(self.selector.viewport_texture.view()),
+                ],
+            )
+            .expect("bind group");
+
+            // Update viewport selection modifier selection expr
+            self.viewport_selection_modifier.selection_expr =
+                gs::editor::SelectionExpr::Selection(0, vec![viewport_selection_bind_group]);
+
+            // Update viewport texture overlay renderer
+            self.viewport_texture_overlay_renderer
+                .update_bind_group(&self.device, &self.selector.viewport_texture);
+        }
+    }
+}
+
+impl System {
+    fn update_selection(&mut self, input: &core::Input, _delta_time: f32) {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+
+        if input
+            .pressed_mouse
+            .contains(&winit::event::MouseButton::Left)
+        {
+            self.selector.start(&self.queue, input.mouse_pos);
+        }
+
+        if input.held_mouse.contains(&winit::event::MouseButton::Left) {
+            self.selector.update(&self.queue, input.mouse_pos);
+        }
+
+        if input
+            .released_mouse
+            .contains(&winit::event::MouseButton::Left)
+        {
+            self.viewport_selection_modifier.apply(
+                &self.device,
+                &mut encoder,
+                &self.viewer.gaussians_buffer,
+                &self.viewer.model_transform_buffer,
+                &self.viewer.gaussian_transform_buffer,
+            );
+
+            self.selector.clear(&self.queue);
+        }
+
+        self.selector.render(&mut encoder);
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        if let Err(e) = self.device.poll(wgpu::PollType::Wait) {
+            log::error!("Failed to poll device: {e:?}");
+        }
+    }
+
+    fn update_movement(&mut self, input: &core::Input, delta_time: f32) {
         // Camera movement
         const SPEED: f32 = 1.0;
 
@@ -195,42 +390,5 @@ impl core::System for System {
             &self.camera,
             uvec2(self.config.width, self.config.height),
         );
-    }
-
-    fn render(&mut self) {
-        let texture = match self.surface.get_current_texture() {
-            Ok(texture) => texture,
-            Err(e) => {
-                log::error!("Failed to get current texture: {e:?}");
-                return;
-            }
-        };
-        let texture_view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("Texture View"),
-            format: Some(self.config.view_formats[0]),
-            ..Default::default()
-        });
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Command Encoder"),
-            });
-
-        self.viewer.render(&mut encoder, &texture_view);
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-        if let Err(e) = self.device.poll(wgpu::PollType::Wait) {
-            log::error!("Failed to poll device: {e:?}");
-        }
-        texture.present();
-    }
-
-    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
-        if size.width > 0 && size.height > 0 {
-            self.config.width = size.width;
-            self.config.height = size.height;
-            self.surface.configure(&self.device, &self.config);
-        }
     }
 }

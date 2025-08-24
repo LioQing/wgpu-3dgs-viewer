@@ -65,6 +65,8 @@ impl ViewportSelector {
     pub fn start(&mut self, queue: &wgpu::Queue, pos: Vec2) {
         self.start_pos = Some(pos);
         self.start_buffer.update(queue, pos);
+        self.end_pos = Some(pos);
+        self.end_buffer.update(queue, pos);
     }
 
     /// Update the end position of the selection.
@@ -76,8 +78,8 @@ impl ViewportSelector {
     /// Clear the selection.
     pub fn clear(&mut self, queue: &wgpu::Queue) {
         self.start_pos = None;
-        self.end_pos = None;
         self.start_buffer.update(queue, Vec2::ZERO);
+        self.end_pos = None;
         self.end_buffer.update(queue, Vec2::ZERO);
     }
 
@@ -85,5 +87,12 @@ impl ViewportSelector {
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder) {
         self.rectangle_renderer
             .render(encoder, &self.viewport_texture);
+    }
+
+    /// Update the viewport size.
+    ///
+    /// After calling this method, you need to update bind groups that uses this texture.
+    pub fn resize(&mut self, device: &wgpu::Device, new_size: UVec2) {
+        self.viewport_texture = ViewportTexture::new(device, new_size);
     }
 }

@@ -23,10 +23,6 @@ name = "wgpu_3dgs_viewer"
 path = "src/lib.rs"
 
 [[example]]
-name = "dev"
-path = "examples/dev.rs"
-
-[[example]]
 name = "multi-model"
 path = "examples/multi_model.rs"
 required-features = ["multi-model"]
@@ -34,6 +30,7 @@ required-features = ["multi-model"]
 [[example]]
 name = "selection"
 path = "examples/selection.rs"
+required-features = ["selection"]
 
 [[example]]
 name = "simple"

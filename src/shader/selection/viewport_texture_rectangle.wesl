@@ -1,6 +1,5 @@
 import wgpu_3dgs_viewer::{
-    camera::Camera,
-    utils::camera_texture_to_ndc,
+    camera::{ Camera, camera_texture_to_ndc },
 };
 
 // Vertex
@@ -30,7 +29,7 @@ fn vert_main(
         default: { pos = vec2(0.0); }
     }
 
-    let ndc_pos = camera_texture_to_ndc(pos);
+    let ndc_pos = camera_texture_to_ndc(pos, camera.size);
 
     return vec4<f32>(ndc_pos, 0.0, 1.0);
 }
