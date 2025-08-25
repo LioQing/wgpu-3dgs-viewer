@@ -52,7 +52,10 @@ struct System {
     viewer: gs::Viewer,
     selector: gs::selection::ViewportSelector,
 
-    viewport_selection_modifier: gs::editor::BasicSelectionModifier,
+    viewport_selection_modifier: gs::editor::NonDestructiveModifier<
+        gs::DefaultGaussianPod,
+        gs::editor::BasicSelectionModifier,
+    >,
     viewport_texture_overlay_renderer: utils::selection::ViewportTextureOverlayRenderer,
 }
 
@@ -124,8 +127,15 @@ impl core::System for System {
         camera.pos.z -= 1.0;
 
         log::debug!("Creating viewer");
-        let mut viewer =
-            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
+        let mut viewer = gs::Viewer::new_with(
+            &device,
+            config.view_formats[0],
+            None,
+            gs::core::GaussiansBuffer::<gs::DefaultGaussianPod>::DEFAULT_USAGE
+                | wgpu::BufferUsages::COPY_SRC,
+            &gaussians,
+        )
+        .expect("viewer");
         viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
         viewer.update_gaussian_transform(
             &queue,
@@ -148,31 +158,39 @@ impl core::System for System {
             gs::selection::create_viewport_bundle::<gs::DefaultGaussianPod>(&device);
 
         log::debug!("Creating selection viewport selection modifier");
-        let mut viewport_selection_modifier = gs::editor::BasicSelectionModifier::new(
+        let mut viewport_selection_modifier = gs::editor::NonDestructiveModifier::new(
             &device,
-            &viewer.gaussians_buffer,
-            &viewer.model_transform_buffer,
-            &viewer.gaussian_transform_buffer,
-            vec![viewport_selection_compute_bundle],
-        );
-
-        let viewport_selection_bind_group = viewport_selection_modifier.selection.bundles[0]
-            .create_bind_group(
+            &queue,
+            gs::editor::BasicSelectionModifier::new(
                 &device,
-                // index 0 is the Gaussians buffer, so we use 1,
-                // see docs of create_sphere_bundle or create_box_bundle
-                1,
-                [
-                    viewer.camera_buffer.buffer().as_entire_binding(),
-                    wgpu::BindingResource::TextureView(selector.viewport_texture.view()),
-                ],
-            )
-            .expect("bind group");
+                &viewer.gaussians_buffer,
+                &viewer.model_transform_buffer,
+                &viewer.gaussian_transform_buffer,
+                vec![viewport_selection_compute_bundle],
+            ),
+            &viewer.gaussians_buffer,
+        )
+        .expect("modifier");
 
-        viewport_selection_modifier.selection_expr =
+        let viewport_selection_bind_group = viewport_selection_modifier.modifier.selection.bundles
+            [0]
+        .create_bind_group(
+            &device,
+            // index 0 is the Gaussians buffer, so we use 1,
+            // see docs of create_sphere_bundle or create_box_bundle
+            1,
+            [
+                viewer.camera_buffer.buffer().as_entire_binding(),
+                wgpu::BindingResource::TextureView(selector.viewport_texture.view()),
+            ],
+        )
+        .expect("bind group");
+
+        viewport_selection_modifier.modifier.selection_expr =
             gs::editor::SelectionExpr::Selection(0, vec![viewport_selection_bind_group]);
 
         viewport_selection_modifier
+            .modifier
             .basic_color_modifiers_buffer
             .update_with_pod(
                 &queue,
@@ -276,22 +294,24 @@ impl core::System for System {
                 .resize(&self.device, UVec2::new(size.width, size.height));
 
             // Update viewport selection bundle
-            let viewport_selection_bind_group = self.viewport_selection_modifier.selection.bundles
-                [0]
-            .create_bind_group(
-                &self.device,
-                // index 0 is the Gaussians buffer, so we use 1,
-                // see docs of create_sphere_bundle or create_box_bundle
-                1,
-                [
-                    self.viewer.camera_buffer.buffer().as_entire_binding(),
-                    wgpu::BindingResource::TextureView(self.selector.viewport_texture.view()),
-                ],
-            )
-            .expect("bind group");
+            let viewport_selection_bind_group =
+                self.viewport_selection_modifier.modifier.selection.bundles[0]
+                    .create_bind_group(
+                        &self.device,
+                        // index 0 is the Gaussians buffer, so we use 1,
+                        // see docs of create_sphere_bundle or create_box_bundle
+                        1,
+                        [
+                            self.viewer.camera_buffer.buffer().as_entire_binding(),
+                            wgpu::BindingResource::TextureView(
+                                self.selector.viewport_texture.view(),
+                            ),
+                        ],
+                    )
+                    .expect("bind group");
 
             // Update viewport selection modifier selection expr
-            self.viewport_selection_modifier.selection_expr =
+            self.viewport_selection_modifier.modifier.selection_expr =
                 gs::editor::SelectionExpr::Selection(0, vec![viewport_selection_bind_group]);
 
             // Update viewport texture overlay renderer

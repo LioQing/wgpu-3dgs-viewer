@@ -19,7 +19,7 @@ impl ViewportTextureOverlayRenderer {
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
-            label: Some("Query Texture Overlay Bind Group Layout"),
+            label: Some("Selection Viewport Texture Overlay Renderer Bind Group Layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -142,10 +142,10 @@ impl ViewportTextureOverlayRenderer {
         });
     }
 
-    /// Render the query texture overlay.
+    /// Render the selection viewport texture overlay.
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Query Texture Overlay Render Pass"),
+            label: Some("Selection Viewport Texture Overlay Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view,
                 resolve_target: None,
@@ -162,7 +162,7 @@ impl ViewportTextureOverlayRenderer {
         self.render_with_pass(&mut render_pass);
     }
 
-    /// Render the query texture overlay with a [`wgpu::RenderPass`].
+    /// Render the selection viewport texture overlay with a [`wgpu::RenderPass`].
     pub fn render_with_pass(&self, pass: &mut wgpu::RenderPass<'_>) {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);

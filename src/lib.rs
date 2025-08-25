@@ -64,7 +64,13 @@ impl<G: GaussianPod> Viewer<G> {
         texture_format: wgpu::TextureFormat,
         gaussians: &Gaussians,
     ) -> Result<Self, Error> {
-        Self::new_with(device, texture_format, None, gaussians)
+        Self::new_with(
+            device,
+            texture_format,
+            None,
+            GaussiansBuffer::<G>::DEFAULT_USAGE,
+            gaussians,
+        )
     }
 
     /// Create a new viewer with all options.
@@ -72,6 +78,7 @@ impl<G: GaussianPod> Viewer<G> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
+        gaussians_buffer_usage: wgpu::BufferUsages,
         gaussians: &Gaussians,
     ) -> Result<Self, Error> {
         log::debug!("Creating camera buffer");
@@ -84,7 +91,8 @@ impl<G: GaussianPod> Viewer<G> {
         let gaussian_transform_buffer = GaussianTransformBuffer::new(device);
 
         log::debug!("Creating gaussians buffer");
-        let gaussians_buffer = GaussiansBuffer::new(device, &gaussians.gaussians);
+        let gaussians_buffer =
+            GaussiansBuffer::new_with_usage(device, &gaussians.gaussians, gaussians_buffer_usage);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
