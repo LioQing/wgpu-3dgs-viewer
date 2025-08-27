@@ -58,8 +58,12 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
 
     let gaussian = gaussians[index];
 
+    let world_pos = model_to_world(model_transform, gaussian.pos);
+    let proj_pos = world_to_camera(camera, world_pos);
+    let ndc_pos = proj_pos.xyz / proj_pos.w;
+
     // Cull
-    if cull(gaussian, model_transform, camera) {
+    if cull(ndc_pos, camera) {
         return;
     }
 
@@ -67,9 +71,6 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     indirect_indices[culled_index] = index;
 
     // Depth
-    let world_pos = model_to_world(model_transform, gaussian.pos);
-    let proj_pos = world_to_camera(camera, world_pos);
-    let ndc_pos = proj_pos.xyz / proj_pos.w;
     gaussians_depth[culled_index] = 1.0 - ndc_pos.z;
 }
 

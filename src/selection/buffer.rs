@@ -46,7 +46,7 @@ impl ViewportTexture {
 /// The position buffer for [`ViewportTexture`].
 ///
 /// This is used for [`ViewportTextureRectangleRenderer`](crate::selection::ViewportTextureRectangleRenderer)
-/// to indicate top left and bottom right coordinates of the rectangle.
+/// and [`ViewportTextureBrushRenderer`](crate::selection::ViewportTextureBrushRenderer).
 #[derive(Debug, Clone)]
 pub struct ViewportTexturePosBuffer(wgpu::Buffer);
 
@@ -63,13 +63,44 @@ impl ViewportTexturePosBuffer {
         Self(buffer)
     }
 
-    /// Update the top left coordinate buffer.
-    pub fn update(&self, queue: &wgpu::Queue, top_left: Vec2) {
-        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(&top_left));
+    /// Update the position buffer.
+    pub fn update(&self, queue: &wgpu::Queue, pos: Vec2) {
+        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(&pos));
     }
 }
 
 impl BufferWrapper for ViewportTexturePosBuffer {
+    fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+/// The f32 buffer for [`ViewportTexture`].
+///
+/// This is used for [`ViewportTextureBrushRenderer`](crate::selection::ViewportTextureBrushRenderer).
+#[derive(Debug, Clone)]
+pub struct ViewportTextureF32Buffer(wgpu::Buffer);
+
+impl ViewportTextureF32Buffer {
+    /// Create a new position buffer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Viewport Selection Texture Pos Buffer"),
+            size: std::mem::size_of::<f32>() as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self(buffer)
+    }
+
+    /// Update the f32 buffer.
+    pub fn update(&self, queue: &wgpu::Queue, value: f32) {
+        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(&value));
+    }
+}
+
+impl BufferWrapper for ViewportTextureF32Buffer {
     fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }

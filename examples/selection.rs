@@ -146,12 +146,14 @@ impl core::System for System {
         );
 
         log::debug!("Creating selector");
-        let selector = gs::selection::ViewportSelector::new(
+        let mut selector = gs::selection::ViewportSelector::new(
             &device,
+            &queue,
             UVec2::new(size.width, size.height),
             &viewer.camera_buffer,
         )
         .expect("selector");
+        selector.selector_type = gs::selection::ViewportSelectorType::Brush;
 
         log::debug!("Creating selection viewport selection compute bundle");
         let viewport_selection_compute_bundle =
@@ -181,7 +183,7 @@ impl core::System for System {
             1,
             [
                 viewer.camera_buffer.buffer().as_entire_binding(),
-                wgpu::BindingResource::TextureView(selector.viewport_texture.view()),
+                wgpu::BindingResource::TextureView(selector.texture().view()),
             ],
         )
         .expect("bind group");
@@ -205,7 +207,7 @@ impl core::System for System {
             utils::selection::ViewportTextureOverlayRenderer::new(
                 &device,
                 config.view_formats[0],
-                &selector.viewport_texture,
+                selector.texture(),
             );
 
         log::info!("System initialized");
@@ -303,9 +305,7 @@ impl core::System for System {
                         1,
                         [
                             self.viewer.camera_buffer.buffer().as_entire_binding(),
-                            wgpu::BindingResource::TextureView(
-                                self.selector.viewport_texture.view(),
-                            ),
+                            wgpu::BindingResource::TextureView(self.selector.texture().view()),
                         ],
                     )
                     .expect("bind group");
@@ -316,7 +316,7 @@ impl core::System for System {
 
             // Update viewport texture overlay renderer
             self.viewport_texture_overlay_renderer
-                .update_bind_group(&self.device, &self.selector.viewport_texture);
+                .update_bind_group(&self.device, self.selector.texture());
         }
     }
 }
@@ -352,10 +352,12 @@ impl System {
                 &self.viewer.gaussian_transform_buffer,
             );
 
-            self.selector.clear(&self.queue);
+            self.selector.clear(&mut encoder);
         }
 
-        self.selector.render(&mut encoder);
+        if input.held_mouse.contains(&winit::event::MouseButton::Left) {
+            self.selector.render(&mut encoder);
+        }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         if let Err(e) = self.device.poll(wgpu::PollType::Wait) {

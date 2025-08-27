@@ -21,12 +21,12 @@ fn vert_main(
     
     switch vert_index {
         case 0u: { pos = top_left; }
-        case 1u: { pos = vec2(bottom_right.x, top_left.y); }
+        case 1u: { pos = vec2<f32>(bottom_right.x, top_left.y); }
         case 2u: { pos = bottom_right; }
         case 3u: { pos = bottom_right; }
-        case 4u: { pos = vec2(top_left.x, bottom_right.y); }
+        case 4u: { pos = vec2<f32>(top_left.x, bottom_right.y); }
         case 5u: { pos = top_left; }
-        default: { pos = vec2(0.0); }
+        default: { pos = vec2<f32>(0.0); }
     }
 
     let ndc_pos = camera_texture_to_ndc(pos, camera.size);

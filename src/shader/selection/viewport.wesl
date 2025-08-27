@@ -45,20 +45,23 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
 
     let gaussian = gaussians[index];
 
-    if cull(gaussian, model_transform, camera) {
-        return;
-    }
-
     let world_pos = model_to_world(model_transform, gaussian.pos);
     let proj_pos = world_to_camera(camera, world_pos);
     let ndc_pos = proj_pos.xyz / proj_pos.w;
-    let coords = vec2<i32>(ndc_to_camera_texture(ndc_pos.xy, camera.size));
-
-    let magnitude = textureLoad(selection_texture, coords, 0).r;
 
     let word_index = index / 32u;
     let bit_index = index % 32u;
     let bit_mask = 1u << bit_index;
+
+    if cull(ndc_pos, camera) {
+        atomicAnd(&dest[word_index], ~bit_mask);
+        return;
+    }
+
+    let coords = vec2<i32>(ndc_to_camera_texture(ndc_pos.xy, camera.size));
+
+    let magnitude = textureLoad(selection_texture, coords, 0).r;
+
     if magnitude != 0.0 {
         atomicOr(&dest[word_index], bit_mask);
     } else {
