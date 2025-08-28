@@ -18,7 +18,7 @@ use utils::core;
     A 3D Gaussian splatting viewer written in Rust using wgpu.\n\
     \n\
     Use W, A, S, D, Space, Shift to move, use mouse to rotate.\n\
-    Use C to toggle selection mode.\n\
+    Use C to cycle through none, rectangle, or brush selector.\n\
     Use Left Click to draw rectangle selection.\n\
     Use Right Click to draw brush selection.\n\
     "
@@ -45,7 +45,7 @@ struct System {
     device: wgpu::Device,
     config: wgpu::SurfaceConfiguration,
 
-    selection_mode: bool,
+    selector_type: Option<gs::selection::ViewportSelectorType>,
 
     camera: gs::Camera,
     gaussians: gs::core::Gaussians,
@@ -218,7 +218,7 @@ impl core::System for System {
             queue,
             config,
 
-            selection_mode: false,
+            selector_type: None,
 
             camera,
             gaussians,
@@ -233,18 +233,23 @@ impl core::System for System {
     fn update(&mut self, input: &core::Input, delta_time: f32) {
         // Toggle selection mode
         if input.pressed_keys.contains(&KeyCode::KeyC) {
-            self.selection_mode = !self.selection_mode;
-            log::info!(
-                "Selection mode {}",
-                if self.selection_mode {
-                    "enabled"
-                } else {
-                    "disabled"
+            self.selector_type = match self.selector_type {
+                None => Some(gs::selection::ViewportSelectorType::Rectangle),
+                Some(gs::selection::ViewportSelectorType::Rectangle) => {
+                    Some(gs::selection::ViewportSelectorType::Brush)
                 }
-            );
+                Some(gs::selection::ViewportSelectorType::Brush) => None,
+            };
+
+            if let Some(selector_type) = self.selector_type {
+                log::info!("Selector: {selector_type:?}");
+                self.selector.selector_type = selector_type;
+            } else {
+                log::info!("Selector: None");
+            }
         }
 
-        if self.selection_mode {
+        if self.selector_type.is_some() {
             self.update_selection(input, delta_time);
         } else {
             self.update_movement(input, delta_time);
@@ -273,7 +278,7 @@ impl core::System for System {
 
         self.viewer.render(&mut encoder, &texture_view);
 
-        if self.selection_mode {
+        if self.selector_type.is_some() {
             self.viewport_texture_overlay_renderer
                 .render(&mut encoder, &texture_view);
         }
