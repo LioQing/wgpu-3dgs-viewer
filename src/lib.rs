@@ -17,8 +17,8 @@ pub mod selection;
 
 use glam::*;
 use wgpu_3dgs_core::{
-    GaussianDisplayMode, GaussianPod, GaussianPodWithShNorm8Cov3dHalfConfigs, GaussianShDegree,
-    GaussianTransformBuffer, GaussianTransformPod, Gaussians, GaussiansBuffer,
+    BufferWrapper, GaussianDisplayMode, GaussianPod, GaussianPodWithShNorm8Cov3dHalfConfigs,
+    GaussianShDegree, GaussianTransformBuffer, GaussianTransformPod, Gaussians, GaussiansBuffer,
     ModelTransformBuffer, ModelTransformPod,
 };
 
@@ -68,7 +68,7 @@ impl<G: GaussianPod> Viewer<G> {
             device,
             texture_format,
             None,
-            GaussiansBuffer::<G>::DEFAULT_USAGE,
+            GaussiansBuffer::<G>::DEFAULT_USAGES,
             gaussians,
         )
     }

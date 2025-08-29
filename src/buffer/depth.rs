@@ -1,6 +1,4 @@
-use wgpu_3dgs_core::BufferWrapper;
-
-use crate::wgpu_sort;
+use crate::{core::BufferWrapper, wgpu_sort};
 
 /// The Gaussians depth storage buffer.
 #[derive(Debug, Clone)]
@@ -15,7 +13,7 @@ impl GaussiansDepthBuffer {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Gaussians Depth Buffer"),
             size: size as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::STORAGE,
+            usage: Self::DEFAULT_USAGES,
             mapped_at_creation: false,
         });
 
@@ -24,7 +22,15 @@ impl GaussiansDepthBuffer {
 }
 
 impl BufferWrapper for GaussiansDepthBuffer {
+    const DEFAULT_USAGES: wgpu::BufferUsages = wgpu::BufferUsages::STORAGE;
+
     fn buffer(&self) -> &wgpu::Buffer {
         &self.0
+    }
+}
+
+impl From<GaussiansDepthBuffer> for wgpu::Buffer {
+    fn from(wrapper: GaussiansDepthBuffer) -> Self {
+        wrapper.0
     }
 }

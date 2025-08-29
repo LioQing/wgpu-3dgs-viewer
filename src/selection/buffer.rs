@@ -1,5 +1,6 @@
 use glam::*;
-use wgpu_3dgs_core::BufferWrapper;
+
+use crate::core::{self, BufferWrapper, FixedSizeBufferWrapper};
 
 /// A viewport selection texture for the compute bundle created by
 /// [`selection::create_viewport_bundle`](crate::selection::create_viewport_bundle).
@@ -56,7 +57,7 @@ impl ViewportTexturePosBuffer {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Viewport Selection Texture Pos Buffer"),
             size: std::mem::size_of::<Vec2>() as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: Self::DEFAULT_USAGES,
             mapped_at_creation: false,
         });
 
@@ -75,6 +76,24 @@ impl BufferWrapper for ViewportTexturePosBuffer {
     }
 }
 
+impl From<ViewportTexturePosBuffer> for wgpu::Buffer {
+    fn from(wrapper: ViewportTexturePosBuffer) -> Self {
+        wrapper.0
+    }
+}
+
+impl TryFrom<wgpu::Buffer> for ViewportTexturePosBuffer {
+    type Error = core::Error;
+
+    fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
+        Self::verify_buffer_size(&buffer).map(|()| Self(buffer))
+    }
+}
+
+impl FixedSizeBufferWrapper for ViewportTexturePosBuffer {
+    type Pod = Vec2;
+}
+
 /// The f32 buffer for [`ViewportTexture`].
 ///
 /// This is used for [`ViewportTextureBrushRenderer`](crate::selection::ViewportTextureBrushRenderer).
@@ -87,7 +106,7 @@ impl ViewportTextureF32Buffer {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Viewport Selection Texture Pos Buffer"),
             size: std::mem::size_of::<f32>() as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: Self::DEFAULT_USAGES,
             mapped_at_creation: false,
         });
 
@@ -104,4 +123,22 @@ impl BufferWrapper for ViewportTextureF32Buffer {
     fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }
+}
+
+impl From<ViewportTextureF32Buffer> for wgpu::Buffer {
+    fn from(wrapper: ViewportTextureF32Buffer) -> Self {
+        wrapper.0
+    }
+}
+
+impl TryFrom<wgpu::Buffer> for ViewportTextureF32Buffer {
+    type Error = core::Error;
+
+    fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
+        Self::verify_buffer_size(&buffer).map(|()| Self(buffer))
+    }
+}
+
+impl FixedSizeBufferWrapper for ViewportTextureF32Buffer {
+    type Pod = f32;
 }

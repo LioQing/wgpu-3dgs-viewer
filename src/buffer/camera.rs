@@ -1,7 +1,9 @@
 use glam::*;
-use wgpu_3dgs_core::BufferWrapper;
 
-use crate::CameraTrait;
+use crate::{
+    CameraTrait,
+    core::{self, BufferWrapper, FixedSizeBufferWrapper},
+};
 
 /// The camera buffer.
 #[derive(Debug, Clone)]
@@ -13,7 +15,7 @@ impl CameraBuffer {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Camera Buffer"),
             size: std::mem::size_of::<CameraPod>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: Self::DEFAULT_USAGES,
             mapped_at_creation: false,
         });
 
@@ -35,6 +37,24 @@ impl BufferWrapper for CameraBuffer {
     fn buffer(&self) -> &wgpu::Buffer {
         &self.0
     }
+}
+
+impl From<CameraBuffer> for wgpu::Buffer {
+    fn from(wrapper: CameraBuffer) -> Self {
+        wrapper.0
+    }
+}
+
+impl TryFrom<wgpu::Buffer> for CameraBuffer {
+    type Error = core::Error;
+
+    fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
+        Self::verify_buffer_size(&buffer).map(|()| Self(buffer))
+    }
+}
+
+impl FixedSizeBufferWrapper for CameraBuffer {
+    type Pod = CameraPod;
 }
 
 /// The POD representation of camera.

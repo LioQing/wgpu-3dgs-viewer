@@ -131,7 +131,7 @@ impl core::System for System {
             &device,
             config.view_formats[0],
             None,
-            gs::core::GaussiansBuffer::<gs::DefaultGaussianPod>::DEFAULT_USAGE
+            gs::core::GaussiansBuffer::<gs::DefaultGaussianPod>::DEFAULT_USAGES
                 | wgpu::BufferUsages::COPY_SRC,
             &gaussians,
         )
