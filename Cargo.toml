@@ -52,12 +52,12 @@ bytemuck = { version = "1.23", features = [
 ] }
 bitflags = { version = "2.9", features = ["bytemuck"] }
 glam = { version = "0.30", features = ["bytemuck"] }
-half = { version = "2.4", features = ["bytemuck"] }
+half = { version = "2.6", features = ["bytemuck"] }
 log = "0.4"
 oneshot = "0.1"
 paste = "1.0"
 thiserror = "2.0"
-wgpu = "25.0"
+wgpu = "26.0"
 wesl = "0.1"
 
 [dev-dependencies]
