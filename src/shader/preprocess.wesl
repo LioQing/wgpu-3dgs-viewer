@@ -1,4 +1,4 @@
-import wgpu_3dgs_viewer::{
+import package::{
     camera::{ Camera, world_to_camera },
     utils::cull,
 };

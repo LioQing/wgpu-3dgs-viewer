@@ -68,8 +68,8 @@ impl Preprocessor {
     /// The label.
     const LABEL: &str = "Preprocessor";
 
-    /// The main shader.
-    const MAIN_SHADER: &str = "wgpu_3dgs_viewer/preprocess";
+    /// The main shader module path.
+    const MAIN_SHADER: &str = "wgpu_3dgs_viewer::preprocess";
 
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
@@ -278,9 +278,13 @@ impl Preprocessor<()> {
             .label(format!("Pre {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("pre")
-            .main_shader(Preprocessor::MAIN_SHADER)
+            .main_shader(
+                Preprocessor::MAIN_SHADER
+                    .parse()
+                    .expect("preprocess module path"),
+            )
             .compile_options(wesl::CompileOptions {
-                features: G::features_map(),
+                features: G::wesl_features(),
                 ..Default::default()
             })
             .resolver(wesl_utils::resolver())
@@ -290,9 +294,13 @@ impl Preprocessor<()> {
             .label(Preprocessor::LABEL)
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("main")
-            .main_shader(Preprocessor::MAIN_SHADER)
+            .main_shader(
+                Preprocessor::MAIN_SHADER
+                    .parse()
+                    .expect("preprocess module path"),
+            )
             .compile_options(wesl::CompileOptions {
-                features: G::features_map(),
+                features: G::wesl_features(),
                 ..Default::default()
             })
             .resolver(wesl_utils::resolver())
@@ -302,9 +310,13 @@ impl Preprocessor<()> {
             .label(format!("Post {}", Preprocessor::LABEL).as_str())
             .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("post")
-            .main_shader(Preprocessor::MAIN_SHADER)
+            .main_shader(
+                Preprocessor::MAIN_SHADER
+                    .parse()
+                    .expect("preprocess module path"),
+            )
             .compile_options(wesl::CompileOptions {
-                features: G::features_map(),
+                features: G::wesl_features(),
                 ..Default::default()
             })
             .resolver(wesl_utils::resolver())

@@ -1,4 +1,4 @@
-import wgpu_3dgs_viewer::camera::{ Camera, world_to_camera };
+import package::camera::{ Camera, world_to_camera };
 import wgpu_3dgs_core::{
     gaussian::{
         Gaussian,

@@ -40,8 +40,8 @@ pub const VIEWPORT_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor
 /// - Bind group 1 is [`VIEWPORT_BIND_GROUP_LAYOUT_DESCRIPTOR`].
 pub fn create_viewport_bundle<G: GaussianPod>(device: &wgpu::Device) -> ComputeBundle<()> {
     let mut resolver = wesl::PkgResolver::new();
-    resolver.add_package(&core::shader::Mod);
-    resolver.add_package(&shader::Mod);
+    resolver.add_package(&core::shader::PACKAGE);
+    resolver.add_package(&shader::PACKAGE);
 
     ComputeBundleBuilder::new()
         .label("Viewport Selection")
@@ -54,7 +54,7 @@ pub fn create_viewport_bundle<G: GaussianPod>(device: &wgpu::Device) -> ComputeB
         ))
         .entry_point("main")
         .compile_options(wesl::CompileOptions {
-            features: G::features_map(),
+            features: G::wesl_features(),
             ..Default::default()
         })
         .resolver(resolver)

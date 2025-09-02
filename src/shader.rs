@@ -1,113 +1,107 @@
-use wesl::PkgModule;
+use wesl::{Pkg, PkgModule};
 
-pub struct Mod;
+use crate::core;
 
-impl PkgModule for Mod {
-    fn name(&self) -> &'static str {
-        "wgpu_3dgs_viewer"
-    }
+pub const PACKAGE: Pkg = Pkg {
+    crate_name: "wgpu-3dgs-viewer",
+    root: &MODULE,
+    dependencies: &[&core::shader::PACKAGE],
+};
 
-    fn source(&self) -> &'static str {
-        ""
-    }
+pub const MODULE: PkgModule = PkgModule {
+    name: "wgpu_3dgs_viewer",
+    source: "",
+    submodules: &[
+        &camera::MODULE,
+        &preprocess::MODULE,
+        &render::MODULE,
+        &utils::MODULE,
+        #[cfg(feature = "selection")]
+        &selection::MODULE,
+    ],
+};
 
-    fn submodules(&self) -> &[&dyn PkgModule] {
-        static SUBMODULES: &[&dyn PkgModule] =
-            &[&camera::Mod, &preprocess::Mod, &render::Mod, &utils::Mod];
-        SUBMODULES
-    }
+pub mod camera {
+    use super::PkgModule;
 
-    fn submodule(&self, name: &str) -> Option<&dyn PkgModule> {
-        match name {
-            "camera" => Some(&camera::Mod),
-            "preprocess" => Some(&preprocess::Mod),
-            "render" => Some(&render::Mod),
-            "utils" => Some(&utils::Mod),
-            "selection" => Some(&selection::Mod),
-            _ => selection::Mod.submodule(name),
-        }
-    }
-}
-
-macro_rules! submodule {
-    ($name:ident $(, $dir:literal)? override $mod_name:ident) => {
-        paste::paste! {
-            pub mod $mod_name {
-                pub struct Mod;
-
-                impl wesl::PkgModule for Mod {
-                    fn name(&self) -> &'static str {
-                        stringify!($name)
-                    }
-
-                    fn source(&self) -> &'static str {
-                        include_str!(concat!("shader/", $($dir,)? stringify!($name), ".wesl"))
-                    }
-
-                    fn submodules(&self) -> &[&dyn wesl::PkgModule] {
-                        &[]
-                    }
-
-                    fn submodule(&self, _name: &str) -> Option<&dyn wesl::PkgModule> {
-                        None
-                    }
-                }
-            }
-        }
-    };
-    ($name:ident $(, $dir:literal)?) => {
-        submodule!($name $(, $dir)? override $name);
+    pub const MODULE: PkgModule = PkgModule {
+        name: "camera",
+        source: include_str!("shader/camera.wesl"),
+        submodules: &[],
     };
 }
 
-submodule!(camera);
-submodule!(preprocess);
-submodule!(render);
-submodule!(utils);
+pub mod preprocess {
+    use super::PkgModule;
 
+    pub const MODULE: PkgModule = PkgModule {
+        name: "preprocess",
+        source: include_str!("shader/preprocess.wesl"),
+        submodules: &[],
+    };
+}
+
+pub mod render {
+    use super::PkgModule;
+
+    pub const MODULE: PkgModule = PkgModule {
+        name: "render",
+        source: include_str!("shader/render.wesl"),
+        submodules: &[],
+    };
+}
+
+pub mod utils {
+    use super::PkgModule;
+
+    pub const MODULE: PkgModule = PkgModule {
+        name: "utils",
+        source: include_str!("shader/utils.wesl"),
+        submodules: &[],
+    };
+}
+
+#[cfg(feature = "selection")]
 pub mod selection {
-    use super::*;
+    use super::PkgModule;
 
-    macro_rules! selection_submodule {
-        ($name:ident) => {
-            submodule!($name, "selection/");
-        };
-        ($name:ident override $mod_name:ident) => {
-            submodule!($name, "selection/" override $mod_name);
+    pub const MODULE: PkgModule = PkgModule {
+        name: "selection",
+        source: "",
+        submodules: &[
+            &viewport::MODULE,
+            &viewport_texture_rectangle::MODULE,
+            &viewport_texture_brush::MODULE,
+        ],
+    };
+
+    pub mod viewport {
+        use super::PkgModule;
+
+        pub const MODULE: PkgModule = PkgModule {
+            name: "viewport",
+            source: include_str!("shader/selection/viewport.wesl"),
+            submodules: &[],
         };
     }
 
-    pub struct Mod;
+    pub mod viewport_texture_rectangle {
+        use super::PkgModule;
 
-    impl PkgModule for Mod {
-        fn name(&self) -> &'static str {
-            "selection"
-        }
-
-        fn source(&self) -> &'static str {
-            ""
-        }
-
-        fn submodules(&self) -> &[&dyn PkgModule] {
-            static SUBMODULES: &[&dyn PkgModule] = &[
-                &viewport::Mod,
-                &viewport_texture_rectangle::Mod,
-                &viewport_texture_brush::Mod,
-            ];
-            SUBMODULES
-        }
-
-        fn submodule(&self, name: &str) -> Option<&dyn PkgModule> {
-            match name {
-                "viewport" => Some(&viewport::Mod),
-                "viewport_texture_rectangle" => Some(&viewport_texture_rectangle::Mod),
-                "viewport_texture_brush" => Some(&viewport_texture_brush::Mod),
-                _ => None,
-            }
-        }
+        pub const MODULE: PkgModule = PkgModule {
+            name: "viewport_texture_rectangle",
+            source: include_str!("shader/selection/viewport_texture_rectangle.wesl"),
+            submodules: &[],
+        };
     }
 
-    selection_submodule!(viewport);
-    selection_submodule!(viewport_texture_rectangle);
-    selection_submodule!(viewport_texture_brush);
+    pub mod viewport_texture_brush {
+        use super::PkgModule;
+
+        pub const MODULE: PkgModule = PkgModule {
+            name: "viewport_texture_brush",
+            source: include_str!("shader/selection/viewport_texture_brush.wesl"),
+            submodules: &[],
+        };
+    }
 }

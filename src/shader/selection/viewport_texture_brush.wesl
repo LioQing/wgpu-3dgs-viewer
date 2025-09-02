@@ -1,4 +1,4 @@
-import wgpu_3dgs_viewer::{
+import package::{
     camera::{ Camera, camera_texture_to_ndc },
 };
 

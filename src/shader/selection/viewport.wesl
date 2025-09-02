@@ -4,7 +4,7 @@ import wgpu_3dgs_core::{
     model_transform::{ ModelTransform, model_to_world },
     compute_bundle::index,
 };
-import wgpu_3dgs_viewer::{
+import package::{
     camera::{ Camera, world_to_camera, ndc_to_camera_texture },
     utils::cull,
 };

@@ -348,10 +348,11 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.34"
+version = "1.2.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42bc4aea80032b7bf409b0bc7ccad88853858911b7713a8062fdc0623867bedc"
+checksum = "590f9024a68a8c40351881787f1934dc11afd69090f5edb6831464694d836ea3"
 dependencies = [
+ "find-msvc-tools",
  "jobserver",
  "libc",
  "shlex",
@@ -694,6 +695,12 @@ name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
+
+[[package]]
+name = "find-msvc-tools"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e178e4fba8a2726903f6ba98a6d221e76f9c12c650d5dc0e6afdc50677b49650"
 
 [[package]]
 name = "fixedbitset"
@@ -2391,6 +2398,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokrepr"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e45a78afc8866f3b814539399590346083be88990c642bf9d95aa9ee0d93627e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "tokrepr-derive",
+]
+
+[[package]]
+name = "tokrepr-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc2d9fffd3c8ace307ee6735c35ee6fe87d8d4ef64b6a23dc54a15e076692f1b"
+dependencies = [
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2698,12 +2728,11 @@ dependencies = [
 
 [[package]]
 name = "wesl"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35a997b82782eb6019bb7c4de169a4e1eb0b96b59495f64fabc724587ff58378"
+checksum = "f90d9ca2b0c4b40b0d29aaec92c2212803b8056c71d547c47c12506f9fe7e5de"
 dependencies = [
  "annotate-snippets",
- "bytes",
  "derive_more",
  "half",
  "itertools",
@@ -2715,14 +2744,15 @@ dependencies = [
 
 [[package]]
 name = "wesl-macros"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e26e545df8611385f6b9fa32d0d840e5bd3e86b4a968ffe31adfcc4743d5811a"
+checksum = "1a5c295ac6a3af945b1c1860dd55aca89691bf7c2ea35b596ce74dba989d4711"
 dependencies = [
  "itertools",
  "proc-macro2",
  "quote",
  "syn",
+ "wgsl-parse",
 ]
 
 [[package]]
@@ -2930,9 +2960,9 @@ dependencies = [
 
 [[package]]
 name = "wgsl-parse"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93d2e96b673c61dd68961f7ed0bdec3f1486ba0d6dbd63b52b7429bc82e790b4"
+checksum = "57cd898e1824e6ad70ee89dea1c3cc0905ad10940004341c5b0b35a0c427a03d"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -2942,6 +2972,7 @@ dependencies = [
  "lexical",
  "logos",
  "thiserror 2.0.16",
+ "tokrepr",
 ]
 
 [[package]]

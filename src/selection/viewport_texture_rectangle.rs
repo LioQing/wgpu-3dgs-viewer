@@ -179,22 +179,18 @@ impl ViewportTextureRectangleRenderer<()> {
             push_constant_ranges: &[],
         });
 
-        log::debug!("Compiling viewport texture rectangle renderer shader");
-        let (syntax, sourcemap) = wesl::compile_sourcemap(
-            &"wgpu_3dgs_viewer/selection/viewport_texture_rectangle".into(),
-            &wesl_utils::resolver(),
-            &wesl::NoMangler,
-            &wesl::CompileOptions::default(),
-        );
-
         log::debug!("Creating viewport texture rectangle renderer shader");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Viewport Texture Rectangle Renderer Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                wesl::CompileResult {
-                    syntax: syntax?,
-                    sourcemap: Some(sourcemap),
-                }
+                wesl::compile_sourcemap(
+                    &"wgpu_3dgs_viewer::selection::viewport_texture_rectangle"
+                        .parse()
+                        .expect("selection::viewport_texture_rectangle module path"),
+                    &wesl_utils::resolver(),
+                    &wesl::NoMangler,
+                    &wesl::CompileOptions::default(),
+                )?
                 .to_string()
                 .into(),
             ),

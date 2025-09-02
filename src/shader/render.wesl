@@ -1,4 +1,4 @@
-import wgpu_3dgs_viewer::{
+import package::{
     camera::{ Camera, camera_aspect_ratio },
     utils::{
         cov2d_axes,
