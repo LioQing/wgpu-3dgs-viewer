@@ -45,15 +45,17 @@ pub fn create_viewport_bundle<G: GaussianPod>(device: &wgpu::Device) -> ComputeB
 
     ComputeBundleBuilder::new()
         .label("Viewport Selection")
-        .bind_groups([
+        .bind_group_layouts([
             &SelectionBundle::GAUSSIANS_BIND_GROUP_LAYOUT_DESCRIPTOR,
             &VIEWPORT_BIND_GROUP_LAYOUT_DESCRIPTOR,
         ])
-        .main_shader(wesl::ModulePath::from_path(
-            "wgpu_3dgs_viewer/selection/viewport",
-        ))
+        .main_shader(
+            "wgpu_3dgs_viewer::selection::viewport"
+                .parse()
+                .expect("selection::viewport module path"),
+        )
         .entry_point("main")
-        .compile_options(wesl::CompileOptions {
+        .wesl_compile_options(wesl::CompileOptions {
             features: G::wesl_features(),
             ..Default::default()
         })

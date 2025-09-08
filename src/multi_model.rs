@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
-use crate::{Error, *};
+use crate::*;
 
 /// The buffers for [`Viewer`] related to the world.
 #[derive(Debug)]
@@ -229,7 +229,10 @@ pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::
 
 impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
     /// Create a new viewer.
-    pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Result<Self, Error> {
+    pub fn new(
+        device: &wgpu::Device,
+        texture_format: wgpu::TextureFormat,
+    ) -> Result<Self, ViewerCreateError> {
         Self::new_with(device, texture_format, None)
     }
 
@@ -238,7 +241,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, ViewerCreateError> {
         let models = HashMap::new();
 
         log::debug!("Creating world buffers");
@@ -371,11 +374,11 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         encoder: &mut wgpu::CommandEncoder,
         texture_view: &wgpu::TextureView,
         keys: &[&K],
-    ) -> Result<(), Error> {
+    ) -> Result<(), MultiModelViewerRenderError> {
         if keys.len() != self.models.len() {
-            return Err(Error::ModelCountKeysLenMismatch {
+            return Err(MultiModelViewerRenderError::ModelKeyCountMismatch {
                 model_count: self.models.len(),
-                keys_len: keys.len(),
+                key_count: keys.len(),
             });
         }
 

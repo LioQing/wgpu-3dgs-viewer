@@ -1,5 +1,5 @@
 use crate::{
-    CameraBuffer, Error,
+    CameraBuffer, RendererCreateError,
     core::BufferWrapper,
     selection::{ViewportTexture, ViewportTextureF32Buffer, ViewportTexturePosBuffer},
     wesl_utils,
@@ -99,7 +99,7 @@ impl ViewportTextureBrushRenderer {
         start: &ViewportTexturePosBuffer,
         end: &ViewportTexturePosBuffer,
         radius: &ViewportTextureF32Buffer,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RendererCreateError> {
         let this = ViewportTextureBrushRenderer::new_without_bind_group(device, texture)?;
 
         log::debug!("Creating viewport texture brush renderer bind group");
@@ -186,7 +186,7 @@ impl ViewportTextureBrushRenderer<()> {
     pub fn new_without_bind_group(
         device: &wgpu::Device,
         texture: &ViewportTexture,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RendererCreateError> {
         log::debug!("Creating viewport texture brush renderer bind group layout");
         let bind_group_layout = device
             .create_bind_group_layout(&ViewportTextureBrushRenderer::BIND_GROUP_LAYOUT_DESCRIPTOR);

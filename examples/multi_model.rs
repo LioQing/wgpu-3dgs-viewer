@@ -139,24 +139,17 @@ impl core::System for System {
         log::debug!("Creating viewer");
         let mut viewer =
             gs::MultiModelViewer::new(&device, config.view_formats[0]).expect("viewer");
-        viewer.update_gaussian_transform(
-            &queue,
-            1.0,
-            gs::core::GaussianDisplayMode::Splat,
-            gs::core::GaussianShDegree::new(3).expect("SH degree"),
-            false,
-        );
 
-        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
+        let quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
         for (i, gaussians) in gaussians.iter().enumerate() {
             let offset = model_offset * i as f32;
 
             log::debug!("Pushing model {i}");
 
             viewer.insert_model(&device, i, gaussians);
-            viewer.update_model_transform(&queue, &i, offset, adjust_quat, Vec3::ONE);
+            viewer.update_model_transform(&queue, &i, offset, quat, Vec3::ONE);
 
-            gaussian_centroids[i] = adjust_quat.mul_vec3(gaussian_centroids[i]) + offset;
+            gaussian_centroids[i] = quat.mul_vec3(gaussian_centroids[i]) + offset;
         }
 
         log::info!("System initialized");

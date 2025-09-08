@@ -116,15 +116,7 @@ impl core::System for System {
         let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
 
         log::debug!("Creating camera");
-        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
-        let mut camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
-        camera.pos = gaussians
-            .gaussians
-            .iter()
-            .map(|g| adjust_quat * g.pos)
-            .sum::<Vec3>()
-            / gaussians.gaussians.len() as f32;
-        camera.pos.z -= 1.0;
+        let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
         log::debug!("Creating viewer");
         let mut viewer = gs::Viewer::new_with(
@@ -136,13 +128,11 @@ impl core::System for System {
             &gaussians,
         )
         .expect("viewer");
-        viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
-        viewer.update_gaussian_transform(
+        viewer.update_model_transform(
             &queue,
-            1.0,
-            gs::core::GaussianDisplayMode::Splat,
-            gs::core::GaussianShDegree::new(3).expect("SH degree"),
-            false,
+            Vec3::ZERO,
+            Quat::from_axis_angle(Vec3::Z, 180f32.to_radians()),
+            Vec3::ONE,
         );
 
         log::debug!("Creating selector");
@@ -155,10 +145,6 @@ impl core::System for System {
         .expect("selector");
         selector.selector_type = gs::selection::ViewportSelectorType::Brush;
 
-        log::debug!("Creating selection viewport selection compute bundle");
-        let viewport_selection_compute_bundle =
-            gs::selection::create_viewport_bundle::<gs::DefaultGaussianPod>(&device);
-
         log::debug!("Creating selection viewport selection modifier");
         let mut viewport_selection_modifier = gs::editor::NonDestructiveModifier::new(
             &device,
@@ -168,7 +154,9 @@ impl core::System for System {
                 &viewer.gaussians_buffer,
                 &viewer.model_transform_buffer,
                 &viewer.gaussian_transform_buffer,
-                vec![viewport_selection_compute_bundle],
+                vec![gs::selection::create_viewport_bundle::<
+                    gs::DefaultGaussianPod,
+                >(&device)],
             ),
             &viewer.gaussians_buffer,
         )
@@ -179,7 +167,7 @@ impl core::System for System {
         .create_bind_group(
             &device,
             // index 0 is the Gaussians buffer, so we use 1,
-            // see docs of create_sphere_bundle or create_box_bundle
+            // see docs of create_viewport_bundle
             1,
             [
                 viewer.camera_buffer.buffer().as_entire_binding(),
@@ -306,7 +294,7 @@ impl core::System for System {
                     .create_bind_group(
                         &self.device,
                         // index 0 is the Gaussians buffer, so we use 1,
-                        // see docs of create_sphere_bundle or create_box_bundle
+                        // see docs of create_viewport_bundle
                         1,
                         [
                             self.viewer.camera_buffer.buffer().as_entire_binding(),

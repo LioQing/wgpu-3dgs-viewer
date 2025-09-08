@@ -1,7 +1,7 @@
 use glam::*;
 
 use crate::{
-    CameraBuffer, Error,
+    CameraBuffer, RendererCreateError,
     selection::{
         ViewportTexture, ViewportTextureBrushRenderer, ViewportTextureF32Buffer,
         ViewportTexturePosBuffer, ViewportTextureRectangleRenderer,
@@ -19,6 +19,92 @@ pub enum ViewportSelectorType {
 }
 
 /// A selector to handle viewport selections.
+///
+/// ## Overview
+///
+/// This is used to handle viewport selections, including rectangle and brush selections.
+///
+/// It manages user interaction by storing the start and end states of the selections.
+///
+/// ## Usage
+///
+/// This selector is used in conjunction with the compute bundle created by
+/// [`selection::create_viewport_bundle`](crate::selection::create_viewport_bundle).
+///
+/// Each function of this selector should reflects user's action:
+/// - [`start`](Self::start): called when the user starts the selection (e.g., mouse button down).
+/// - [`update`](Self::update): called when the user updates the selection (e.g., mouse move with button held).
+/// - [`clear`](Self::clear): called to clear the selection texture (e.g., mouse button up).
+/// - [`render`](Self::render): called to render the selection to the viewport texture (e.g., every frame).
+///
+/// Also, don't forget to evaluate and apply the selection using either a
+/// [`SelectionBundle`](crate::editor::SelectionBundle) or a selection modifier like
+/// [`BasicSelectionModifier`](crate::editor::BasicSelectionModifier) after the selection is done
+/// (e.g., mouse button up).
+///
+/// Here is an example that uses this selector with a [`BasicSelectionModifier`](crate::editor::BasicSelectionModifier),
+/// which modifies some basic attributes of the selected Gaussians:
+///
+/// ```rust
+/// // Create the selector
+/// let selector = ViewportSelector::new(
+///   &device,
+///   &queue,
+///   viewport_size,
+///   &viewer.camera_buffer,
+/// ).unwrap();
+///
+/// // Create the selection modifier
+/// let mut selection_modifier = editor::BasicSelectionModifier::new(
+///     &device,
+///     &viewer.gaussians_buffer,
+///     &viewer.model_transform_buffer,
+///     &viewer.gaussian_transform_buffer,
+///     vec![selection::create_viewport_bundle::<GaussianPod>(&device)], // Create the viewport compute bundle
+/// )
+/// .unwrap();
+///
+/// // Create the bind group for the selector
+/// let bind_group = selection_modifier.selection.bundles[0]
+///     .create_bind_group(
+///         &device,
+///         1, // index 0 is the Gaussians buffer, so we use 1,
+///            // see documentation of create_viewport_bundle
+///         [
+///             viewer.camera_buffer.buffer().as_entire_binding(),
+///             wgpu::BindingResource::TextureView(selector.texture().view()), // Supply the selection texture to write to
+///         ],
+///     )
+///     .unwrap();
+///
+/// // Set the selection expression to just use the selector
+/// selection_modifier.selection_expr = gs::editor::SelectionExpr::Selection(0, vec![bind_group]);
+///
+/// // In the event loop, handle user input to start, update, end, and apply the selection
+///
+/// if /* Left mouse button is just pressed */ {
+///     selector.start(&queue, input.mouse_pos);
+/// }
+///
+/// if /* Left mouse button is held */ {
+///     selector.update(&queue, input.mouse_pos);
+/// }
+///
+/// if /* Left mouse button is just released */ {
+///     selection_modifier.apply( // Evaluate selection and apply modifiers
+///         &device,
+///         &mut encoder,
+///         &viewer.gaussians_buffer,
+///         &viewer.model_transform_buffer,
+///         &viewer.gaussian_transform_buffer,
+///     );
+///
+///     selector.clear(&mut encoder);
+/// }
+///
+/// // Render the selector
+/// selector.render(&mut encoder);
+/// ```
 #[derive(Debug)]
 pub struct ViewportSelector {
     /// The start position of the selection.
@@ -68,7 +154,7 @@ impl ViewportSelector {
         queue: &wgpu::Queue,
         viewport_size: UVec2,
         camera: &CameraBuffer,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RendererCreateError> {
         let start_buffer = ViewportTexturePosBuffer::new(device);
         let end_buffer = ViewportTexturePosBuffer::new(device);
         let radius_buffer = ViewportTextureF32Buffer::new(device);

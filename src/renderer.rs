@@ -1,6 +1,7 @@
 use crate::{
-    CameraBuffer, Error, GaussianPod, GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer,
-    IndirectIndicesBuffer, ModelTransformBuffer, core::BufferWrapper, wesl_utils,
+    CameraBuffer, GaussianPod, GaussianTransformBuffer, GaussiansBuffer, IndirectArgsBuffer,
+    IndirectIndicesBuffer, ModelTransformBuffer, RendererCreateError, core::BufferWrapper,
+    wesl_utils,
 };
 
 /// A renderer for Gaussians.
@@ -114,9 +115,9 @@ impl Renderer {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_indices: &IndirectIndicesBuffer,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RendererCreateError> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
-            return Err(Error::ModelSizeExceedsDeviceLimit {
+            return Err(RendererCreateError::ModelSizeExceedsDeviceLimit {
                 model_size: gaussians.buffer().size(),
                 device_limit: device.limits().max_storage_buffer_binding_size,
             });
@@ -232,7 +233,7 @@ impl Renderer<()> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RendererCreateError> {
         log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
             device.create_bind_group_layout(&Renderer::BIND_GROUP_LAYOUT_DESCRIPTOR);

@@ -1,6 +1,6 @@
 use crate::{
-    CameraBuffer, Error, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    RadixSortIndirectArgsBuffer,
+    CameraBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
+    PreprocessorCreateError, RadixSortIndirectArgsBuffer,
     core::{
         BufferWrapper, ComputeBundle, ComputeBundleBuilder, GaussianPod, GaussiansBuffer,
         ModelTransformBuffer,
@@ -167,9 +167,9 @@ impl Preprocessor {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, PreprocessorCreateError> {
         if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
-            return Err(Error::ModelSizeExceedsDeviceLimit {
+            return Err(PreprocessorCreateError::ModelSizeExceedsDeviceLimit {
                 model_size: gaussians.buffer().size(),
                 device_limit: device.limits().max_storage_buffer_binding_size,
             });
@@ -270,20 +270,22 @@ impl Preprocessor<()> {
     ///
     /// To create a bind group with layout matched to this preprocessor, use the
     /// [`Preprocessor::create_bind_group`] method.
-    pub fn new_without_bind_group<G: GaussianPod>(device: &wgpu::Device) -> Result<Self, Error> {
+    pub fn new_without_bind_group<G: GaussianPod>(
+        device: &wgpu::Device,
+    ) -> Result<Self, PreprocessorCreateError> {
         let bind_group_layout =
             device.create_bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let pre_bundle = ComputeBundleBuilder::new()
             .label(format!("Pre {}", Preprocessor::LABEL).as_str())
-            .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("pre")
             .main_shader(
                 Preprocessor::MAIN_SHADER
                     .parse()
                     .expect("preprocess module path"),
             )
-            .compile_options(wesl::CompileOptions {
+            .wesl_compile_options(wesl::CompileOptions {
                 features: G::wesl_features(),
                 ..Default::default()
             })
@@ -292,14 +294,14 @@ impl Preprocessor<()> {
 
         let bundle = ComputeBundleBuilder::new()
             .label(Preprocessor::LABEL)
-            .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("main")
             .main_shader(
                 Preprocessor::MAIN_SHADER
                     .parse()
                     .expect("preprocess module path"),
             )
-            .compile_options(wesl::CompileOptions {
+            .wesl_compile_options(wesl::CompileOptions {
                 features: G::wesl_features(),
                 ..Default::default()
             })
@@ -308,14 +310,14 @@ impl Preprocessor<()> {
 
         let post_bundle = ComputeBundleBuilder::new()
             .label(format!("Post {}", Preprocessor::LABEL).as_str())
-            .bind_group(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("post")
             .main_shader(
                 Preprocessor::MAIN_SHADER
                     .parse()
                     .expect("preprocess module path"),
             )
-            .compile_options(wesl::CompileOptions {
+            .wesl_compile_options(wesl::CompileOptions {
                 features: G::wesl_features(),
                 ..Default::default()
             })

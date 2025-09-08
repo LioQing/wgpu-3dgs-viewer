@@ -46,7 +46,7 @@ impl From<CameraBuffer> for wgpu::Buffer {
 }
 
 impl TryFrom<wgpu::Buffer> for CameraBuffer {
-    type Error = core::Error;
+    type Error = core::FixedSizeBufferWrapperError;
 
     fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
         Self::verify_buffer_size(&buffer).map(|()| Self(buffer))

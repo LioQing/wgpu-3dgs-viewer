@@ -6,20 +6,23 @@
 
 ## Overview
 
-### Introduction
+This library displays 3D Gaussian Splatting models with wgpu. It includes a ready‑to‑use pipeline and modular pieces you can swap out.
 
-This crate provides a low-level interface to render 3D Gaussian splatting using the [wgpu](https://wgpu.rs/) graphics API. It is designed to provide as much flexibility and extensibility as possible, while still being easy to use. It also provides function to load models very quickly from output of the original paper [3D Gaussian Splatting for Real-Time Radiance Field Rendering](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/).
+- Rendering pipeline
+    - Preprocess: cull off‑screen points and set up indirect draw data.
+    - Sort and draw: sort by depth and draw the Gaussians.
+    - Modes: Gaussians may be displayed as splat, ellipse, or point.
+    - Transforms: apply model or per-Gaussian transforms.
+- Abstraction for renderer and buffers
+    - Viewer: one type that manages the buffers and pipelines.
+    - Low-level access: preprocessor, sorter, renderer, and their buffers can be used separately.
+- Optional features
+    - Multi-model: render many models with custom draw orders.
+    - Selection: viewport selection (e.g. rectangle, brush) that marks Gaussians for editing.
+- Shaders
+    - WGSL shaders packaged with WESL, you can extend or replace them.
 
-### Features
-
-- 🎨 **WebGPU**: [wgpu](https://wgpu.rs/), the Rust implementation of [WebGPU](https://www.w3.org/TR/webgpu/), provides safe, portable, and efficient rendering.
-- 🤖 **Low-level**: Very close to the underlying WebGPU API, so you can use it as a low-level graphics API if you want, such as directly writing to the buffers and textures.
-- 📦 **Compression**: Optionally compress the Gaussian splatting to reduce GPU memory usage and improve performance.
-- 🔎 **Selection & Editing**: Support for selecting and editing the Gaussians to hide, override the color, adjust contrast, etc. for better visualization.
-- 🏙️ **Multi-model**: Support for loading multiple models at once with customized rendering order.
-- 🎭 **Masking**: Support for masking Gaussians with composite shapes, defined by complex set operations (union, intersection, difference, etc.).
-
-### Demo
+## Demo
 
 Simple (real-time rendering):
 
@@ -35,128 +38,25 @@ Masking (box and ellipsoid masks, depth testing):
 
 While there are examples provided, you can more directly see the viewer in action by going to my [3D Gaussian Splatting Viewer App](https://github.com/lioqing/wgpu-3dgs-viewer-app) which builds on this crate and provides a more user-friendly interface.
 
+## Usage
+
+You may read the documentation of the following types for more details:
+- [`Viewer`]: Manages buffers and renders a model.
+    - [`Preprocessor`]: Culls Gaussians and fills indirect args and depths.
+    - [`RadixSorter`]: Sorts Gaussians by depth on the GPU.
+    - [`Renderer`]: Draws Gaussians with the selected display mode.
+- [`MultiModelViewer`]: [`Viewer`] equivalent for multiple models. Requires `multi-model` feature.
+- [`selection`]: Select Gaussians based on viewport interactions, e.g. rectangle or brush. Requires `selection` feature.
+
 ## Dependencies
 
 This crate depends on the following crates:
 
-| `wgpu-3dgs-viewer` | `wgpu` | `glam` |
-| ------------------ | ------ | ------ |
-| 0.1 - 0.2          | 24.0   | 0.29   |
-| 0.3                | 25.0   | 0.30   |
-
-## Usage
-
-### Library
-
-You can use it as a library to render 3D Gaussian splatting in your own application. 
-
-Generally, the [`Viewer`] is sufficient for most use cases. However, you may directly use the individual components from the fields of [`Viewer`] if you want more control.
-
-Example:
-
-```rust
-use wgpu_3dgs_viewer::{Camera, Gaussians, Viewer};
-use glam::uvec2;
-
-// ...
-
-// Read the Gaussians from the .ply file
-let f = std::fs::File::open(model_path).expect("ply file");
-let mut reader = std::io::BufReader::new(f);
-let gaussians = Gaussians::read_ply(&mut reader).expect("gaussians");
-
-// Create the camera
-let camera = Camera::new(0.1..1e4, 60f32.to_radians());
-
-// Create the viewer
-let mut viewer =
-    Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
-
-// ...
-
-// Update the viewer's camera buffer
-viewer.update_camera(
-    &queue,
-    &camera,
-    uvec2(config.width, config.height),
-);
-
-// ...
-
-// Render the viewer
-viewer.render(
-    &mut encoder,
-    &texture_view,
-    gaussians.gaussians.len() as u32,
-);
-```
-
-You may also take a look at some binary examples:
-
-- [`simple-wgpu-3dgs-viewer`](./src/bin/simple.rs): a simple example
-- [`selection-wgpu-3dgs-viewer`](./src/bin/selection.rs): a selection and multi-model example
-- [`mask-wgpu-3dgs-viewer`](./src/bin/mask.rs): a masking and depth testing example
-
-### Standalone Examples
-
-To run the examples, you can use the following commands:
-
-```sh
-cargo run --example simple -- "path/to/model.ply"
-```
-
-Usage:
-
-```text
-A 3D Gaussian splatting viewer written in Rust using wgpu.
-
-Use W, A, S, D, Space, Shift to move, use mouse to rotate.
-
-
-Usage: simple.exe --model <MODEL>
-
-Options:
-  -m, --model <MODEL>
-          Path to the .ply file
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
-```
-
-Or try the multi-model example:
-
-```sh
-cargo run --example multi-model --features multi-model -- -m "path/to/model1.ply" -m "path/to/model2.ply" .. -o offsetx offsety offsetz
-```
-
-Usage:
-
-```text
-A 3D Gaussian splatting viewer written in Rust using wgpu.
-
-Use W, A, S, D, Space, Shift to move, use mouse to rotate.
-
-
-Usage: multi-model.exe [OPTIONS]
-
-Options:
-  -m, --models <MODELS>...
-          Path to the .ply file
-
-  -o, --offset <OFFSET> <OFFSET> <OFFSET>
-          The offset of each model
-
-          [default: 10.0,0.0,0.0]
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
-```
+| `wgpu-3dgs-viewer` | `wgpu` | `glam` | `wesl` |
+| ------------------ | ------ | ------ | ------ |
+| 0.4                | 26.0   | 0.30   | 0.2    |
+| 0.3                | 25.0   | 0.30   | N/A    |
+| 0.1 - 0.2          | 24.0   | 0.29   | N/A    |
 
 ## Acknowledgements
 

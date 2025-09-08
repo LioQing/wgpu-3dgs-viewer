@@ -3,18 +3,20 @@ name = "wgpu-3dgs-viewer"
 version = "0.4.0"
 edition = "2024"
 authors = ["Lio Qing"]
-license = "MIT"
-description = "A 3D Gaussian splatting viewer written in Rust using wgpu."
+license = "MIT OR Apache-2.0"
+description = "A 3D Gaussian splatting viewer library written in Rust using wgpu."
 readme = "README.md"
 include = [
     "README.md",
-    "LICENSE",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
     "CHANGELOG.md",
     "Cargo.toml",
     "Cargo.lock",
     "src/**/*",
 ]
 repository = "https://github.com/LioQing/wgpu-3dgs-viewer"
+homepage = "https://github.com/LioQing/wgpu-3dgs-viewer"
 keywords = ["gaussian-splatting", "point-cloud", "wgpu", "graphics", "ply"]
 categories = ["graphics", "rendering", "wasm"]
 
@@ -26,15 +28,18 @@ path = "src/lib.rs"
 name = "multi-model"
 path = "examples/multi_model.rs"
 required-features = ["multi-model"]
+doc-scrape-examples = true
 
 [[example]]
 name = "selection"
 path = "examples/selection.rs"
 required-features = ["selection"]
+doc-scrape-examples = true
 
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
+doc-scrape-examples = true
 
 [features]
 multi-model = []

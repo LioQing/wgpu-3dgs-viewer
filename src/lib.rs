@@ -41,6 +41,23 @@ pub use wgpu_3dgs_editor as editor;
 pub type DefaultGaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs;
 
 /// The 3D Gaussian splatting viewer.
+///
+/// This provides all the necessary buffers and operations to render 3D Gaussians:
+/// - Buffers
+///     - [`CameraBuffer`]
+///     - [`ModelTransformBuffer`]
+///     - [`GaussianTransformBuffer`]
+///     - [`GaussiansBuffer`]
+///     - [`IndirectArgsBuffer`]
+///     - [`RadixSortIndirectArgsBuffer`]
+///     - [`IndirectIndicesBuffer`]
+///     - [`GaussiansDepthBuffer`]
+/// - Operations
+///    - [`Preprocessor`]
+///    - [`RadixSorter`]
+///    - [`Renderer`]
+///
+/// If you wish to manage these buffers yourself, you do not need to use this struct.
 #[derive(Debug)]
 pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
     pub camera_buffer: CameraBuffer,
@@ -63,7 +80,7 @@ impl<G: GaussianPod> Viewer<G> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         gaussians: &Gaussians,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, ViewerCreateError> {
         Self::new_with(
             device,
             texture_format,
@@ -73,14 +90,18 @@ impl<G: GaussianPod> Viewer<G> {
         )
     }
 
-    /// Create a new viewer with all options.
+    /// Create a new viewer with all extra options.
+    ///
+    /// More specifically, you can specify:
+    /// - `depth_stencil`: The optional depth stencil state for the renderer.
+    /// - `gaussians_buffer_usage`: The usage for the gaussians buffer.
     pub fn new_with(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
         gaussians_buffer_usage: wgpu::BufferUsages,
         gaussians: &Gaussians,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, ViewerCreateError> {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 

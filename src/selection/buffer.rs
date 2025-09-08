@@ -83,7 +83,7 @@ impl From<ViewportTexturePosBuffer> for wgpu::Buffer {
 }
 
 impl TryFrom<wgpu::Buffer> for ViewportTexturePosBuffer {
-    type Error = core::Error;
+    type Error = core::FixedSizeBufferWrapperError;
 
     fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
         Self::verify_buffer_size(&buffer).map(|()| Self(buffer))
@@ -132,7 +132,7 @@ impl From<ViewportTextureF32Buffer> for wgpu::Buffer {
 }
 
 impl TryFrom<wgpu::Buffer> for ViewportTextureF32Buffer {
-    type Error = core::Error;
+    type Error = core::FixedSizeBufferWrapperError;
 
     fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
         Self::verify_buffer_size(&buffer).map(|()| Self(buffer))

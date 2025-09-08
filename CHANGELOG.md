@@ -2,15 +2,21 @@
 
 ## 0.4.0 - Unreleased
 
-This is a big update! We are splitting the project into multiple crates to make it more modular and easier to use.
+This is a big rework update! We are splitting the project into multiple crates to make it more modular and easier to use.
 
 ### Added
 
 - 🔦 Shaders are now [WESL](https://wesl-lang.dev/) which is more modular.
+- 📜 The source code can now also be licensed under Apache 2.0, just like Rust's source code.
 
 ### Removed
 
-- ❌ All the masking, editing, querying, and selection features. These features are available in the new `wgpu-3dgs-editor` crate with a different API.
+- ❌ All the masking, editing, querying, and selection features. These features are available in the new [`wgpu-3dgs-editor`](https://github.com/LioQing/wgpu-3dgs-editor) crate with a different API.
+
+### Changed
+
+- 🔄 Update `wgpu` to 26.0.
+- 🏃‍➡️ Binaries of the crate are now examples, since they were not very complete anyway.
 
 ## [0.3.0](https://crates.io/crates/wgpu-3dgs-viewer/0.3.0) - 2025-05-14
 

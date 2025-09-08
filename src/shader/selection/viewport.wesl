@@ -2,7 +2,6 @@ import wgpu_3dgs_core::{
     gaussian::Gaussian,
     gaussian_transform::GaussianTransform,
     model_transform::{ ModelTransform, model_to_world },
-    compute_bundle::index,
 };
 import package::{
     camera::{ Camera, world_to_camera, ndc_to_camera_texture },
@@ -35,9 +34,9 @@ var selection_texture: texture_2d<f32>;
 
 override workgroup_size: u32;
 
-@compute @workgroup_size(workgroup_size, 1, 1)
-fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    let index = index(wid, workgroup_size, lid);
+@compute @workgroup_size(workgroup_size)
+fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+    let index = id.x;
 
     if index >= arrayLength(&gaussians) {
         return;

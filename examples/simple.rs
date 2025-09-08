@@ -104,26 +104,16 @@ impl core::System for System {
         let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
 
         log::debug!("Creating camera");
-        let adjust_quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
-        let mut camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
-        camera.pos = gaussians
-            .gaussians
-            .iter()
-            .map(|g| adjust_quat * g.pos)
-            .sum::<Vec3>()
-            / gaussians.gaussians.len() as f32;
-        camera.pos.z -= 1.0;
+        let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
         log::debug!("Creating viewer");
         let mut viewer =
             gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
-        viewer.update_model_transform(&queue, Vec3::ZERO, adjust_quat, Vec3::ONE);
-        viewer.update_gaussian_transform(
+        viewer.update_model_transform(
             &queue,
-            1.0,
-            gs::core::GaussianDisplayMode::Splat,
-            gs::core::GaussianShDegree::new(3).expect("SH degree"),
-            false,
+            Vec3::ZERO,
+            Quat::from_axis_angle(Vec3::Z, 180f32.to_radians()),
+            Vec3::ONE,
         );
 
         log::info!("System initialized");
