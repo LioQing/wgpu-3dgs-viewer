@@ -48,6 +48,50 @@ You may read the documentation of the following types for more details:
 - [`MultiModelViewer`]: [`Viewer`] equivalent for multiple models. Requires `multi-model` feature.
 - [`selection`]: Select Gaussians based on viewport interactions, e.g. rectangle or brush. Requires `selection` feature.
 
+### Simple Viewer
+
+You can use [`Viewer`] to render a single 3D Gaussian Splatting model:
+
+```rust
+use wgpu_3dgs_viewer as gs;
+use glam::UVec2;
+
+// Setup wgpu...
+
+// Read the Gaussians from the .ply file
+let f = std::fs::File::open(model_path).expect("ply file");
+let mut reader = std::io::BufReader::new(f);
+let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
+
+// Create the camera
+let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
+
+// Create the viewer
+let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
+
+// Setup camera parameters...
+
+// Update the viewer's camera buffer
+viewer.update_camera(
+    &queue,
+    &camera,
+    UVec2::new(config.width, config.height),
+);
+
+// Create wgpu command encoder...
+
+// Render the model
+viewer.render(
+    &mut encoder,
+    &texture_view,
+    gaussians.gaussians.len() as u32,
+);
+```
+
+## Examples
+
+See the [examples](./examples) directory for usage examples.
+
 ## Dependencies
 
 This crate depends on the following crates:
