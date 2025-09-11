@@ -46,7 +46,7 @@ pub fn create_viewport_bundle<G: GaussianPod>(device: &wgpu::Device) -> ComputeB
     ComputeBundleBuilder::new()
         .label("Viewport Selection")
         .bind_group_layouts([
-            &SelectionBundle::GAUSSIANS_BIND_GROUP_LAYOUT_DESCRIPTOR,
+            &SelectionBundle::<G>::GAUSSIANS_BIND_GROUP_LAYOUT_DESCRIPTOR,
             &VIEWPORT_BIND_GROUP_LAYOUT_DESCRIPTOR,
         ])
         .main_shader(

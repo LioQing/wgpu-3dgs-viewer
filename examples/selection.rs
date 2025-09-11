@@ -54,7 +54,7 @@ struct System {
 
     viewport_selection_modifier: gs::editor::NonDestructiveModifier<
         gs::DefaultGaussianPod,
-        gs::editor::BasicSelectionModifier,
+        gs::editor::BasicSelectionModifier<gs::DefaultGaussianPod>,
     >,
     viewport_texture_overlay_renderer: utils::selection::ViewportTextureOverlayRenderer,
 }
@@ -149,7 +149,7 @@ impl core::System for System {
         let mut viewport_selection_modifier = gs::editor::NonDestructiveModifier::new(
             &device,
             &queue,
-            gs::editor::BasicSelectionModifier::new(
+            gs::editor::BasicSelectionModifier::new_with_basic_modifier(
                 &device,
                 &viewer.gaussians_buffer,
                 &viewer.model_transform_buffer,
@@ -179,13 +179,14 @@ impl core::System for System {
         viewport_selection_modifier.modifier.selection_expr =
             gs::editor::SelectionExpr::Selection(0, vec![viewport_selection_bind_group]);
 
-        viewport_selection_modifier
-            .modifier
+        viewport_selection_modifier // Non destructive modifier
+            .modifier // Selection modifier
+            .modifier // Basic modifier
             .basic_color_modifiers_buffer
             .update_with_pod(
                 &queue,
                 &gs::editor::BasicColorModifiersPod {
-                    alpha: 0.0,
+                    rgb_or_hsv: -Vec3::new(1.0, 1.0, 0.0),
                     ..Default::default()
                 },
             );
