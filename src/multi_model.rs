@@ -169,9 +169,9 @@ impl MultiModelViewerBindGroups {
     /// Create a new viewer bind groups.
     pub fn new<G: GaussianPod>(
         device: &wgpu::Device,
-        preprocessor: &Preprocessor<()>,
+        preprocessor: &Preprocessor<G, ()>,
         radix_sorter: &RadixSorter<()>,
-        renderer: &Renderer<()>,
+        renderer: &Renderer<G, ()>,
         gaussian_buffers: &MultiModelViewerGaussianBuffers<G>,
         world_buffers: &MultiModelViewerWorldBuffers,
     ) -> Self {
@@ -222,9 +222,9 @@ pub struct MultiModelViewerModel<G: GaussianPod = DefaultGaussianPod> {
 pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::cmp::Eq = String> {
     pub models: HashMap<K, MultiModelViewerModel<G>>,
     pub world_buffers: MultiModelViewerWorldBuffers,
-    pub preprocessor: Preprocessor<()>,
+    pub preprocessor: Preprocessor<G, ()>,
     pub radix_sorter: RadixSorter<()>,
-    pub renderer: Renderer<()>,
+    pub renderer: Renderer<G, ()>,
 }
 
 impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
@@ -248,14 +248,13 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         let world_buffers = MultiModelViewerWorldBuffers::new(device);
 
         log::debug!("Creating preprocessor");
-        let preprocessor = Preprocessor::new_without_bind_group::<G>(device)?;
+        let preprocessor = Preprocessor::new_without_bind_group(device)?;
 
         log::debug!("Creating radix sorter");
         let radix_sorter = RadixSorter::new_without_bind_groups(device);
 
         log::debug!("Creating renderer");
-        let renderer =
-            Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil)?;
+        let renderer = Renderer::new_without_bind_group(device, texture_format, depth_stencil)?;
 
         log::info!("Viewer created");
 

@@ -12,7 +12,7 @@ use crate::{
 ///
 /// It computes the depth for [`RadixSorter`](crate::RadixSorter) and do frustum culling.
 #[derive(Debug)]
-pub struct Preprocessor<B = wgpu::BindGroup> {
+pub struct Preprocessor<G: GaussianPod, B = wgpu::BindGroup> {
     /// The bind group layout.
     #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
@@ -24,12 +24,14 @@ pub struct Preprocessor<B = wgpu::BindGroup> {
     bundle: ComputeBundle<()>,
     /// The post preprocess bundle.
     post_bundle: ComputeBundle<()>,
+    /// The marker for the Gaussian POD type.
+    gaussian_pod_marker: std::marker::PhantomData<G>,
 }
 
-impl<B> Preprocessor<B> {
+impl<G: GaussianPod, B> Preprocessor<G, B> {
     /// Create the bind group.
     #[allow(clippy::too_many_arguments)]
-    pub fn create_bind_group<G: GaussianPod>(
+    pub fn create_bind_group(
         &self,
         device: &wgpu::Device,
         camera: &CameraBuffer,
@@ -64,123 +66,101 @@ impl<B> Preprocessor<B> {
     }
 }
 
-impl Preprocessor {
+impl<G: GaussianPod> Preprocessor<G> {
     /// The label.
     const LABEL: &str = "Preprocessor";
 
     /// The main shader module path.
     const MAIN_SHADER: &str = "wgpu_3dgs_viewer::preprocess";
 
-    /// The bind group layout entries.
-    const BIND_GROUP_LAYOUT_ENTRIES: [wgpu::BindGroupLayoutEntry; 8] = [
-        // Camera uniform buffer
-        wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-        // Model transform uniform buffer
-        wgpu::BindGroupLayoutEntry {
-            binding: 1,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-        // Gaussian storage buffer
-        wgpu::BindGroupLayoutEntry {
-            binding: 2,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-        // Indirect args storage buffer
-        wgpu::BindGroupLayoutEntry {
-            binding: 3,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-        // Radix sort indirect args storage buffer
-        wgpu::BindGroupLayoutEntry {
-            binding: 4,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-        // Indirect indices storage buffer
-        wgpu::BindGroupLayoutEntry {
-            binding: 5,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-        // Gaussians depth storage buffer
-        wgpu::BindGroupLayoutEntry {
-            binding: 6,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-        wgpu::BindGroupLayoutEntry {
-            binding: 7,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        },
-    ];
-
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("Preprocessor Bind Group Layout"),
-            entries: Self::BIND_GROUP_LAYOUT_ENTRIES.split_at(7).0,
+            entries: &[
+                // Camera uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Model transform uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Gaussian storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Indirect args storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Radix sort indirect args storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Indirect indices storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Gaussians depth storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
         };
-
-    /// The bind group layout descriptor with [`SelectionBuffer`](crate::editor::SelectionBuffer).
-    #[cfg(feature = "selection")]
-    pub const BIND_GROUP_LAYOUT_DESCRIPTOR_WITH_SELECTION: wgpu::BindGroupLayoutDescriptor<
-        'static,
-    > = wgpu::BindGroupLayoutDescriptor {
-        label: Some("Preprocessor Bind Group Layout"),
-        entries: &Self::BIND_GROUP_LAYOUT_ENTRIES,
-    };
 
     /// Create a new preprocessor.
     #[allow(clippy::too_many_arguments)]
-    pub fn new<G: GaussianPod>(
+    pub fn new(
         device: &wgpu::Device,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
@@ -199,7 +179,7 @@ impl Preprocessor {
             });
         }
 
-        let this = Preprocessor::new_without_bind_group::<G>(device)?;
+        let this = Preprocessor::new_without_bind_group(device)?;
 
         log::debug!("Creating preprocessor bind group");
         let bind_group = this.create_bind_group(
@@ -219,6 +199,7 @@ impl Preprocessor {
             pre_bundle: this.pre_bundle,
             bundle: this.bundle,
             post_bundle: this.post_bundle,
+            gaussian_pod_marker: std::marker::PhantomData,
         })
     }
 
@@ -234,7 +215,7 @@ impl Preprocessor {
 
     /// Create the bind group statically.
     #[allow(clippy::too_many_arguments)]
-    fn create_bind_group_static<G: GaussianPod>(
+    fn create_bind_group_static(
         device: &wgpu::Device,
         bind_group_layout: &wgpu::BindGroupLayout,
         camera: &CameraBuffer,
@@ -289,23 +270,21 @@ impl Preprocessor {
     }
 }
 
-impl Preprocessor<()> {
+impl<G: GaussianPod> Preprocessor<G, ()> {
     /// Create a new preprocessor without interally managed bind group.
     ///
     /// To create a bind group with layout matched to this preprocessor, use the
     /// [`Preprocessor::create_bind_group`] method.
-    pub fn new_without_bind_group<G: GaussianPod>(
-        device: &wgpu::Device,
-    ) -> Result<Self, PreprocessorCreateError> {
+    pub fn new_without_bind_group(device: &wgpu::Device) -> Result<Self, PreprocessorCreateError> {
         let bind_group_layout =
-            device.create_bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR);
+            device.create_bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let pre_bundle = ComputeBundleBuilder::new()
-            .label(format!("Pre {}", Preprocessor::LABEL).as_str())
-            .bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .label(format!("Pre {}", Preprocessor::<G>::LABEL).as_str())
+            .bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("pre")
             .main_shader(
-                Preprocessor::MAIN_SHADER
+                Preprocessor::<G>::MAIN_SHADER
                     .parse()
                     .expect("preprocess module path"),
             )
@@ -317,11 +296,11 @@ impl Preprocessor<()> {
             .build_without_bind_groups(device)?;
 
         let bundle = ComputeBundleBuilder::new()
-            .label(Preprocessor::LABEL)
-            .bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .label(Preprocessor::<G>::LABEL)
+            .bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("main")
             .main_shader(
-                Preprocessor::MAIN_SHADER
+                Preprocessor::<G>::MAIN_SHADER
                     .parse()
                     .expect("preprocess module path"),
             )
@@ -333,11 +312,11 @@ impl Preprocessor<()> {
             .build_without_bind_groups(device)?;
 
         let post_bundle = ComputeBundleBuilder::new()
-            .label(format!("Post {}", Preprocessor::LABEL).as_str())
-            .bind_group_layout(&Preprocessor::BIND_GROUP_LAYOUT_DESCRIPTOR)
+            .label(format!("Post {}", Preprocessor::<G>::LABEL).as_str())
+            .bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("post")
             .main_shader(
-                Preprocessor::MAIN_SHADER
+                Preprocessor::<G>::MAIN_SHADER
                     .parse()
                     .expect("preprocess module path"),
             )
@@ -356,6 +335,7 @@ impl Preprocessor<()> {
             pre_bundle,
             bundle,
             post_bundle,
+            gaussian_pod_marker: std::marker::PhantomData,
         })
     }
 

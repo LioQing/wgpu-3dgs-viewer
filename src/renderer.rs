@@ -6,7 +6,7 @@ use crate::{
 
 /// A renderer for Gaussians.
 #[derive(Debug)]
-pub struct Renderer<B = wgpu::BindGroup> {
+pub struct Renderer<G: GaussianPod, B = wgpu::BindGroup> {
     /// The bind group layout.
     #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
@@ -14,12 +14,14 @@ pub struct Renderer<B = wgpu::BindGroup> {
     bind_group: B,
     /// The render pipeline.
     pipeline: wgpu::RenderPipeline,
+    /// The marker for the Gaussian POD type.
+    gaussian_pod_marker: std::marker::PhantomData<G>,
 }
 
-impl<B> Renderer<B> {
+impl<G: GaussianPod, B> Renderer<G, B> {
     /// Create the bind group.
     #[allow(clippy::too_many_arguments)]
-    pub fn create_bind_group<G: GaussianPod>(
+    pub fn create_bind_group(
         &self,
         device: &wgpu::Device,
         camera: &CameraBuffer,
@@ -40,7 +42,7 @@ impl<B> Renderer<B> {
     }
 }
 
-impl Renderer {
+impl<G: GaussianPod> Renderer<G> {
     /// The bind group layout descriptor.
     pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
@@ -106,7 +108,7 @@ impl Renderer {
 
     /// Create a new renderer.
     #[allow(clippy::too_many_arguments)]
-    pub fn new<G: GaussianPod>(
+    pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
@@ -123,7 +125,7 @@ impl Renderer {
             });
         }
 
-        let this = Renderer::new_without_bind_group::<G>(device, texture_format, depth_stencil)?;
+        let this = Renderer::new_without_bind_group(device, texture_format, depth_stencil)?;
 
         log::debug!("Creating renderer bind group");
         let bind_group = this.create_bind_group(
@@ -139,6 +141,7 @@ impl Renderer {
             bind_group_layout: this.bind_group_layout,
             bind_group,
             pipeline: this.pipeline,
+            gaussian_pod_marker: std::marker::PhantomData,
         })
     }
 
@@ -181,7 +184,7 @@ impl Renderer {
 
     /// Create the bind group statically.
     #[allow(clippy::too_many_arguments)]
-    fn create_bind_group_static<G: GaussianPod>(
+    fn create_bind_group_static(
         device: &wgpu::Device,
         bind_group_layout: &wgpu::BindGroupLayout,
         camera: &CameraBuffer,
@@ -224,19 +227,19 @@ impl Renderer {
     }
 }
 
-impl Renderer<()> {
+impl<G: GaussianPod> Renderer<G, ()> {
     /// Create a new renderer without internally managed bind group.
     ///
     /// To create a bind group with layout matched to this renderer, use the
     /// [`Renderer::create_bind_group`] method.
-    pub fn new_without_bind_group<G: GaussianPod>(
+    pub fn new_without_bind_group(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
     ) -> Result<Self, RendererCreateError> {
         log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
-            device.create_bind_group_layout(&Renderer::BIND_GROUP_LAYOUT_DESCRIPTOR);
+            device.create_bind_group_layout(&Renderer::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         log::debug!("Creating renderer pipeline layout");
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -298,6 +301,7 @@ impl Renderer<()> {
             bind_group_layout,
             bind_group: (),
             pipeline,
+            gaussian_pod_marker: std::marker::PhantomData,
         })
     }
 

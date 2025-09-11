@@ -69,9 +69,9 @@ pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
 
-    pub preprocessor: Preprocessor,
+    pub preprocessor: Preprocessor<G>,
     pub radix_sorter: RadixSorter,
-    pub renderer: Renderer,
+    pub renderer: Renderer<G>,
 }
 
 impl<G: GaussianPod> Viewer<G> {
