@@ -33,7 +33,7 @@ doc-scrape-examples = true
 [[example]]
 name = "selection"
 path = "examples/selection.rs"
-required-features = ["selection"]
+required-features = ["viewer-selection"]
 doc-scrape-examples = true
 
 [[example]]
@@ -41,9 +41,14 @@ name = "simple"
 path = "examples/simple.rs"
 doc-scrape-examples = true
 
+[package.metadata.docs.rs]
+all-features = true
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
 [features]
 multi-model = []
 selection = ["editor"]
+viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]

@@ -1,4 +1,5 @@
 use glam::*;
+use wgpu::util::DeviceExt;
 
 use crate::core::{self, BufferWrapper, FixedSizeBufferWrapper};
 
@@ -141,4 +142,55 @@ impl TryFrom<wgpu::Buffer> for ViewportTextureF32Buffer {
 
 impl FixedSizeBufferWrapper for ViewportTextureF32Buffer {
     type Pod = f32;
+}
+
+/// The invert selection buffer for [`Preprocessor`](crate::Preprocessor).
+///
+/// This is used for inverting the selection in the preprocessor, it is essentially just a boolean.
+#[derive(Debug, Clone)]
+pub struct PreprocessorInvertSelectionBuffer(wgpu::Buffer);
+
+impl PreprocessorInvertSelectionBuffer {
+    /// Create a new invert selection buffer.
+    ///
+    /// Note: the initial value is true.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Preprocessor Invert Selection Buffer"),
+            contents: bytemuck::bytes_of(&1u32),
+            usage: Self::DEFAULT_USAGES,
+        });
+
+        Self(buffer)
+    }
+
+    /// Update the invert selection buffer.
+    pub fn update(&self, queue: &wgpu::Queue, invert: bool) {
+        let value: u32 = if invert { 1 } else { 0 };
+        queue.write_buffer(&self.0, 0, bytemuck::bytes_of(&value));
+    }
+}
+
+impl BufferWrapper for PreprocessorInvertSelectionBuffer {
+    fn buffer(&self) -> &wgpu::Buffer {
+        &self.0
+    }
+}
+
+impl From<PreprocessorInvertSelectionBuffer> for wgpu::Buffer {
+    fn from(wrapper: PreprocessorInvertSelectionBuffer) -> Self {
+        wrapper.0
+    }
+}
+
+impl TryFrom<wgpu::Buffer> for PreprocessorInvertSelectionBuffer {
+    type Error = core::FixedSizeBufferWrapperError;
+
+    fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
+        Self::verify_buffer_size(&buffer).map(|()| Self(buffer))
+    }
+}
+
+impl FixedSizeBufferWrapper for PreprocessorInvertSelectionBuffer {
+    type Pod = u32;
 }

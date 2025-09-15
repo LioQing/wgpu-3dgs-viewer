@@ -4,6 +4,8 @@
 
 This is a big rework update! We are splitting the project into multiple crates to make it more modular and easier to use.
 
+[`wgpu-3dgs-editor`](https://github.com/LioQing/wgpu-3dgs-editor) and [`wgpu-3dgs-core`](https://github.com/LioQing/wgpu-3dgs-core) are now available for editing and core functionalities respectively. You may also access them via `wgpu-3dgs-viewer::editor` (requires `editor` feature) and `wgpu-3dgs-viewer::core`.
+
 ### Added
 
 - 🔦 Shaders are now [WESL](https://wesl-lang.dev/) which is more modular.
@@ -16,6 +18,8 @@ This is a big rework update! We are splitting the project into multiple crates t
 ### Changed
 
 - 🔄 Update `wgpu` to 26.0.
+- 🪛 Make `Preprocessor` and `Renderer` take `GaussianPod` as a generic parameter to enforce buffer safety.
+- 👁️ Viewport related selection (brush and rectangle selections) is now available via the `selection` feature and module.
 - 🏃‍➡️ Binaries of the crate are now examples, since they were not very complete anyway.
 
 ## [0.3.0](https://crates.io/crates/wgpu-3dgs-viewer/0.3.0) - 2025-05-14

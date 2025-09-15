@@ -8,6 +8,9 @@ use crate::{
     wesl_utils,
 };
 
+#[cfg(feature = "viewer-selection")]
+use crate::{editor::SelectionBuffer, selection};
+
 /// Preprocessor to preprocess the Gaussians.
 ///
 /// It computes the depth for [`RadixSorter`](crate::RadixSorter) and do frustum culling.
@@ -41,6 +44,9 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
+        #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
+        #[cfg(feature = "viewer-selection")]
+        invert_selection: &selection::PreprocessorInvertSelectionBuffer,
     ) -> wgpu::BindGroup {
         Preprocessor::create_bind_group_static(
             device,
@@ -52,6 +58,10 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
             radix_sort_indirect_args,
             indirect_indices,
             gaussians_depth,
+            #[cfg(feature = "viewer-selection")]
+            selection,
+            #[cfg(feature = "viewer-selection")]
+            invert_selection,
         )
     }
 
@@ -155,6 +165,30 @@ impl<G: GaussianPod> Preprocessor<G> {
                     },
                     count: None,
                 },
+                // Selection buffer
+                #[cfg(feature = "viewer-selection")]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Invert selection buffer
+                #[cfg(feature = "viewer-selection")]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 
@@ -169,6 +203,9 @@ impl<G: GaussianPod> Preprocessor<G> {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
+        #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
+        #[cfg(feature = "viewer-selection")]
+        invert_selection: &selection::PreprocessorInvertSelectionBuffer,
     ) -> Result<Self, PreprocessorCreateError> {
         if (device.limits().max_storage_buffer_binding_size as wgpu::BufferAddress)
             < gaussians.buffer().size()
@@ -191,6 +228,10 @@ impl<G: GaussianPod> Preprocessor<G> {
             radix_sort_indirect_args,
             indirect_indices,
             gaussians_depth,
+            #[cfg(feature = "viewer-selection")]
+            selection,
+            #[cfg(feature = "viewer-selection")]
+            invert_selection,
         );
 
         Ok(Self {
@@ -225,6 +266,9 @@ impl<G: GaussianPod> Preprocessor<G> {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
+        #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
+        #[cfg(feature = "viewer-selection")]
+        invert_selection: &selection::PreprocessorInvertSelectionBuffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Preprocessor Bind Group"),
@@ -265,6 +309,18 @@ impl<G: GaussianPod> Preprocessor<G> {
                     binding: 6,
                     resource: gaussians_depth.buffer().as_entire_binding(),
                 },
+                // Selection buffer
+                #[cfg(feature = "viewer-selection")]
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: selection.buffer().as_entire_binding(),
+                },
+                // Invert selection buffer
+                #[cfg(feature = "viewer-selection")]
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: invert_selection.buffer().as_entire_binding(),
+                },
             ],
         })
     }
@@ -276,6 +332,25 @@ impl<G: GaussianPod> Preprocessor<G, ()> {
     /// To create a bind group with layout matched to this preprocessor, use the
     /// [`Preprocessor::create_bind_group`] method.
     pub fn new_without_bind_group(device: &wgpu::Device) -> Result<Self, PreprocessorCreateError> {
+        let main_shader: wesl::ModulePath = Preprocessor::<G>::MAIN_SHADER
+            .parse()
+            .expect("preprocess module path");
+
+        let wesl_compile_options = wesl::CompileOptions {
+            features: wesl::Features {
+                flags: G::features()
+                    .into_iter()
+                    .chain(std::iter::once((
+                        "selection_buffer",
+                        cfg!(feature = "viewer-selection"),
+                    )))
+                    .map(|(k, v)| (k.to_string(), v.into()))
+                    .collect(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
         let bind_group_layout =
             device.create_bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
@@ -283,15 +358,8 @@ impl<G: GaussianPod> Preprocessor<G, ()> {
             .label(format!("Pre {}", Preprocessor::<G>::LABEL).as_str())
             .bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("pre")
-            .main_shader(
-                Preprocessor::<G>::MAIN_SHADER
-                    .parse()
-                    .expect("preprocess module path"),
-            )
-            .wesl_compile_options(wesl::CompileOptions {
-                features: G::wesl_features(),
-                ..Default::default()
-            })
+            .main_shader(main_shader.clone())
+            .wesl_compile_options(wesl_compile_options.clone())
             .resolver(wesl_utils::resolver())
             .build_without_bind_groups(device)?;
 
@@ -299,15 +367,8 @@ impl<G: GaussianPod> Preprocessor<G, ()> {
             .label(Preprocessor::<G>::LABEL)
             .bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("main")
-            .main_shader(
-                Preprocessor::<G>::MAIN_SHADER
-                    .parse()
-                    .expect("preprocess module path"),
-            )
-            .wesl_compile_options(wesl::CompileOptions {
-                features: G::wesl_features(),
-                ..Default::default()
-            })
+            .main_shader(main_shader.clone())
+            .wesl_compile_options(wesl_compile_options.clone())
             .resolver(wesl_utils::resolver())
             .build_without_bind_groups(device)?;
 
@@ -315,15 +376,8 @@ impl<G: GaussianPod> Preprocessor<G, ()> {
             .label(format!("Post {}", Preprocessor::<G>::LABEL).as_str())
             .bind_group_layout(&Preprocessor::<G>::BIND_GROUP_LAYOUT_DESCRIPTOR)
             .entry_point("post")
-            .main_shader(
-                Preprocessor::<G>::MAIN_SHADER
-                    .parse()
-                    .expect("preprocess module path"),
-            )
-            .wesl_compile_options(wesl::CompileOptions {
-                features: G::wesl_features(),
-                ..Default::default()
-            })
+            .main_shader(main_shader)
+            .wesl_compile_options(wesl_compile_options)
             .resolver(wesl_utils::resolver())
             .build_without_bind_groups(device)?;
 

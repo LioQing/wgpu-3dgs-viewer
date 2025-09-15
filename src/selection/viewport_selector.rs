@@ -38,11 +38,11 @@ pub enum ViewportSelectorType {
 /// - [`render`](Self::render): called to render the selection to the viewport texture (e.g., every frame).
 ///
 /// Also, don't forget to evaluate and apply the selection using either a
-/// [`SelectionBundle`](crate::editor::SelectionBundle) or a selection modifier like
-/// [`BasicSelectionModifier`](crate::editor::BasicSelectionModifier) after the selection is done
-/// (e.g., mouse button up).
+/// [`editor::SelectionBundle`](crate::editor::SelectionBundle) or a selection modifier like
+/// [`editor::BasicSelectionModifier`](crate::editor::BasicSelectionModifier) after the selection is
+/// done (e.g., mouse button up).
 ///
-/// Here is an example that uses this selector with a [`BasicSelectionModifier`](crate::editor::BasicSelectionModifier),
+/// Here is an example that uses this selector with a [`editor::BasicSelectionModifier`](crate::editor::BasicSelectionModifier),
 /// which modifies some basic attributes of the selected Gaussians:
 ///
 /// ```rust

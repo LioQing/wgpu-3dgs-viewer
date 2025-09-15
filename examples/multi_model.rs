@@ -147,7 +147,9 @@ impl core::System for System {
             log::debug!("Pushing model {i}");
 
             viewer.insert_model(&device, i, gaussians);
-            viewer.update_model_transform(&queue, &i, offset, quat, Vec3::ONE);
+            viewer
+                .update_model_transform(&queue, &i, offset, quat, Vec3::ONE)
+                .expect("update model");
 
             gaussian_centroids[i] = quat.mul_vec3(gaussian_centroids[i]) + offset;
         }

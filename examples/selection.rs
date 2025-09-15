@@ -18,7 +18,10 @@ use utils::core;
     A 3D Gaussian splatting viewer written in Rust using wgpu.\n\
     \n\
     Use W, A, S, D, Space, Shift to move, use mouse to rotate.\n\
-    Use C to cycle through none, rectangle, or brush selector.\n\
+    Use N to disable selection mode.\n\
+    Use B to toggle brush selection mode.\n\
+    Use R to toggle rectangle selection mode.\n\
+    Use I to invert selection, has immediate effect in filter mode.\n\
     Use Left Click to draw rectangle selection.\n\
     Use Right Click to draw brush selection.\n\
     "
@@ -27,6 +30,10 @@ struct Args {
     /// Path to the .ply file.
     #[arg(short, long)]
     model: String,
+
+    /// Enable filter mode, where instead of modifying the color, it filters the selected Gaussians.
+    #[arg(short, long)]
+    filter: bool,
 }
 
 fn main() -> Result<(), EventLoopError> {
@@ -45,6 +52,8 @@ struct System {
     device: wgpu::Device,
     config: wgpu::SurfaceConfiguration,
 
+    filter: bool,
+    inverted: bool,
     selector_type: Option<gs::selection::ViewportSelectorType>,
 
     camera: gs::Camera,
@@ -64,6 +73,7 @@ impl core::System for System {
 
     async fn init(window: Arc<Window>, args: &Args) -> Self {
         let model_path = &args.model;
+        let filter = args.filter;
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
@@ -207,6 +217,8 @@ impl core::System for System {
             queue,
             config,
 
+            filter,
+            inverted: filter,
             selector_type: None,
 
             camera,
@@ -221,20 +233,27 @@ impl core::System for System {
 
     fn update(&mut self, input: &core::Input, delta_time: f32) {
         // Toggle selection mode
-        if input.pressed_keys.contains(&KeyCode::KeyC) {
-            self.selector_type = match self.selector_type {
-                None => Some(gs::selection::ViewportSelectorType::Rectangle),
-                Some(gs::selection::ViewportSelectorType::Rectangle) => {
-                    Some(gs::selection::ViewportSelectorType::Brush)
-                }
-                Some(gs::selection::ViewportSelectorType::Brush) => None,
-            };
-
-            if let Some(selector_type) = self.selector_type {
-                log::info!("Selector: {selector_type:?}");
-                self.selector.selector_type = selector_type;
-            } else {
-                log::info!("Selector: None");
+        if input.pressed_keys.contains(&KeyCode::KeyN) {
+            self.selector_type = None;
+            log::info!("Selector: None");
+        }
+        if input.pressed_keys.contains(&KeyCode::KeyR) {
+            self.selector_type = Some(gs::selection::ViewportSelectorType::Rectangle);
+            log::info!("Selector: Rectangle");
+            self.selector.selector_type = gs::selection::ViewportSelectorType::Rectangle;
+        }
+        if input.pressed_keys.contains(&KeyCode::KeyB) {
+            self.selector_type = Some(gs::selection::ViewportSelectorType::Brush);
+            log::info!("Selector: Brush");
+            self.selector.selector_type = gs::selection::ViewportSelectorType::Brush;
+        }
+        if input.pressed_keys.contains(&KeyCode::KeyI) {
+            self.inverted = !self.inverted;
+            log::info!("Inverted: {}", self.inverted);
+            if self.filter {
+                self.viewer
+                    .invert_selection_buffer
+                    .update(&self.queue, self.inverted);
             }
         }
 
@@ -338,13 +357,40 @@ impl System {
             .released_mouse
             .contains(&winit::event::MouseButton::Left)
         {
-            self.viewport_selection_modifier.apply(
-                &self.device,
-                &mut encoder,
-                &self.viewer.gaussians_buffer,
-                &self.viewer.model_transform_buffer,
-                &self.viewer.gaussian_transform_buffer,
-            );
+            if self.filter {
+                self.viewport_selection_modifier
+                    .try_apply_with(
+                        &mut encoder,
+                        &self.viewer.gaussians_buffer,
+                        |encoder, modifier, gaussians| {
+                            modifier.apply_with(
+                                &self.device,
+                                encoder,
+                                gaussians,
+                                &self.viewer.model_transform_buffer,
+                                &self.viewer.gaussian_transform_buffer,
+                                &modifier.selection_expr,
+                                &self.viewer.selection_buffer,
+                            );
+                        },
+                    )
+                    .expect("apply selection modifier");
+            } else {
+                if self.inverted {
+                    self.viewport_selection_modifier
+                        .modifier
+                        .selection_expr
+                        .update_with(gs::editor::SelectionExpr::complement);
+                }
+
+                self.viewport_selection_modifier.apply(
+                    &self.device,
+                    &mut encoder,
+                    &self.viewer.gaussians_buffer,
+                    &self.viewer.model_transform_buffer,
+                    &self.viewer.gaussian_transform_buffer,
+                );
+            }
 
             self.selector.clear(&mut encoder);
         }

@@ -39,6 +39,12 @@ var<storage, read_write> indirect_indices: array<u32>;
 @group(0) @binding(6)
 var<storage, read_write> gaussians_depth: array<f32>;
 
+@if(selection_buffer) @group(0) @binding(7)
+var<storage, read> selection: array<u32>;
+
+@if(selection_buffer) @group(0) @binding(8)
+var<uniform> invert_selection: u32;
+
 @compute @workgroup_size(1)
 fn pre() {
     // Reset instance count
@@ -53,6 +59,18 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     if index >= arrayLength(&gaussians) {
         return;
+    }
+
+    // Selection
+    @if(selection_buffer) {
+        let word_index = index / 32u;
+        let bit_index = index % 32u;
+        let bit_mask = 1u << bit_index;
+        let bit = (selection[word_index] & bit_mask) != 0u;
+        let inverted = invert_selection != 0u;
+        if inverted == bit {
+            return;
+        }
     }
 
     let gaussian = gaussians[index];

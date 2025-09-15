@@ -22,6 +22,9 @@ use wgpu_3dgs_core::{
     ModelTransformBuffer, ModelTransformPod,
 };
 
+#[cfg(feature = "viewer-selection")]
+use wgpu_3dgs_editor::SelectionBuffer;
+
 pub use buffer::*;
 pub use camera::*;
 pub use error::*;
@@ -68,6 +71,10 @@ pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
     pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
+    #[cfg(feature = "viewer-selection")]
+    pub selection_buffer: SelectionBuffer,
+    #[cfg(feature = "viewer-selection")]
+    pub invert_selection_buffer: selection::PreprocessorInvertSelectionBuffer,
 
     pub preprocessor: Preprocessor<G>,
     pub radix_sorter: RadixSorter,
@@ -129,6 +136,18 @@ impl<G: GaussianPod> Viewer<G> {
         let gaussians_depth_buffer =
             GaussiansDepthBuffer::new(device, gaussians.gaussians.len() as u32);
 
+        #[cfg(feature = "viewer-selection")]
+        let selection_buffer = {
+            log::debug!("Creating selection buffer");
+            SelectionBuffer::new(device, gaussians.gaussians.len() as u32)
+        };
+
+        #[cfg(feature = "viewer-selection")]
+        let invert_selection_buffer = {
+            log::debug!("Creating invert selection buffer");
+            selection::PreprocessorInvertSelectionBuffer::new(device)
+        };
+
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new(
             device,
@@ -139,6 +158,10 @@ impl<G: GaussianPod> Viewer<G> {
             &radix_sort_indirect_args_buffer,
             &indirect_indices_buffer,
             &gaussians_depth_buffer,
+            #[cfg(feature = "viewer-selection")]
+            &selection_buffer,
+            #[cfg(feature = "viewer-selection")]
+            &invert_selection_buffer,
         )?;
 
         log::debug!("Creating radix sorter");
@@ -168,6 +191,10 @@ impl<G: GaussianPod> Viewer<G> {
             radix_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
+            #[cfg(feature = "viewer-selection")]
+            selection_buffer,
+            #[cfg(feature = "viewer-selection")]
+            invert_selection_buffer,
 
             preprocessor,
             radix_sorter,
