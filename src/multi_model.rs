@@ -47,9 +47,10 @@ impl MultiModelViewerWorldBuffers {
         display_mode: GaussianDisplayMode,
         sh_deg: GaussianShDegree,
         no_sh0: bool,
+        std_dev: f32,
     ) {
         self.gaussian_transform_buffer
-            .update(queue, size, display_mode, sh_deg, no_sh0);
+            .update(queue, size, display_mode, sh_deg, no_sh0, std_dev);
     }
 
     /// Update the Gaussian transform with [`GaussianTransformPod`].
@@ -225,6 +226,7 @@ impl MultiModelViewerBindGroups {
             device,
             &world_buffers.camera_buffer,
             &gaussian_buffers.model_transform_buffer,
+            &world_buffers.gaussian_transform_buffer,
             &gaussian_buffers.gaussians_buffer,
             &gaussian_buffers.indirect_args_buffer,
             &gaussian_buffers.radix_sort_indirect_args_buffer,
@@ -421,6 +423,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         display_mode: GaussianDisplayMode,
         sh_deg: GaussianShDegree,
         no_sh0: bool,
+        std_dev: f32,
     ) {
         self.world_buffers.gaussian_transform_buffer.update(
             queue,
@@ -428,6 +431,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             display_mode,
             sh_deg,
             no_sh0,
+            std_dev,
         );
     }
 

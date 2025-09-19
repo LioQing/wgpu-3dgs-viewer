@@ -2,8 +2,8 @@ use crate::{
     CameraBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
     PreprocessorCreateError, RadixSortIndirectArgsBuffer,
     core::{
-        BufferWrapper, ComputeBundle, ComputeBundleBuilder, GaussianPod, GaussiansBuffer,
-        ModelTransformBuffer,
+        BufferWrapper, ComputeBundle, ComputeBundleBuilder, GaussianPod, GaussianTransformBuffer,
+        GaussiansBuffer, ModelTransformBuffer,
     },
     wesl_utils,
 };
@@ -39,6 +39,7 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
         device: &wgpu::Device,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
+        gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_args: &IndirectArgsBuffer,
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
@@ -53,6 +54,7 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
             &self.bind_group_layout,
             camera,
             model_transform,
+            gaussian_transform,
             gaussians,
             indirect_args,
             radix_sort_indirect_args,
@@ -110,9 +112,20 @@ impl<G: GaussianPod> Preprocessor<G> {
                     },
                     count: None,
                 },
-                // Gaussian storage buffer
+                // Gaussian transform uniform buffer
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Gaussian storage buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -123,7 +136,7 @@ impl<G: GaussianPod> Preprocessor<G> {
                 },
                 // Indirect args storage buffer
                 wgpu::BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -134,7 +147,7 @@ impl<G: GaussianPod> Preprocessor<G> {
                 },
                 // Radix sort indirect args storage buffer
                 wgpu::BindGroupLayoutEntry {
-                    binding: 4,
+                    binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -145,7 +158,7 @@ impl<G: GaussianPod> Preprocessor<G> {
                 },
                 // Indirect indices storage buffer
                 wgpu::BindGroupLayoutEntry {
-                    binding: 5,
+                    binding: 6,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -156,7 +169,7 @@ impl<G: GaussianPod> Preprocessor<G> {
                 },
                 // Gaussians depth storage buffer
                 wgpu::BindGroupLayoutEntry {
-                    binding: 6,
+                    binding: 7,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -168,7 +181,7 @@ impl<G: GaussianPod> Preprocessor<G> {
                 // Selection buffer
                 #[cfg(feature = "viewer-selection")]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 7,
+                    binding: 8,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -180,7 +193,7 @@ impl<G: GaussianPod> Preprocessor<G> {
                 // Invert selection buffer
                 #[cfg(feature = "viewer-selection")]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 8,
+                    binding: 9,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -198,6 +211,7 @@ impl<G: GaussianPod> Preprocessor<G> {
         device: &wgpu::Device,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
+        gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_args: &IndirectArgsBuffer,
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
@@ -223,6 +237,7 @@ impl<G: GaussianPod> Preprocessor<G> {
             device,
             camera,
             model_transform,
+            gaussian_transform,
             gaussians,
             indirect_args,
             radix_sort_indirect_args,
@@ -261,6 +276,7 @@ impl<G: GaussianPod> Preprocessor<G> {
         bind_group_layout: &wgpu::BindGroupLayout,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
+        gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_args: &IndirectArgsBuffer,
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
@@ -284,41 +300,46 @@ impl<G: GaussianPod> Preprocessor<G> {
                     binding: 1,
                     resource: model_transform.buffer().as_entire_binding(),
                 },
-                // Gaussian storage buffer
+                // Gaussian transform uniform buffer
                 wgpu::BindGroupEntry {
                     binding: 2,
+                    resource: gaussian_transform.buffer().as_entire_binding(),
+                },
+                // Gaussian storage buffer
+                wgpu::BindGroupEntry {
+                    binding: 3,
                     resource: gaussians.buffer().as_entire_binding(),
                 },
                 // Indirect args storage buffer
                 wgpu::BindGroupEntry {
-                    binding: 3,
+                    binding: 4,
                     resource: indirect_args.buffer().as_entire_binding(),
                 },
                 // Radix sort indirect args storage buffer
                 wgpu::BindGroupEntry {
-                    binding: 4,
+                    binding: 5,
                     resource: radix_sort_indirect_args.buffer().as_entire_binding(),
                 },
                 // Indirect indices storage buffer
                 wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 6,
                     resource: indirect_indices.buffer().as_entire_binding(),
                 },
                 // Gaussians depth storage buffer
                 wgpu::BindGroupEntry {
-                    binding: 6,
+                    binding: 7,
                     resource: gaussians_depth.buffer().as_entire_binding(),
                 },
                 // Selection buffer
                 #[cfg(feature = "viewer-selection")]
                 wgpu::BindGroupEntry {
-                    binding: 7,
+                    binding: 8,
                     resource: selection.buffer().as_entire_binding(),
                 },
                 // Invert selection buffer
                 #[cfg(feature = "viewer-selection")]
                 wgpu::BindGroupEntry {
-                    binding: 8,
+                    binding: 9,
                     resource: invert_selection.buffer().as_entire_binding(),
                 },
             ],

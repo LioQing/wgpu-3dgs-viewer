@@ -14,13 +14,15 @@ import wgpu_3dgs_core::{
     },
 };
 
-// Determine if a Gaussian should be culled given a camera.
-fn cull(ndc_pos: vec3<f32>, camera: Camera) -> bool {
+// Determine if a Gaussian should be culled.
+fn cull(ndc_pos: vec3<f32>) -> bool {
     return !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0)));
 }
 
 // Project a 3D covariance matrix into a 2D covariance matrix.
-fn cov2d(gaussian: Gaussian, model_transform: ModelTransform) -> vec3<f32> {
+//
+// The returned 2D covariance matrix is represented as (cov.xx, cov.xy, cov.yy).
+fn cov2d(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> vec3<f32> {
     let cov3d = gaussian_unpack_cov3d(gaussian);
     let sr = model_scale_rot_mat(model_transform);
 
@@ -30,7 +32,7 @@ fn cov2d(gaussian: Gaussian, model_transform: ModelTransform) -> vec3<f32> {
         cov3d[2], cov3d[4], cov3d[5],
     );
 
-    let focal = vec2<f32>(camera.proj[0][0], camera.proj[1][1]) * camera.size;
+    let focal = vec2<f32>(camera.proj[0][0], camera.proj[1][1]) * camera.size * 0.5;
 
     let t = camera.view * model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
     let j = transpose(mat3x3<f32>(
@@ -49,23 +51,28 @@ fn cov2d(gaussian: Gaussian, model_transform: ModelTransform) -> vec3<f32> {
 //
 // The first two components is the major axis, last two components is the minor axis.
 // If the returned vector is (0, 0, 0, 0), it means the Gaussian is not visible.
-fn cov2d_axes(gaussian: Gaussian, model_transform: ModelTransform) -> vec4<f32> {
-    let cov2d = cov2d(gaussian, model_transform);
+fn cov2d_axes(
+    gaussian: Gaussian,
+    model_transform: ModelTransform,
+    camera: Camera,
+    std_dev: f32,
+) -> vec4<f32> {
+    let cov2d = cov2d(gaussian, model_transform, camera);
     let mid = 0.5 * (cov2d.x + cov2d.z);
     let radius = length(vec2<f32>(0.5 * (cov2d.x - cov2d.z), cov2d.y));
-    let lambda_1 = mid + radius;
-    let lambda_2 = mid - radius;
+    let major_lambda = mid + radius;
+    let minor_lambda = mid - radius;
 
-    if lambda_2 < 0.0 {
-        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    if minor_lambda < 0.0 {
+        return vec4<f32>(0.0);
     }
 
-    let diag_dir = normalize(vec2<f32>(cov2d.y, lambda_1 - cov2d.x));
+    let diag_dir = normalize(vec2<f32>(cov2d.y, major_lambda - cov2d.x));
     let ortho_diag_dir = vec2<f32>(diag_dir.y, -diag_dir.x);
-    let major_len = min(max_radius * sqrt(lambda_1), 1024.0);
-    let minor_len = min(max_radius * sqrt(lambda_2), 1024.0);
-    let major_axis = major_len * diag_dir * gaussian_transform.size;
-    let minor_axis = minor_len * ortho_diag_dir * gaussian_transform.size;
+    let major_len = min(std_dev * sqrt(major_lambda), 1024.0);
+    let minor_len = min(std_dev * sqrt(minor_lambda), 1024.0);
+    let major_axis = major_len * diag_dir;
+    let minor_axis = minor_len * ortho_diag_dir;
 
     return vec4<f32>(major_axis, minor_axis);
 }

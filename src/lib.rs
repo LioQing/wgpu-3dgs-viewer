@@ -17,9 +17,8 @@ pub mod selection;
 
 use glam::*;
 use wgpu_3dgs_core::{
-    BufferWrapper, GaussianDisplayMode, GaussianPod, GaussianPodWithShNorm8Cov3dHalfConfigs,
-    GaussianShDegree, GaussianTransformBuffer, GaussianTransformPod, Gaussians, GaussiansBuffer,
-    ModelTransformBuffer, ModelTransformPod,
+    BufferWrapper, GaussianDisplayMode, GaussianPod, GaussianShDegree, GaussianTransformBuffer,
+    GaussianTransformPod, Gaussians, GaussiansBuffer, ModelTransformBuffer, ModelTransformPod,
 };
 
 #[cfg(feature = "viewer-selection")]
@@ -41,7 +40,7 @@ pub use wgpu_3dgs_core as core;
 pub use wgpu_3dgs_editor as editor;
 
 /// The default viewer [`GaussianPod`] type.
-pub type DefaultGaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs;
+pub type DefaultGaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
 
 /// The 3D Gaussian splatting viewer.
 ///
@@ -56,9 +55,9 @@ pub type DefaultGaussianPod = GaussianPodWithShNorm8Cov3dHalfConfigs;
 ///     - [`IndirectIndicesBuffer`]
 ///     - [`GaussiansDepthBuffer`]
 /// - Operations
-///    - [`Preprocessor`]
-///    - [`RadixSorter`]
-///    - [`Renderer`]
+///     - [`Preprocessor`]
+///     - [`RadixSorter`]
+///     - [`Renderer`]
 ///
 /// If you wish to manage these buffers yourself, you do not need to use this struct.
 #[derive(Debug)]
@@ -153,6 +152,7 @@ impl<G: GaussianPod> Viewer<G> {
             device,
             &camera_buffer,
             &model_transform_buffer,
+            &gaussian_transform_buffer,
             &gaussians_buffer,
             &indirect_args_buffer,
             &radix_sort_indirect_args_buffer,
@@ -245,9 +245,10 @@ impl<G: GaussianPod> Viewer<G> {
         display_mode: GaussianDisplayMode,
         sh_deg: GaussianShDegree,
         no_sh0: bool,
+        std_dev: f32,
     ) {
         self.gaussian_transform_buffer
-            .update(queue, size, display_mode, sh_deg, no_sh0);
+            .update(queue, size, display_mode, sh_deg, no_sh0, std_dev);
     }
 
     /// Update the Gaussian transform with [`GaussianTransformPod`].

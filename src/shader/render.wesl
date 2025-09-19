@@ -15,6 +15,7 @@ import wgpu_3dgs_core::{
         gaussian_transform_display_mode,
         gaussian_transform_sh_deg,
         gaussian_transform_no_sh0,
+        gaussian_transform_std_dev,
     },
     model_transform::{
         ModelTransform,
@@ -25,7 +26,6 @@ import wgpu_3dgs_core::{
 
 // Vertex
 
-const max_radius = 2.0;
 const point_size = 0.01;
 
 @group(0) @binding(0)
@@ -77,9 +77,6 @@ fn vert_main(
     @builtin(vertex_index) vert_index: u32,
     @builtin(instance_index) instance_index: u32,
 ) -> FragmentInput {
-    // Ensure model_transform is used to prevent dead code elimination
-    let _model_transform = model_transform;
-
     var out: FragmentInput;
 
     let gaussian_index = indirect_indices[instance_index];
@@ -106,8 +103,9 @@ fn vert_main(
         return out;
     }
     
-    let axes = cov2d_axes(gaussian, model_transform);
-    if all(axes == vec4<f32>(0.0, 0.0, 0.0, 0.0)) {
+    let std_dev = gaussian_transform_std_dev(gaussian_transform.flags);
+    let axes = cov2d_axes(gaussian, model_transform, camera, std_dev * gaussian_transform.size);
+    if all(axes == vec4<f32>(0.0)) {
         out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);
         return out;
     }
@@ -115,7 +113,7 @@ fn vert_main(
     let major_axis = axes.xy;
     let minor_axis = axes.zw;
 
-    let quad_offset = quad_offset(vert_index) * max_radius;
+    let quad_offset = quad_offset(vert_index) * std_dev;
     let clip_pos = (
         proj_pos.xy
         + quad_offset.x * proj_pos.w * major_axis / camera.size
@@ -126,6 +124,7 @@ fn vert_main(
     out.quad_offset = quad_offset;
     out.color = color;
     out.display_mode = display_mode;
+    out.std_dev = std_dev;
 
     return out;
 }
@@ -136,13 +135,14 @@ struct FragmentInput {
     @location(0) quad_offset: vec2<f32>,
     @location(1) color: vec4<f32>,
     @location(2) @interpolate(flat) display_mode: u32,
+    @location(3) @interpolate(flat) std_dev: f32,
 
     @builtin(position) clip_pos: vec4<f32>,
 }
 
 fn splat(in: FragmentInput) -> vec4<f32> {
     let radius_sq = dot(in.quad_offset, in.quad_offset);
-    if radius_sq > max_radius * max_radius {
+    if radius_sq > in.std_dev * in.std_dev {
         discard;
     }
 
@@ -152,11 +152,11 @@ fn splat(in: FragmentInput) -> vec4<f32> {
 
 fn ellipse(in: FragmentInput) -> vec4<f32> {
     let radius_sq = dot(in.quad_offset, in.quad_offset);
-    if radius_sq > max_radius * max_radius {
+    if radius_sq > in.std_dev * in.std_dev {
         discard;
     }
 
-    let is_outline = radius_sq > (max_radius - 0.1) * (max_radius - 0.1);
+    let is_outline = radius_sq > (in.std_dev - 0.1) * (in.std_dev - 0.1);
     let alpha = in.color.a + (1.0 - in.color.a) * f32(is_outline);
     return vec4<f32>(in.color.rgb, alpha);
 }

@@ -10,17 +10,21 @@ This is a big rework update! We are splitting the project into multiple crates t
 
 - 🔦 Shaders are now [WESL](https://wesl-lang.dev/) which is more modular.
 - 📜 The source code can now also be licensed under Apache 2.0, just like Rust's source code.
+- 🔪 Improved frustum culling, Gaussians will not pop in and out at the edge now.
+- 🏔️ Added option to use different maximum standard deviation in `GaussianTransform`.
 
 ### Removed
 
-- ❌ All the masking, editing, querying, and selection features. These features are available in the new [`wgpu-3dgs-editor`](https://github.com/LioQing/wgpu-3dgs-editor) crate with a different API.
+- ✈️ All the masking, editing, and selection features. These features are available in the new [`wgpu-3dgs-editor`](https://github.com/LioQing/wgpu-3dgs-editor) crate.
+- ❌ Query and selection gizmo features are removed (may be added back in the future).
 
 ### Changed
 
 - 🔄 Update `wgpu` to 26.0.
 - 🪛 Make `Preprocessor` and `Renderer` take `GaussianPod` as a generic parameter to enforce buffer safety.
-- 👁️ Viewport related selection (brush and rectangle selections) is now available via the `selection` feature and module.
+- 🫥 Viewport related selection (brush and rectangle selections) is now available via the `selection` feature and module.
 - 🏃‍➡️ Binaries of the crate are now examples, since they were not very complete anyway.
+- 👓 Fixed blurry rendering due to wrong focal and standard deviation calculation.
 
 ## [0.3.0](https://crates.io/crates/wgpu-3dgs-viewer/0.3.0) - 2025-05-14
 

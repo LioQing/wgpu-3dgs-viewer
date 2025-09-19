@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
+use colored::Colorize;
 use glam::*;
 use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
 
@@ -24,13 +25,54 @@ struct Args {
     /// Path to the .ply file.
     #[arg(short, long)]
     model: String,
+
+    /// The size of the Gaussians.
+    #[arg(long, default_value_t = 1.0)]
+    size: f32,
+
+    /// The display mode of the Gaussians.
+    #[arg(long, value_enum, default_value_t = DisplayMode::Splat, ignore_case = true)]
+    mode: DisplayMode,
+
+    /// The SH degree of the Gaussians.
+    #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u8).range(0..=3))]
+    sh_degree: u8,
+
+    /// Whether to hide SH0.
+    #[arg(long, default_value_t)]
+    no_sh0: bool,
+
+    /// The standard deviation multiplier for the Gaussian size.
+    #[arg(long, default_value_t = 3.0)]
+    std_dev: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum DisplayMode {
+    Splat,
+    Ellipse,
+    Point,
 }
 
 fn main() -> Result<(), EventLoopError> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    let args = Args::parse();
+
+    if !(0.0..=3.0).contains(&args.std_dev) {
+        eprintln!(
+            "{} invalid value '{}' for '{}': {} is not in 0.0..=3.0\n\nFor more information, try '{}'.",
+            "error:".red().bold(),
+            args.std_dev.to_string().yellow(),
+            "--std-dev <STD_DEV>".bold(),
+            args.std_dev,
+            "--help".bold()
+        );
+        std::process::exit(1);
+    }
+
     let event_loop = EventLoop::new()?;
-    event_loop.run_app(&mut core::App::<System>::new(Args::parse()))?;
+    event_loop.run_app(&mut core::App::<System>::new(args))?;
     Ok(())
 }
 
@@ -114,6 +156,19 @@ impl core::System for System {
             Vec3::ZERO,
             Quat::from_axis_angle(Vec3::Z, 180f32.to_radians()),
             Vec3::ONE,
+        );
+
+        viewer.update_gaussian_transform(
+            &queue,
+            args.size,
+            match args.mode {
+                DisplayMode::Splat => gs::core::GaussianDisplayMode::Splat,
+                DisplayMode::Ellipse => gs::core::GaussianDisplayMode::Ellipse,
+                DisplayMode::Point => gs::core::GaussianDisplayMode::Point,
+            },
+            gs::core::GaussianShDegree::new(args.sh_degree).expect("sh degree"),
+            args.no_sh0,
+            args.std_dev,
         );
 
         log::info!("System initialized");

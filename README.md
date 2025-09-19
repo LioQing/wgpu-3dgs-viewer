@@ -27,22 +27,6 @@ This library displays 3D Gaussian Splatting models with wgpu. It includes a read
 - Shaders
     - WGSL shaders packaged with WESL, you can extend or replace them.
 
-## Demo
-
-Simple (real-time rendering):
-
-![simple](https://github.com/LioQing/wgpu-3dgs-viewer/blob/fe8f7093dfe8cfed2a9bace723d174b75a3e5a1c/media/simple.gif?raw=true)
-
-Selection & Editing (multi-model viewer, custom centroid based rendering order, Gaussian removal):
-
-![selection](https://github.com/LioQing/wgpu-3dgs-viewer/blob/fe8f7093dfe8cfed2a9bace723d174b75a3e5a1c/media/selection.gif?raw=true)
-
-Masking (box and ellipsoid masks, depth testing):
-
-![mask](https://github.com/LioQing/wgpu-3dgs-viewer/blob/fe8f7093dfe8cfed2a9bace723d174b75a3e5a1c/media/mask.gif?raw=true)
-
-While there are examples provided, you can more directly see the viewer in action by going to my [3D Gaussian Splatting Viewer App](https://github.com/lioqing/wgpu-3dgs-viewer-app) which builds on this crate and provides a more user-friendly interface.
-
 ## Usage
 
 You may read the documentation of the following types for more details:
@@ -52,6 +36,12 @@ You may read the documentation of the following types for more details:
     - [`Renderer`]: Draws Gaussians with the selected display mode.
 - [`MultiModelViewer`]: [`Viewer`] equivalent for multiple models. Requires `multi-model` feature.
 - [`selection`]: Select Gaussians based on viewport interactions, e.g. rectangle or brush. Requires `selection` feature.
+
+> [!TIP]
+>
+> The design principles of this crate are to provide modularity and flexibility to the end user of the API, which means exposing low-level WebGPU APIs. However, this means that you have to take care of your code when accessing low-level components. You risk breaking things at run-time if you don't handle them properly.
+>
+> If you do not want to take the risk, consider using the higher-level wrappers and avoid any instances of passing `wgpu` types into functions.
 
 ### Simple Viewer
 

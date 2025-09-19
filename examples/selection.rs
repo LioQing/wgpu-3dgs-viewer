@@ -22,8 +22,7 @@ use utils::core;
     Use B to toggle brush selection mode.\n\
     Use R to toggle rectangle selection mode.\n\
     Use I to invert selection, has immediate effect in filter mode.\n\
-    Use Left Click to draw rectangle selection.\n\
-    Use Right Click to draw brush selection.\n\
+    Use Left Click to use the current selector.\n\
     "
 )]
 struct Args {
@@ -34,6 +33,10 @@ struct Args {
     /// Enable filter mode, where instead of modifying the color, it filters the selected Gaussians.
     #[arg(short, long)]
     filter: bool,
+
+    /// Enable immediate mode, where the selection is applied while still selecting.
+    #[arg(short, long)]
+    immediate: bool,
 }
 
 fn main() -> Result<(), EventLoopError> {
@@ -53,6 +56,7 @@ struct System {
     config: wgpu::SurfaceConfiguration,
 
     filter: bool,
+    immediate: bool,
     inverted: bool,
     selector_type: Option<gs::selection::ViewportSelectorType>,
 
@@ -74,6 +78,7 @@ impl core::System for System {
     async fn init(window: Arc<Window>, args: &Args) -> Self {
         let model_path = &args.model;
         let filter = args.filter;
+        let immediate = args.immediate;
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
@@ -218,6 +223,7 @@ impl core::System for System {
             config,
 
             filter,
+            immediate,
             inverted: filter,
             selector_type: None,
 
@@ -262,6 +268,13 @@ impl core::System for System {
         } else {
             self.update_movement(input, delta_time);
         }
+
+        // Update the viewer
+        self.viewer.update_camera(
+            &self.queue,
+            &self.camera,
+            uvec2(self.config.width, self.config.height),
+        );
     }
 
     fn render(&mut self) {
@@ -286,7 +299,7 @@ impl core::System for System {
 
         self.viewer.render(&mut encoder, &texture_view);
 
-        if self.selector_type.is_some() {
+        if !self.immediate && self.selector_type.is_some() {
             self.viewport_texture_overlay_renderer
                 .render(&mut encoder, &texture_view);
         }
@@ -351,47 +364,17 @@ impl System {
 
         if input.held_mouse.contains(&winit::event::MouseButton::Left) {
             self.selector.update(&self.queue, input.mouse_pos);
+
+            if self.immediate {
+                self.apply_selection(&mut encoder);
+            }
         }
 
         if input
             .released_mouse
             .contains(&winit::event::MouseButton::Left)
         {
-            if self.filter {
-                self.viewport_selection_modifier
-                    .try_apply_with(
-                        &mut encoder,
-                        &self.viewer.gaussians_buffer,
-                        |encoder, modifier, gaussians| {
-                            modifier.apply_with(
-                                &self.device,
-                                encoder,
-                                gaussians,
-                                &self.viewer.model_transform_buffer,
-                                &self.viewer.gaussian_transform_buffer,
-                                &modifier.selection_expr,
-                                &self.viewer.selection_buffer,
-                            );
-                        },
-                    )
-                    .expect("apply selection modifier");
-            } else {
-                if self.inverted {
-                    self.viewport_selection_modifier
-                        .modifier
-                        .selection_expr
-                        .update_with(gs::editor::SelectionExpr::complement);
-                }
-
-                self.viewport_selection_modifier.apply(
-                    &self.device,
-                    &mut encoder,
-                    &self.viewer.gaussians_buffer,
-                    &self.viewer.model_transform_buffer,
-                    &self.viewer.gaussian_transform_buffer,
-                );
-            }
-
+            self.apply_selection(&mut encoder);
             self.selector.clear(&mut encoder);
         }
 
@@ -402,6 +385,44 @@ impl System {
         self.queue.submit(std::iter::once(encoder.finish()));
         if let Err(e) = self.device.poll(wgpu::PollType::Wait) {
             log::error!("Failed to poll device: {e:?}");
+        }
+    }
+
+    fn apply_selection(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        if self.filter {
+            self.viewport_selection_modifier
+                .try_apply_with(
+                    encoder,
+                    &self.viewer.gaussians_buffer,
+                    |encoder, modifier, gaussians| {
+                        modifier.apply_with(
+                            &self.device,
+                            encoder,
+                            gaussians,
+                            &self.viewer.model_transform_buffer,
+                            &self.viewer.gaussian_transform_buffer,
+                            &modifier.selection_expr,
+                            // Apply to viewer's selection buffer instead of the modifier's
+                            &self.viewer.selection_buffer,
+                        );
+                    },
+                )
+                .expect("apply selection modifier");
+        } else {
+            if self.inverted {
+                self.viewport_selection_modifier
+                    .modifier
+                    .selection_expr
+                    .update_with(gs::editor::SelectionExpr::complement);
+            }
+
+            self.viewport_selection_modifier.apply(
+                &self.device,
+                encoder,
+                &self.viewer.gaussians_buffer,
+                &self.viewer.model_transform_buffer,
+                &self.viewer.gaussian_transform_buffer,
+            );
         }
     }
 
@@ -445,12 +466,5 @@ impl System {
 
         self.camera.pitch_by(-pitch);
         self.camera.yaw_by(-yaw);
-
-        // Update the viewer
-        self.viewer.update_camera(
-            &self.queue,
-            &self.camera,
-            uvec2(self.config.width, self.config.height),
-        );
     }
 }
