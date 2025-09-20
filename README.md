@@ -87,7 +87,7 @@ viewer.render(
 
 ## Examples
 
-See the [examples](./examples) directory for usage examples.
+See the [examples](https://github.com/LioQing/wgpu-3dgs-viewer/tree/master/examples) directory for usage examples.
 
 ## Dependencies
 
