@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - Unreleased
+## [0.4.0](https://crates.io/crates/wgpu-3dgs-viewer/0.4.0) - 2025-09-20
 
 This is a big rework update! We are splitting the project into multiple crates to make it more modular and easier to use.
 
