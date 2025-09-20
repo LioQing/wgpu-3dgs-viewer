@@ -4,7 +4,7 @@ version = "0.4.0"
 edition = "2024"
 authors = ["Lio Qing"]
 license = "MIT OR Apache-2.0"
-description = "A 3D Gaussian splatting viewer library written in Rust using wgpu."
+description = "A 3D Gaussian splatting viewing library written in Rust using wgpu."
 readme = "README.md"
 include = [
     "README.md",
@@ -12,7 +12,6 @@ include = [
     "LICENSE-APACHE",
     "CHANGELOG.md",
     "Cargo.toml",
-    "Cargo.lock",
     "src/**/*",
 ]
 repository = "https://github.com/LioQing/wgpu-3dgs-viewer"
@@ -52,8 +51,8 @@ viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]
-wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
-wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", optional = true }
+wgpu-3dgs-core = { path = "../wgpu-3dgs-core", version = "0.4" }
+wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", version = "0.4", optional = true }
 
 bytemuck = { version = "1.23", features = [
     "derive",
