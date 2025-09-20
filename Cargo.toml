@@ -12,6 +12,7 @@ include = [
     "LICENSE-APACHE",
     "CHANGELOG.md",
     "Cargo.toml",
+    "examples/**/*",
     "src/**/*",
 ]
 repository = "https://github.com/LioQing/wgpu-3dgs-viewer"
