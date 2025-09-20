@@ -157,6 +157,8 @@ impl<S: System> ApplicationHandler for App<S> {
                 .expect("window"),
         ));
 
+        self.window.as_ref().unwrap().set_cursor_visible(false);
+
         log::debug!("Creating system");
         self.system = Some(futures::executor::block_on(S::init(
             self.window.as_ref().expect("window").clone(),

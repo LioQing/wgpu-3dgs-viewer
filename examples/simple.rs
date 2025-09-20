@@ -146,7 +146,7 @@ impl core::System for System {
         let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
 
         log::debug!("Creating camera");
-        let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
+        let camera = gs::Camera::new(0.1..1e4, 45f32.to_radians());
 
         log::debug!("Creating viewer");
         let mut viewer =
@@ -204,6 +204,7 @@ impl core::System for System {
         if input.held_keys.contains(&KeyCode::KeyA) {
             right -= SPEED * delta_time;
         }
+        right += input.mouse_diff.x * 0.01;
 
         self.camera.move_by(forward, right);
 
@@ -214,17 +215,20 @@ impl core::System for System {
         if input.held_keys.contains(&KeyCode::ShiftLeft) {
             up -= SPEED * delta_time;
         }
+        up += input.mouse_diff.y * 0.01;
 
         self.camera.move_up(up);
 
         // Camera rotation
         const SENSITIVITY: f32 = 0.15;
 
-        let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
-        let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
+        // let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
+        // let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
 
-        self.camera.pitch_by(-pitch);
-        self.camera.yaw_by(-yaw);
+        // self.camera.pitch_by(-pitch);
+        // self.camera.yaw_by(-yaw);
+        self.camera.yaw = 1.2;
+        self.camera.pitch = -0.5;
 
         // Update the viewer
         self.viewer.update_camera(
