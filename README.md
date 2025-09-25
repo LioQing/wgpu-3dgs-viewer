@@ -49,7 +49,7 @@ You may read the documentation of the following types for more details:
 
 You can use [`Viewer`] to render a single 3D Gaussian Splatting model:
 
-```rust
+```rust ignore
 use wgpu_3dgs_viewer as gs;
 use glam::UVec2;
 

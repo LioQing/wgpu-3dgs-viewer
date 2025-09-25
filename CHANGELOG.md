@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 - Unreleased
+
+This is mostly fixes and tests.
+
+### Changed
+
+- 🩹 Fix compilation error on viewport selection
+
 ## [0.4.0](https://crates.io/crates/wgpu-3dgs-viewer/0.4.0) - 2025-09-20
 
 This is a big rework update! We are splitting the project into multiple crates to make it more modular and easier to use.

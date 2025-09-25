@@ -52,8 +52,12 @@ viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]
-wgpu-3dgs-core = { path = "../wgpu-3dgs-core", version = "0.4" }
-wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", version = "0.4", optional = true }
+wgpu-3dgs-core = { version = "0.4" }
+wgpu-3dgs-editor = { version = "0.4", optional = true }
+
+# For local development:
+# wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
+# wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", optional = true }
 
 bytemuck = { version = "1.23", features = [
     "derive",
@@ -75,4 +79,5 @@ clap = { version = "4.5", features = ["derive"] }
 colored = { version = "3.0" }
 env_logger = { version = "0.11" }
 futures = { version = "0.3" }
+pollster = "0.4.0"
 winit = { version = "0.30" }

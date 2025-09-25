@@ -46,30 +46,76 @@ pub enum ViewportSelectorType {
 /// which modifies some basic attributes of the selected Gaussians:
 ///
 /// ```rust
+/// # use pollster::FutureExt;
+/// #
+/// # async {
+/// # use wgpu_3dgs_viewer::{
+/// #     Viewer,
+/// #     core::{self, BufferWrapper, glam::*},
+/// #     editor::{self, Modifier},
+/// #     selection,
+/// # };
+/// #
+/// # type GaussianPod = wgpu_3dgs_viewer::core::GaussianPodWithShSingleCov3dSingleConfigs;
+/// #
+/// # let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+/// #
+/// # let adapter = instance
+/// #     .request_adapter(&wgpu::RequestAdapterOptions::default())
+/// #     .await
+/// #     .expect("adapter");
+/// #
+/// # let (device, queue) = adapter
+/// #     .request_device(&wgpu::DeviceDescriptor {
+/// #         label: Some("Device"),
+/// #         required_features: wgpu::Features::empty(),
+/// #         required_limits: adapter.limits(),
+/// #         memory_hints: wgpu::MemoryHints::default(),
+/// #         trace: wgpu::Trace::Off,
+/// #     })
+/// #     .await
+/// #     .expect("device");
+/// #
+/// # let viewer = Viewer::<GaussianPod>::new(
+/// #     &device,
+/// #     wgpu::TextureFormat::Rgba8UnormSrgb,
+/// #     &core::Gaussians {
+/// #         gaussians: vec![core::Gaussian {
+/// #             rot: Quat::IDENTITY,
+/// #             pos: Vec3::ZERO,
+/// #             color: U8Vec4::ZERO,
+/// #             sh: [Vec3::ZERO; 15],
+/// #             scale: Vec3::ONE,
+/// #         }],
+/// #     },
+/// # )
+/// # .unwrap();
+/// #
+/// # let viewport_size = UVec2::new(800, 600);
+/// #
 /// // Create the selector
-/// let selector = ViewportSelector::new(
-///   &device,
-///   &queue,
-///   viewport_size,
-///   &viewer.camera_buffer,
+/// let mut selector = selection::ViewportSelector::new(
+///     &device,
+///     &queue,
+///     viewport_size,
+///     &viewer.camera_buffer,
 /// ).unwrap();
 ///
 /// // Create the selection modifier
-/// let mut selection_modifier = editor::BasicSelectionModifier::new(
+/// let mut selection_modifier = editor::SelectionModifier::new_with_basic_modifier(
 ///     &device,
 ///     &viewer.gaussians_buffer,
 ///     &viewer.model_transform_buffer,
 ///     &viewer.gaussian_transform_buffer,
-///     vec![selection::create_viewport_bundle::<GaussianPod>(&device)], // Create the viewport compute bundle
-/// )
-/// .unwrap();
+///     vec![selection::create_viewport_bundle::<GaussianPod>(&device)],
+/// );
 ///
 /// // Create the bind group for the selector
 /// let bind_group = selection_modifier.selection.bundles[0]
 ///     .create_bind_group(
 ///         &device,
 ///         1, // index 0 is the Gaussians buffer, so we use 1,
-///            // see documentation of create_viewport_bundle
+///         // see documentation of create_viewport_bundle
 ///         [
 ///             viewer.camera_buffer.buffer().as_entire_binding(),
 ///             wgpu::BindingResource::TextureView(selector.texture().view()), // Supply the selection texture to write to
@@ -78,20 +124,28 @@ pub enum ViewportSelectorType {
 ///     .unwrap();
 ///
 /// // Set the selection expression to just use the selector
-/// selection_modifier.selection_expr = gs::editor::SelectionExpr::Selection(0, vec![bind_group]);
+/// selection_modifier.selection_expr = editor::SelectionExpr::Selection(0, vec![bind_group]);
 ///
 /// // In the event loop, handle user input to start, update, end, and apply the selection
+/// let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+///     label: Some("Test Encoder"),
+/// });
+/// let left_mouse_button_just_pressed = true;
+/// let left_mouse_button_held = false;
+/// let left_mouse_button_just_released = false;
+/// let mouse_pos = Vec2::ZERO;
 ///
-/// if /* Left mouse button is just pressed */ {
-///     selector.start(&queue, input.mouse_pos);
+/// if left_mouse_button_just_pressed {
+///     selector.start(&queue, mouse_pos);
 /// }
 ///
-/// if /* Left mouse button is held */ {
-///     selector.update(&queue, input.mouse_pos);
+/// if left_mouse_button_held {
+///     selector.update(&queue, mouse_pos);
 /// }
 ///
-/// if /* Left mouse button is just released */ {
-///     selection_modifier.apply( // Evaluate selection and apply modifiers
+/// if left_mouse_button_just_released {
+///     selection_modifier.apply(
+///         // Evaluate selection and apply modifiers
 ///         &device,
 ///         &mut encoder,
 ///         &viewer.gaussians_buffer,
@@ -104,6 +158,8 @@ pub enum ViewportSelectorType {
 ///
 /// // Render the selector
 /// selector.render(&mut encoder);
+/// # }
+/// # .block_on();
 /// ```
 #[derive(Debug)]
 pub struct ViewportSelector {

@@ -1890,6 +1890,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pollster"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
+
+[[package]]
 name = "portable-atomic"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2797,6 +2803,8 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-core"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6c1503a16a2ac911e4816f2e24e9363e56388069a3dda65f058098f096fbcdf"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2813,6 +2821,8 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-editor"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "591a723dee7ff9d005245a03e06daad3987bad61b64118adba94a3353c6d7405"
 dependencies = [
  "bitflags 2.9.4",
  "bytemuck",
@@ -2841,6 +2851,7 @@ dependencies = [
  "log",
  "oneshot",
  "paste",
+ "pollster",
  "thiserror 2.0.16",
  "wesl",
  "wgpu",

@@ -52,7 +52,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let bit_index = index % 32u;
     let bit_mask = 1u << bit_index;
 
-    if cull(ndc_pos, camera) {
+    if cull(ndc_pos) {
         atomicAnd(&dest[word_index], ~bit_mask);
         return;
     }

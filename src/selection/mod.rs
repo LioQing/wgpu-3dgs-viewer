@@ -14,22 +14,65 @@
 //! basic attributes of the selected Gaussians.
 //!
 //! ```rust
+//! # use pollster::FutureExt;
+//! #
+//! # async {
+//! # use wgpu_3dgs_viewer::{
+//! #     Viewer,
+//! #     core::{self, glam::*},
+//! #     editor, selection,
+//! # };
+//! #
+//! # type GaussianPod = wgpu_3dgs_viewer::core::GaussianPodWithShSingleCov3dSingleConfigs;
+//! #
+//! # let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+//! #
+//! # let adapter = instance
+//! #     .request_adapter(&wgpu::RequestAdapterOptions::default())
+//! #     .await
+//! #     .expect("adapter");
+//! #
+//! # let (device, _queue) = adapter
+//! #     .request_device(&wgpu::DeviceDescriptor {
+//! #         label: Some("Device"),
+//! #         required_features: wgpu::Features::empty(),
+//! #         required_limits: adapter.limits(),
+//! #         memory_hints: wgpu::MemoryHints::default(),
+//! #         trace: wgpu::Trace::Off,
+//! #     })
+//! #     .await
+//! #     .expect("device");
+//! #
+//! # let viewer = Viewer::<GaussianPod>::new(
+//! #     &device,
+//! #     wgpu::TextureFormat::Rgba8UnormSrgb,
+//! #     &core::Gaussians {
+//! #         gaussians: vec![core::Gaussian {
+//! #             rot: Quat::IDENTITY,
+//! #             pos: Vec3::ZERO,
+//! #             color: U8Vec4::ZERO,
+//! #             sh: [Vec3::ZERO; 15],
+//! #             scale: Vec3::ONE,
+//! #         }],
+//! #     },
+//! # )
+//! # .unwrap();
+//! #
 //! // Create a selection bundle
-//! editor::SelectionBundle::new::<GaussianPod>(
+//! editor::SelectionBundle::<GaussianPod>::new(
 //!     &device,
 //!     vec![selection::create_viewport_bundle::<GaussianPod>(&device)],
-//! )
-//! .unwrap();
+//! );
 //!
 //! // Create a basic selection modifier
-//! editor::BasicSelectionModifier::new(
+//! editor::SelectionModifier::new_with_basic_modifier(
 //!     &device,
 //!     &viewer.gaussians_buffer,
 //!     &viewer.model_transform_buffer,
 //!     &viewer.gaussian_transform_buffer,
 //!     vec![selection::create_viewport_bundle::<GaussianPod>(&device)],
-//! )
-//! .unwrap();
+//! );
+//! # }.block_on();
 //! ```
 //!
 //! If you wish to use other editor features, consider using the re-exported
@@ -46,3 +89,67 @@ pub use viewport::*;
 pub use viewport_selector::*;
 pub use viewport_texture_brush::*;
 pub use viewport_texture_rectangle::*;
+
+#[test]
+fn check() {
+    use pollster::FutureExt;
+
+    async {
+        use crate::{
+            Viewer,
+            core::{self, glam::*},
+            editor, selection,
+        };
+
+        type GaussianPod = crate::core::GaussianPodWithShSingleCov3dSingleConfigs;
+
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions::default())
+            .await
+            .expect("adapter");
+
+        let (device, _queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: adapter.limits(),
+                memory_hints: wgpu::MemoryHints::default(),
+                trace: wgpu::Trace::Off,
+            })
+            .await
+            .expect("device");
+
+        let viewer = Viewer::<GaussianPod>::new(
+            &device,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            &core::Gaussians {
+                gaussians: vec![core::Gaussian {
+                    rot: Quat::IDENTITY,
+                    pos: Vec3::ZERO,
+                    color: U8Vec4::ZERO,
+                    sh: [Vec3::ZERO; 15],
+                    scale: Vec3::ONE,
+                }],
+            },
+        )
+        .unwrap();
+
+        // Create a selection bundle
+        editor::SelectionBundle::<GaussianPod>::new(
+            &device,
+            vec![selection::create_viewport_bundle::<GaussianPod>(&device)],
+        );
+
+        // Create a basic selection modifier
+        editor::SelectionModifier::new_with_basic_modifier(
+            &device,
+            &viewer.gaussians_buffer,
+            &viewer.model_transform_buffer,
+            &viewer.gaussian_transform_buffer,
+            vec![selection::create_viewport_bundle::<GaussianPod>(&device)],
+        );
+    }
+    .block_on();
+}
