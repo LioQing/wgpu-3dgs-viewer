@@ -56,7 +56,7 @@ pub enum ViewportSelectorType {
 /// #     selection,
 /// # };
 /// #
-/// # type GaussianPod = wgpu_3dgs_viewer::core::GaussianPodWithShSingleCov3dSingleConfigs;
+/// # type GaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
 /// #
 /// # let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 /// #
@@ -115,10 +115,10 @@ pub enum ViewportSelectorType {
 ///     .create_bind_group(
 ///         &device,
 ///         1, // index 0 is the Gaussians buffer, so we use 1,
-///         // see documentation of create_viewport_bundle
+///            // see documentation of create_viewport_bundle
 ///         [
 ///             viewer.camera_buffer.buffer().as_entire_binding(),
-///             wgpu::BindingResource::TextureView(selector.texture().view()), // Supply the selection texture to write to
+///             wgpu::BindingResource::TextureView(selector.texture().view()),
 ///         ],
 ///     )
 ///     .unwrap();
@@ -127,13 +127,11 @@ pub enum ViewportSelectorType {
 /// selection_modifier.selection_expr = editor::SelectionExpr::Selection(0, vec![bind_group]);
 ///
 /// // In the event loop, handle user input to start, update, end, and apply the selection
-/// let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-///     label: Some("Test Encoder"),
-/// });
-/// let left_mouse_button_just_pressed = true;
-/// let left_mouse_button_held = false;
-/// let left_mouse_button_just_released = false;
-/// let mouse_pos = Vec2::ZERO;
+/// # let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+/// # let left_mouse_button_just_pressed = true;
+/// # let left_mouse_button_held = false;
+/// # let left_mouse_button_just_released = false;
+/// # let mouse_pos = Vec2::ZERO;
 ///
 /// if left_mouse_button_just_pressed {
 ///     selector.start(&queue, mouse_pos);

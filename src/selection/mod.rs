@@ -23,7 +23,7 @@
 //! #     editor, selection,
 //! # };
 //! #
-//! # type GaussianPod = wgpu_3dgs_viewer::core::GaussianPodWithShSingleCov3dSingleConfigs;
+//! # type GaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
 //! #
 //! # let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 //! #

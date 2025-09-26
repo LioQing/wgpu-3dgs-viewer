@@ -79,5 +79,5 @@ clap = { version = "4.5", features = ["derive"] }
 colored = { version = "3.0" }
 env_logger = { version = "0.11" }
 futures = { version = "0.3" }
-pollster = "0.4.0"
+pollster = { version = "0.4" }
 winit = { version = "0.30" }
