@@ -2,11 +2,13 @@
 
 ## 0.4.1 - Unreleased
 
-This is mostly fixes and tests.
+### Added
+
+- 📑 Add example modules documentations.
 
 ### Changed
 
-- 🩹 Fix compilation error on viewport selection
+- 🩹 Fix compilation error on viewport selection.
 
 ## [0.4.0](https://crates.io/crates/wgpu-3dgs-viewer/0.4.0) - 2025-09-20
 

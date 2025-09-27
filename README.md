@@ -2,7 +2,9 @@
 
 ...written in Rust using [wgpu](https://wgpu.rs/).
 
-[![Crates.io](https://img.shields.io/crates/v/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer) [![Docs.rs](https://img.shields.io/docsrs/wgpu-3dgs-viewer)](https://docs.rs/wgpu-3dgs-viewer/latest/wgpu_3dgs_viewer) [![License](https://img.shields.io/crates/l/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer)
+[![Crates.io](https://img.shields.io/crates/v/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer)
+[![Docs.rs](https://img.shields.io/docsrs/wgpu-3dgs-viewer)](https://docs.rs/wgpu-3dgs-viewer/latest/wgpu_3dgs_viewer)
+[![License](https://img.shields.io/crates/l/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer)
 
 ![Cover.gif](https://raw.githubusercontent.com/LioQing/wgpu-3dgs-viewer/27a35021a67224b59eb6ed737ac4cfa33af91901/media/Cover.gif)
 

@@ -1,3 +1,17 @@
+//! This example renders multiple models in the order of their centroids' distance to the camera using the `multi-model` feature.
+//!
+//! For example, to use an offset of (10, 0, 0) between each model, run:
+//!
+//! ```sh
+//! cargo run --example multi-model -- -m "path/to/model1.ply" -m "path/to/model2.ply" --offset 10.0,0.0,0.0
+//! ```
+//!
+//! To view more options and the controls, run with `--help`:
+//!
+//! ```sh
+//! cargo run --example multi-model -- --help
+//! ```
+
 use std::sync::Arc;
 
 use clap::Parser;

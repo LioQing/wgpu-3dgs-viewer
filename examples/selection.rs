@@ -1,3 +1,17 @@
+//! This example enables viewport-based selsection of Gaussians using the `viewer-selection` feature.
+//!
+//! For example, to filter the selected Gaussians:
+//!
+//! ```sh
+//! cargo run --example selection -- --model path/to/model.ply --filter
+//! ```
+//!
+//! To view more options and the controls, run with `--help`:
+//!
+//! ```sh
+//! cargo run --example selection -- --help
+//! ```
+
 use std::sync::Arc;
 
 use clap::Parser;

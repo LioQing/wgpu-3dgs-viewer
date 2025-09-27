@@ -1,3 +1,17 @@
+//! This example renders a simple 3D Gaussian splatting model.
+//!
+//! For example, to render the model with a size of 1.2 and max standard deviation of 2.0, run:
+//!
+//! ```sh
+//! cargo run --example simple -- -m "path/to/model.ply" --size 1.2 --std-dev 2.0
+//! ```
+//!
+//! To view more options and the controls, run with `--help`:
+//!
+//! ```sh
+//! cargo run --example simple -- --help
+//! ```
+
 use std::sync::Arc;
 
 use clap::Parser;
@@ -42,7 +56,7 @@ struct Args {
     #[arg(long, default_value_t)]
     no_sh0: bool,
 
-    /// The standard deviation multiplier for the Gaussian size.
+    /// The max standard deviation for the Gaussians.
     #[arg(long, default_value_t = 3.0)]
     std_dev: f32,
 }
