@@ -101,6 +101,11 @@ This crate depends on the following crates:
 | 0.3                | 25.0   | 0.30   | N/A    |
 | 0.1 - 0.2          | 24.0   | 0.29   | N/A    |
 
+## Related Crates
+
+- [wgpu-3dgs-editor](https://crates.io/crates/wgpu-3dgs-editor)
+- [wgpu-3dgs-core](https://crates.io/crates/wgpu-3dgs-core)
+
 ## Acknowledgements
 
 This crate uses modified code from [KeKsBoTer's wgpu_sort](https://crates.io/crates/wgpu_sort).
