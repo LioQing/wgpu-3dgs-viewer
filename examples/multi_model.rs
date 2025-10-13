@@ -3,13 +3,13 @@
 //! For example, to use an offset of (10, 0, 0) between each model, run:
 //!
 //! ```sh
-//! cargo run --example multi-model -- -m "path/to/model1.ply" -m "path/to/model2.ply" --offset 10.0,0.0,0.0
+//! cargo run --example multi-model --features="multi-model" -- -m "path/to/model1.ply" -m "path/to/model2.ply" --offset 10.0,0.0,0.0
 //! ```
 //!
 //! To view more options and the controls, run with `--help`:
 //!
 //! ```sh
-//! cargo run --example multi-model -- --help
+//! cargo run --example multi-model --features="multi-model" -- --help
 //! ```
 
 use std::sync::Arc;

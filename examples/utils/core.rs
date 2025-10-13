@@ -134,6 +134,7 @@ pub struct App<S: System> {
     window: Option<Arc<Window>>,
     args: S::Args,
     timer: std::time::SystemTime,
+    startup_time: std::time::SystemTime,
 }
 
 impl<S: System> App<S> {
@@ -144,6 +145,7 @@ impl<S: System> App<S> {
             window: None,
             args,
             timer: std::time::SystemTime::now(),
+            startup_time: std::time::SystemTime::now(),
         }
     }
 }
@@ -158,7 +160,7 @@ impl<S: System> ApplicationHandler for App<S> {
         ));
 
         log::debug!("Creating system");
-        self.system = Some(futures::executor::block_on(S::init(
+        self.system = Some(pollster::block_on(S::init(
             self.window.as_ref().expect("window").clone(),
             &self.args,
         )));
@@ -182,6 +184,23 @@ impl<S: System> ApplicationHandler for App<S> {
                 let delta_time = self.timer.elapsed().expect("elapsed time").as_secs_f32();
                 self.timer = std::time::SystemTime::now();
 
+                // Override input in coverage mode.
+                if cfg!(coverage) {
+                    self.input.pressed_keys.clear();
+                    self.input.held_keys.clear();
+                    self.input.held_keys.insert(KeyCode::KeyS);
+                    self.input.held_keys.insert(KeyCode::ShiftLeft);
+                    self.input.scroll_diff = 0.0;
+                    self.input.pressed_mouse.clear();
+                    self.input.held_mouse.clear();
+                    self.input.held_mouse.insert(MouseButton::Left);
+                    self.input.released_mouse.clear();
+                    self.input.mouse_diff = Vec2::new(0.0, -1.0);
+                    if self.input.mouse_pos == Vec2::ZERO {
+                        self.input.mouse_pos = vec2(400.0, 300.0);
+                    }
+                }
+
                 // Update system
                 self.system
                     .as_mut()
@@ -195,6 +214,14 @@ impl<S: System> ApplicationHandler for App<S> {
 
                 // Clear input states
                 self.input.new_frame();
+
+                // Exit after 1 second in coverage mode
+                if cfg!(coverage) && self.startup_time.elapsed().expect("elapsed").as_secs() > 1 {
+                    log::info!(
+                        "The application has been running for more than 1 second, exiting for coverage."
+                    );
+                    event_loop.exit();
+                }
             }
             WindowEvent::Resized(size) => {
                 log::info!("Window resized to {size:?}");

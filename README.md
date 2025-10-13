@@ -4,6 +4,8 @@
 
 [![Crates.io](https://img.shields.io/crates/v/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer)
 [![Docs.rs](https://img.shields.io/docsrs/wgpu-3dgs-viewer)](https://docs.rs/wgpu-3dgs-viewer/latest/wgpu_3dgs_viewer)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FLioQing%2Fwgpu-3dgs-viewer%2Frefs%2Fheads%2Fmaster%2Fcoverage%2Fbadge.json
+)](https://github.com/LioQing/wgpu-3dgs-viewer/tree/master/coverage)
 [![License](https://img.shields.io/crates/l/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer)
 
 ![Cover.gif](https://raw.githubusercontent.com/LioQing/wgpu-3dgs-viewer/27a35021a67224b59eb6ed737ac4cfa33af91901/media/Cover.gif)

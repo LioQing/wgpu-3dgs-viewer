@@ -130,3 +130,9 @@ impl From<IndirectIndicesBuffer> for wgpu::Buffer {
         wrapper.0
     }
 }
+
+impl From<wgpu::Buffer> for IndirectIndicesBuffer {
+    fn from(buffer: wgpu::Buffer) -> Self {
+        Self(buffer)
+    }
+}

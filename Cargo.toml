@@ -78,6 +78,8 @@ wesl = "0.2"
 clap = { version = "4.5", features = ["derive"] }
 colored = { version = "3.0" }
 env_logger = { version = "0.11" }
-futures = { version = "0.3" }
 pollster = { version = "0.4" }
 winit = { version = "0.30" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

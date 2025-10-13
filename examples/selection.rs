@@ -3,13 +3,13 @@
 //! For example, to filter the selected Gaussians:
 //!
 //! ```sh
-//! cargo run --example selection -- --model path/to/model.ply --filter
+//! cargo run --example selection --features="viewer-selection" -- --model path/to/model.ply --filter
 //! ```
 //!
 //! To view more options and the controls, run with `--help`:
 //!
 //! ```sh
-//! cargo run --example selection -- --help
+//! cargo run --example selection --features="viewer-selection" -- --help
 //! ```
 
 use std::sync::Arc;
@@ -409,15 +409,14 @@ impl System {
                     encoder,
                     &self.viewer.gaussians_buffer,
                     |encoder, modifier, gaussians| {
-                        modifier.apply_with(
+                        modifier.selection.evaluate(
                             &self.device,
                             encoder,
-                            gaussians,
+                            &modifier.selection_expr,
+                            &self.viewer.selection_buffer,
                             &self.viewer.model_transform_buffer,
                             &self.viewer.gaussian_transform_buffer,
-                            &modifier.selection_expr,
-                            // Apply to viewer's selection buffer instead of the modifier's
-                            &self.viewer.selection_buffer,
+                            gaussians,
                         );
                     },
                 )
