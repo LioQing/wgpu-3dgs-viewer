@@ -6,20 +6,20 @@ echo "Running coverage..."
 cargo llvm-cov clean --workspace
 
 echo "Running 'simple' example"
-cargo llvm-cov run --example simple -- -m "$BASE_DIR/model.ply"
+cargo llvm-cov run --example simple --features="viewer-selection,multi-model" -- -m "$BASE_DIR/model.ply"
 
 echo "Running 'multi-model' example"
-cargo llvm-cov run --example multi-model --features="multi-model" -- -m "$BASE_DIR/model.ply" -m "$BASE_DIR/model.ply"
+cargo llvm-cov run --example multi-model --features="viewer-selection,multi-model" -- -m "$BASE_DIR/model.ply" -m "$BASE_DIR/model.ply"
 
 echo "Running 'selection' example"
-cargo llvm-cov run --example selection --features="viewer-selection" -- -m "$BASE_DIR/model.ply"
+cargo llvm-cov run --example selection --features="viewer-selection,multi-model" -- -m "$BASE_DIR/model.ply"
 
 # `--doctests` flag is currently unstable
 # echo "Running doctests"
-# cargo llvm-cov --no-report --doctests
+# cargo llvm-cov --no-report --doctests --features="viewer-selection,multi-model"
 
 echo "Running tests"
-cargo llvm-cov --no-report nextest
+cargo llvm-cov --no-report nextest --features="viewer-selection,multi-model"
 
 echo "Generating coverage report"
 cargo llvm-cov report --lcov --output-path "$LCOV_PATH"

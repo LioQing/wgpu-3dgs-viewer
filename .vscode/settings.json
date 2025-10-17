@@ -1,13 +1,9 @@
 {
-    "[rust]": {
-        "editor.formatOnSave": true,
-    },
-    "editor.rulers": [
-        100
-    ],
-    "rust-analyzer.check.command": "clippy",
-    "rust-analyzer.cargo.features": ["multi-model", "viewer-selection"],
-    "files.associations": {
-        "*.wesl": "wgsl"
-    }
+  "editor.formatOnSave": true,
+  "editor.rulers": [100],
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.cargo.features": ["multi-model", "viewer-selection"],
+  "files.associations": {
+    "*.wesl": "wgsl"
+  }
 }
