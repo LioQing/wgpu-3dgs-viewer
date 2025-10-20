@@ -404,6 +404,8 @@ impl System {
 
     fn apply_selection(&mut self, encoder: &mut wgpu::CommandEncoder) {
         if self.filter {
+            // In filter mode, we only evaluate the selection to the viewer's selection buffer
+            // and do not modify anything.
             self.viewport_selection_modifier
                 .try_apply_with(
                     encoder,

@@ -1,22 +1,22 @@
 {
-  "lsp": {
-    "rust-analyzer": {
-      "initialization_options": {
-        "cargo": {
-          "features": ["multi-model", "viewer-selection"]
-        },
-        "check": {
-          "command": "clippy"
+    "lsp": {
+        "rust-analyzer": {
+            "initialization_options": {
+                "cargo": {
+                    "features": ["multi-model", "viewer-selection"]
+                },
+                "check": {
+                    "command": "clippy"
+                }
+            }
         }
-      }
+    },
+    "languages": {
+        "Rust": {
+            "preferred_line_length": 100
+        }
+    },
+    "file_types": {
+        "Wgsl": ["*.wesl"]
     }
-  },
-  "languages": {
-    "Rust": {
-      "preferred_line_length": 100
-    }
-  },
-  "file_types": {
-    "*.wesl": ["wgsl"]
-  }
 }

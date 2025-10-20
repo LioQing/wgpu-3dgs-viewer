@@ -63,7 +63,7 @@ pub const ASSERT_RENDER_TARGET_BIND_GROUP_LAOYOUT_DESCRIPTOR: wgpu::BindGroupLay
 pub fn assert_render_target(
     ctx: &TestContext,
     texture_view: &wgpu::TextureView,
-    assertion: impl Fn(&[UVec4]),
+    assertion: impl FnOnce(&[UVec4]),
 ) {
     // TOOD(https://github.com/LioQing/wgpu-3dgs-core/issues/8): configurable workgroup size.
     let shader = ctx
