@@ -3,14 +3,18 @@ use wgpu_3dgs_viewer::{Camera, CameraPod};
 
 use crate::common::TestContext;
 
-pub fn camera() -> CameraPod {
+pub fn camera() -> Camera {
+    Camera {
+        yaw: 0.1,
+        pitch: 0.1,
+        ..Camera::new(0.1..1e4, 60f32.to_radians())
+    }
+}
+
+pub fn camera_pod() -> CameraPod {
     CameraPod::new(
         // TODO(#8): Fix camera orientation edge case when yaw or pitch is 0.0
-        &Camera {
-            yaw: 0.1,
-            pitch: 0.1,
-            ..Camera::new(0.1..1e4, 60f32.to_radians())
-        },
+        &camera(),
         UVec2::new(1024, 1024),
     )
 }

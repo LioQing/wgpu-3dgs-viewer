@@ -61,6 +61,5 @@ pub fn create_viewport_bundle<G: GaussianPod>(device: &wgpu::Device) -> ComputeB
         })
         .resolver(resolver)
         .build_without_bind_groups(device)
-        .map_err(|e| log::error!("{e}"))
         .expect("viewport selection compute bundle")
 }

@@ -425,7 +425,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         no_sh0: bool,
         std_dev: f32,
     ) {
-        self.world_buffers.gaussian_transform_buffer.update(
+        self.world_buffers.update_gaussian_transform(
             queue,
             size,
             display_mode,
@@ -442,8 +442,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         pod: &GaussianTransformPod,
     ) {
         self.world_buffers
-            .gaussian_transform_buffer
-            .update_with_pod(queue, pod);
+            .update_gaussian_transform_with_pod(queue, pod);
     }
 
     /// Render the viewer.

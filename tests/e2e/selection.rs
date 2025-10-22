@@ -29,7 +29,7 @@ fn test_select_modify_render_and_assert(
     };
 
     let render_target = given::render_target_texture(&ctx);
-    let camera = given::camera();
+    let camera = given::camera_pod();
 
     let mut viewer = Viewer::<G>::new_with(
         &ctx.device,
@@ -173,6 +173,26 @@ fn test_viewer_when_gaussian_is_not_in_selected_brush_should_not_be_selected_and
             selector.selector_type = ViewportSelectorType::Brush;
             selector.start(&ctx.queue, Vec2::splat(0.0));
             selector.update(&ctx.queue, Vec2::splat(256.0));
+            selector.render(encoder);
+        },
+        |pixels: &[UVec4]| {
+            let sum = pixels.iter().sum::<UVec4>();
+            assert!(sum.x > 1);
+            assert!(sum.y < 1);
+            assert!(sum.z < 1);
+            assert!(sum.w > 1);
+        },
+    );
+}
+
+#[test]
+fn test_viewer_when_brush_radius_is_zero_should_not_be_selected_and_modified() {
+    test_select_modify_render_and_assert(
+        |ctx: &TestContext, encoder: &mut wgpu::CommandEncoder, selector: &mut ViewportSelector| {
+            selector.selector_type = ViewportSelectorType::Brush;
+            selector.set_brush_radius(&ctx.queue, 0.0);
+            selector.start(&ctx.queue, Vec2::splat(256.0));
+            selector.update(&ctx.queue, Vec2::splat(1024.0 - 256.0));
             selector.render(encoder);
         },
         |pixels: &[UVec4]| {

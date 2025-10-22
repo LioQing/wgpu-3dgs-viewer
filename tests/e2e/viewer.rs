@@ -1,6 +1,6 @@
 use glam::*;
 use wgpu_3dgs_viewer::{
-    Viewer,
+    CameraPod, Viewer,
     core::{
         Gaussian, GaussianDisplayMode, GaussianPodWithShSingleCov3dSingleConfigs, GaussianShDegree,
         GaussianTransformPod, Gaussians, ModelTransformPod,
@@ -34,6 +34,40 @@ fn render_and_assert(
 }
 
 #[test]
+fn test_viewer_update_camera_when_with_or_without_pod_should_be_equal() {
+    let ctx = TestContext::new();
+    let gaussians = Gaussians {
+        gaussians: vec![Gaussian {
+            rot: Quat::IDENTITY,
+            pos: Vec3::ZERO + Vec3::Z,
+            color: U8Vec4::new(255, 0, 0, 255),
+            sh: [Vec3::ZERO; 15],
+            scale: Vec3::splat(1.0),
+        }],
+    };
+
+    let render_target1 = given::render_target_texture(&ctx);
+    let render_target2 = given::render_target_texture(&ctx);
+    let size = UVec2::new(render_target1.size().width, render_target1.size().height);
+    let camera = given::camera();
+    let camera_pod = CameraPod::new(&camera, size);
+
+    let mut viewer1 =
+        Viewer::<G>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm, &gaussians).expect("viewer");
+    let mut viewer2 =
+        Viewer::<G>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm, &gaussians).expect("viewer");
+
+    viewer1.update_camera_with_pod(&ctx.queue, &camera_pod);
+    viewer2.update_camera(&ctx.queue, &camera, size);
+
+    render_and_assert(&ctx, &viewer1, &render_target1, |pixels1: &[UVec4]| {
+        render_and_assert(&ctx, &viewer2, &render_target2, |pixels2: &[UVec4]| {
+            assert_eq!(pixels1, pixels2);
+        });
+    });
+}
+
+#[test]
 fn test_viewer_render_should_render_correctly() {
     let ctx = TestContext::new();
     let gaussians = Gaussians {
@@ -51,7 +85,7 @@ fn test_viewer_render_should_render_correctly() {
     let mut viewer =
         Viewer::<G>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm, &gaussians).expect("viewer");
 
-    viewer.update_camera_with_pod(&ctx.queue, &given::camera());
+    viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
 
     render_and_assert(&ctx, &viewer, &render_target, |pixels: &[UVec4]| {
         let sum = pixels.iter().sum::<UVec4>();
@@ -81,7 +115,7 @@ fn test_viewer_when_no_sh0_is_set_should_and_render_as_grayscale(
     let mut viewer =
         Viewer::<G>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm, &gaussians).expect("viewer");
 
-    viewer.update_camera_with_pod(&ctx.queue, &given::camera());
+    viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
     update_gaussian_transform(&mut viewer, &ctx.queue);
 
     render_and_assert(&ctx, &viewer, &render_target, |pixels: &[UVec4]| {
@@ -142,7 +176,7 @@ fn test_viewer_when_model_pos_is_behind_camera_should_not_render_gaussian(
     let mut viewer =
         Viewer::<G>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm, &gaussians).expect("viewer");
 
-    viewer.update_camera_with_pod(&ctx.queue, &given::camera());
+    viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
     update_model_transform(&mut viewer, &ctx.queue);
 
     render_and_assert(&ctx, &viewer, &render_target, |pixels: &[UVec4]| {
