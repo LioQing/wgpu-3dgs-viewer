@@ -20,6 +20,7 @@ use glam::*;
 use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
 
 use wgpu_3dgs_viewer as gs;
+use wgpu_3dgs_viewer::core::{GaussianMaxStdDev, GaussiansSource};
 
 mod utils;
 use utils::core;
@@ -155,9 +156,10 @@ impl core::System for System {
         surface.configure(&device, &config);
 
         log::debug!("Creating gaussians");
-        let f = std::fs::File::open(model_path).expect("ply file");
-        let mut reader = std::io::BufReader::new(f);
-        let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
+        let gaussians = [GaussiansSource::Ply, GaussiansSource::Spz]
+            .into_iter()
+            .find_map(|source| gs::core::Gaussians::read_from_file(model_path, source).ok())
+            .expect("gaussians");
 
         log::debug!("Creating camera");
         let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
@@ -182,7 +184,7 @@ impl core::System for System {
             },
             gs::core::GaussianShDegree::new(args.sh_degree).expect("sh degree"),
             args.no_sh0,
-            args.std_dev,
+            GaussianMaxStdDev::new(args.std_dev).expect("max std dev"),
         );
 
         log::info!("System initialized");

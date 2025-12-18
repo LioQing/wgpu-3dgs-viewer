@@ -1,9 +1,6 @@
 use glam::*;
 use wgpu::util::DeviceExt;
-use wgpu_3dgs_viewer::{
-    Camera, CameraBuffer, CameraPod, CameraTrait,
-    core::{BufferWrapper, DownloadableBufferWrapper},
-};
+use wgpu_3dgs_viewer::{Camera, CameraBuffer, CameraPod, CameraTrait, core::BufferWrapper};
 
 use crate::common::TestContext;
 

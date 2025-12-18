@@ -5,7 +5,7 @@ import package::{
 import wgpu_3dgs_core::{
     gaussian::Gaussian,
     model_transform::{ ModelTransform, model_to_world, model_transform_mat },
-    gaussian_transform::{ GaussianTransform, gaussian_transform_std_dev },
+    gaussian_transform::{ GaussianTransform, gaussian_transform_max_std_dev },
 };
 
 @group(0) @binding(0)
@@ -85,7 +85,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // Cull
     if cull(ndc_pos) {
-        let std_dev = gaussian_transform_std_dev(gaussian_transform.flags);
+        let std_dev = gaussian_transform_max_std_dev(gaussian_transform.flags);
         let axes = cov2d_axes(gaussian, model_transform, camera, std_dev * gaussian_transform.size);
         let major_axis = axes.xy;
         let ndc_major_axis = major_axis * std_dev / camera.size;

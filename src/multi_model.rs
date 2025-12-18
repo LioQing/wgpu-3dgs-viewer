@@ -47,10 +47,16 @@ impl MultiModelViewerWorldBuffers {
         display_mode: GaussianDisplayMode,
         sh_deg: GaussianShDegree,
         no_sh0: bool,
-        std_dev: f32,
+        max_std_dev: GaussianMaxStdDev,
     ) {
-        self.gaussian_transform_buffer
-            .update(queue, size, display_mode, sh_deg, no_sh0, std_dev);
+        self.gaussian_transform_buffer.update(
+            queue,
+            size,
+            display_mode,
+            sh_deg,
+            no_sh0,
+            max_std_dev,
+        );
     }
 
     /// Update the Gaussian transform with [`GaussianTransformPod`].
@@ -80,7 +86,7 @@ pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = DefaultGaussianPod> 
 
 impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
     /// Create a new viewer Gaussian buffers.
-    pub fn new(device: &wgpu::Device, gaussians: &Gaussians) -> Self {
+    pub fn new(device: &wgpu::Device, gaussians: &impl IterGaussian) -> Self {
         Self::new_with(device, GaussiansBuffer::<G>::DEFAULT_USAGES, gaussians)
     }
 
@@ -88,14 +94,14 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
     pub fn new_with(
         device: &wgpu::Device,
         gaussians_buffer_usage: wgpu::BufferUsages,
-        gaussians: &Gaussians,
+        gaussians: &impl IterGaussian,
     ) -> Self {
         log::debug!("Creating model transform buffer");
         let model_transform_buffer = ModelTransformBuffer::new(device);
 
         log::debug!("Creating gaussians buffer");
         let gaussians_buffer =
-            GaussiansBuffer::new_with_usage(device, &gaussians.gaussians, gaussians_buffer_usage);
+            GaussiansBuffer::new_with_usage(device, gaussians, gaussians_buffer_usage);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
@@ -103,18 +109,19 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         log::debug!("Creating radix sort indirect args buffer");
         let radix_sort_indirect_args_buffer = RadixSortIndirectArgsBuffer::new(device);
 
+        // Assume it is cheap to call `iter_gaussian`.
+        let len = gaussians.iter_gaussian().len() as u32;
+
         log::debug!("Creating indirect indices buffer");
-        let indirect_indices_buffer =
-            IndirectIndicesBuffer::new(device, gaussians.gaussians.len() as u32);
+        let indirect_indices_buffer = IndirectIndicesBuffer::new(device, len);
 
         log::debug!("Creating gaussians depth buffer");
-        let gaussians_depth_buffer =
-            GaussiansDepthBuffer::new(device, gaussians.gaussians.len() as u32);
+        let gaussians_depth_buffer = GaussiansDepthBuffer::new(device, len);
 
         #[cfg(feature = "viewer-selection")]
         let selection_buffer = {
             log::debug!("Creating selection buffer");
-            SelectionBuffer::new(device, gaussians.gaussians.len() as u32)
+            SelectionBuffer::new(device, len)
         };
 
         #[cfg(feature = "viewer-selection")]
@@ -327,7 +334,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         &mut self,
         device: &wgpu::Device,
         key: K,
-        gaussians: &Gaussians,
+        gaussians: &impl IterGaussian,
     ) -> Option<MultiModelViewerModel<G>> {
         self.insert_model_with(device, key, GaussiansBuffer::<G>::DEFAULT_USAGES, gaussians)
     }
@@ -341,7 +348,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         device: &wgpu::Device,
         key: K,
         gaussians_buffer_usage: wgpu::BufferUsages,
-        gaussians: &Gaussians,
+        gaussians: &impl IterGaussian,
     ) -> Option<MultiModelViewerModel<G>> {
         let gaussian_buffers =
             MultiModelViewerGaussianBuffers::new_with(device, gaussians_buffer_usage, gaussians);
@@ -423,7 +430,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         display_mode: GaussianDisplayMode,
         sh_deg: GaussianShDegree,
         no_sh0: bool,
-        std_dev: f32,
+        max_std_dev: GaussianMaxStdDev,
     ) {
         self.world_buffers.update_gaussian_transform(
             queue,
@@ -431,7 +438,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             display_mode,
             sh_deg,
             no_sh0,
-            std_dev,
+            max_std_dev,
         );
     }
 

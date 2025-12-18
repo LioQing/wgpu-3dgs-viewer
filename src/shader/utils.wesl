@@ -98,9 +98,9 @@ fn view_color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> 
 
     if sh_deg >= 1u {
         result += sh_c1 * (
-            -gaussian_unpack_sh(gaussian, 1u) * y +
-            gaussian_unpack_sh(gaussian, 2u) * z -
-            gaussian_unpack_sh(gaussian, 3u) * x
+            -gaussian_unpack_sh(gaussian, 0u) * y +
+            gaussian_unpack_sh(gaussian, 1u) * z -
+            gaussian_unpack_sh(gaussian, 2u) * x
         );
 
         if sh_deg >= 2u {
@@ -112,21 +112,21 @@ fn view_color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> 
             let xz = x * z;
 
             result += 
-                sh_c2[0] * xy * gaussian_unpack_sh(gaussian, 4u) +
-                sh_c2[1] * yz * gaussian_unpack_sh(gaussian, 5u) +
-                sh_c2[2] * (2.0 * zz - xx - yy) * gaussian_unpack_sh(gaussian, 6u) +
-                sh_c2[3] * xz * gaussian_unpack_sh(gaussian, 7u) +
-                sh_c2[4] * (xx - yy) * gaussian_unpack_sh(gaussian, 8u);
+                sh_c2[0] * xy * gaussian_unpack_sh(gaussian, 3u) +
+                sh_c2[1] * yz * gaussian_unpack_sh(gaussian, 4u) +
+                sh_c2[2] * (2.0 * zz - xx - yy) * gaussian_unpack_sh(gaussian, 5u) +
+                sh_c2[3] * xz * gaussian_unpack_sh(gaussian, 6u) +
+                sh_c2[4] * (xx - yy) * gaussian_unpack_sh(gaussian, 7u);
 
             if sh_deg >= 3u {
                 result += 
-                    sh_c3[0] * y * (3.0 * xx - yy) * gaussian_unpack_sh(gaussian, 9u) +
-                    sh_c3[1] * xy * z * gaussian_unpack_sh(gaussian, 10u) +
-                    sh_c3[2] * y * (4.0 * zz - xx - yy) * gaussian_unpack_sh(gaussian, 11u) +
-                    sh_c3[3] * z * (2.0 * zz - 3.0 * xx - 3.0 * yy) * gaussian_unpack_sh(gaussian, 12u) +
-                    sh_c3[4] * x * (4.0 * zz - xx - yy) * gaussian_unpack_sh(gaussian, 13u) +
-                    sh_c3[5] * z * (xx - yy) * gaussian_unpack_sh(gaussian, 14u) +
-                    sh_c3[6] * x * (xx - 3.0 * yy) * gaussian_unpack_sh(gaussian, 15u);
+                    sh_c3[0] * y * (3.0 * xx - yy) * gaussian_unpack_sh(gaussian, 8u) +
+                    sh_c3[1] * xy * z * gaussian_unpack_sh(gaussian, 9u) +
+                    sh_c3[2] * y * (4.0 * zz - xx - yy) * gaussian_unpack_sh(gaussian, 10u) +
+                    sh_c3[3] * z * (2.0 * zz - 3.0 * xx - 3.0 * yy) * gaussian_unpack_sh(gaussian, 11u) +
+                    sh_c3[4] * x * (4.0 * zz - xx - yy) * gaussian_unpack_sh(gaussian, 12u) +
+                    sh_c3[5] * z * (xx - yy) * gaussian_unpack_sh(gaussian, 13u) +
+                    sh_c3[6] * x * (xx - 3.0 * yy) * gaussian_unpack_sh(gaussian, 14u);
             }
         }
     }

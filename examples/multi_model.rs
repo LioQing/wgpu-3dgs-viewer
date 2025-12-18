@@ -19,6 +19,7 @@ use glam::*;
 use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
 
 use wgpu_3dgs_viewer as gs;
+use wgpu_3dgs_viewer::core::{GaussiansSource, IterGaussian};
 
 mod utils;
 use utils::core;
@@ -129,9 +130,10 @@ impl core::System for System {
             .iter()
             .map(|model_path| {
                 log::debug!("Reading model from {model_path}");
-                let f = std::fs::File::open(model_path).expect("ply file");
-                let mut reader = std::io::BufReader::new(f);
-                gs::core::Gaussians::read_ply(&mut reader).expect("gaussians")
+                [GaussiansSource::Ply, GaussiansSource::Spz]
+                    .into_iter()
+                    .find_map(|source| gs::core::Gaussians::read_from_file(model_path, source).ok())
+                    .expect("gaussians")
             })
             .collect::<Vec<_>>();
 
@@ -140,10 +142,10 @@ impl core::System for System {
             .iter()
             .map(|g| {
                 let mut centroid = Vec3::ZERO;
-                for gaussian in &g.gaussians {
+                for gaussian in g.iter_gaussian() {
                     centroid += gaussian.pos;
                 }
-                centroid / g.gaussians.len() as f32
+                centroid / g.len() as f32
             })
             .collect::<Vec<_>>();
 

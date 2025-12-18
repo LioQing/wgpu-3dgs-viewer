@@ -17,8 +17,9 @@ pub mod selection;
 
 use glam::*;
 use wgpu_3dgs_core::{
-    BufferWrapper, GaussianDisplayMode, GaussianPod, GaussianShDegree, GaussianTransformBuffer,
-    GaussianTransformPod, Gaussians, GaussiansBuffer, ModelTransformBuffer, ModelTransformPod,
+    BufferWrapper, GaussianDisplayMode, GaussianMaxStdDev, GaussianPod, GaussianShDegree,
+    GaussianTransformBuffer, GaussianTransformPod, GaussiansBuffer, IterGaussian,
+    ModelTransformBuffer, ModelTransformPod,
 };
 
 #[cfg(feature = "viewer-selection")]
@@ -85,7 +86,7 @@ impl<G: GaussianPod> Viewer<G> {
     pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
-        gaussians: &Gaussians,
+        gaussians: &impl IterGaussian,
     ) -> Result<Self, ViewerCreateError> {
         Self::new_with(
             device,
@@ -106,7 +107,7 @@ impl<G: GaussianPod> Viewer<G> {
         texture_format: wgpu::TextureFormat,
         depth_stencil: Option<wgpu::DepthStencilState>,
         gaussians_buffer_usage: wgpu::BufferUsages,
-        gaussians: &Gaussians,
+        gaussians: &impl IterGaussian,
     ) -> Result<Self, ViewerCreateError> {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
@@ -119,7 +120,7 @@ impl<G: GaussianPod> Viewer<G> {
 
         log::debug!("Creating gaussians buffer");
         let gaussians_buffer =
-            GaussiansBuffer::new_with_usage(device, &gaussians.gaussians, gaussians_buffer_usage);
+            GaussiansBuffer::new_with_usage(device, gaussians, gaussians_buffer_usage);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
@@ -127,18 +128,19 @@ impl<G: GaussianPod> Viewer<G> {
         log::debug!("Creating radix sort indirect args buffer");
         let radix_sort_indirect_args_buffer = RadixSortIndirectArgsBuffer::new(device);
 
+        // Assuming it is cheap to call `iter_gaussian`.
+        let len = gaussians.iter_gaussian().len() as u32;
+
         log::debug!("Creating indirect indices buffer");
-        let indirect_indices_buffer =
-            IndirectIndicesBuffer::new(device, gaussians.gaussians.len() as u32);
+        let indirect_indices_buffer = IndirectIndicesBuffer::new(device, len);
 
         log::debug!("Creating gaussians depth buffer");
-        let gaussians_depth_buffer =
-            GaussiansDepthBuffer::new(device, gaussians.gaussians.len() as u32);
+        let gaussians_depth_buffer = GaussiansDepthBuffer::new(device, len);
 
         #[cfg(feature = "viewer-selection")]
         let selection_buffer = {
             log::debug!("Creating selection buffer");
-            SelectionBuffer::new(device, gaussians.gaussians.len() as u32)
+            SelectionBuffer::new(device, len)
         };
 
         #[cfg(feature = "viewer-selection")]
@@ -245,10 +247,16 @@ impl<G: GaussianPod> Viewer<G> {
         display_mode: GaussianDisplayMode,
         sh_deg: GaussianShDegree,
         no_sh0: bool,
-        std_dev: f32,
+        max_std_dev: GaussianMaxStdDev,
     ) {
-        self.gaussian_transform_buffer
-            .update(queue, size, display_mode, sh_deg, no_sh0, std_dev);
+        self.gaussian_transform_buffer.update(
+            queue,
+            size,
+            display_mode,
+            sh_deg,
+            no_sh0,
+            max_std_dev,
+        );
     }
 
     /// Update the Gaussian transform with [`GaussianTransformPod`].
