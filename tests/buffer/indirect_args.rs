@@ -1,7 +1,6 @@
 use wgpu::util::DeviceExt;
 use wgpu_3dgs_viewer::{
-    IndirectArgsBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer,
-    core::{BufferWrapper, DownloadableBufferWrapper},
+    IndirectArgsBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer, core::BufferWrapper,
 };
 
 use crate::common::TestContext;

@@ -1,6 +1,6 @@
 use glam::*;
 use wgpu::util::DeviceExt;
-use wgpu_3dgs_viewer::core::{BufferWrapper, DownloadableBufferWrapper};
+use wgpu_3dgs_viewer::core::BufferWrapper;
 use wgpu_3dgs_viewer::selection::{
     PreprocessorInvertSelectionBuffer, ViewportTexture, ViewportTextureF32Buffer,
     ViewportTexturePosBuffer,

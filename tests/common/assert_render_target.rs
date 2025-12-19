@@ -1,6 +1,6 @@
 use glam::*;
 use pollster::FutureExt;
-use wgpu_3dgs_core::DownloadableBufferWrapper;
+use wgpu_3dgs_core::BufferWrapper;
 
 use crate::{common::TestContext, inline_wesl_pkg};
 

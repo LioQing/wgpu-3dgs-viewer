@@ -15,7 +15,7 @@ import wgpu_3dgs_core::{
         gaussian_transform_display_mode,
         gaussian_transform_sh_deg,
         gaussian_transform_no_sh0,
-        gaussian_transform_std_dev,
+        gaussian_transform_max_std_dev,
     },
     model_transform::{
         ModelTransform,
@@ -103,7 +103,7 @@ fn vert_main(
         return out;
     }
     
-    let std_dev = gaussian_transform_std_dev(gaussian_transform.flags);
+    let std_dev = gaussian_transform_max_std_dev(gaussian_transform.flags);
     let axes = cov2d_axes(gaussian, model_transform, camera, std_dev * gaussian_transform.size);
     if all(axes == vec4<f32>(0.0)) {
         out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);

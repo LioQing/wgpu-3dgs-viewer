@@ -1,9 +1,9 @@
-use wgpu_3dgs_editor::Modifier;
+use wgpu_3dgs_editor::{BasicColorRgbOverrideOrHsvModifiersPod, Modifier};
 use wgpu_3dgs_viewer::{
     Viewer,
     core::{
-        BufferWrapper, Gaussian, GaussianPodWithShSingleCov3dSingleConfigs, Gaussians,
-        GaussiansBuffer, glam::*,
+        BufferWrapper, Gaussian, GaussianPodWithShSingleCov3dSingleConfigs, GaussiansBuffer,
+        glam::*,
     },
     editor::{BasicSelectionModifier, NonDestructiveModifier, SelectionExpr},
     selection::{ViewportSelector, ViewportSelectorType, create_viewport_bundle},
@@ -18,15 +18,13 @@ fn test_select_modify_render_and_assert(
     assertion: impl FnOnce(&[UVec4]),
 ) {
     let ctx = TestContext::new();
-    let gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
     let camera = given::camera_pod();
@@ -82,7 +80,14 @@ fn test_select_modify_render_and_assert(
         .modifier
         .modifier
         .basic_color_modifiers_buffer
-        .update_with_override_rgb(&ctx.queue, Vec3::new(0.0, 0.0, 1.0), 1.0, 0.0, 0.0, 1.0);
+        .update(
+            &ctx.queue,
+            BasicColorRgbOverrideOrHsvModifiersPod::new_rgb_override(Vec3::new(0.0, 0.0, 1.0)),
+            1.0,
+            0.0,
+            0.0,
+            1.0,
+        );
 
     let render_target_view = render_target.create_view(&wgpu::TextureViewDescriptor::default());
 

@@ -18,7 +18,11 @@ use clap::Parser;
 use glam::*;
 use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
 
-use wgpu_3dgs_viewer::{self as gs, core::BufferWrapper, editor::Modifier};
+use wgpu_3dgs_viewer::{
+    self as gs,
+    core::{BufferWrapper, GaussiansSource},
+    editor::{BasicColorRgbOverrideOrHsvModifiersPod, Modifier},
+};
 
 mod utils;
 use utils::core;
@@ -140,9 +144,10 @@ impl core::System for System {
         surface.configure(&device, &config);
 
         log::debug!("Creating gaussians");
-        let f = std::fs::File::open(model_path).expect("ply file");
-        let mut reader = std::io::BufReader::new(f);
-        let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
+        let gaussians = [GaussiansSource::Ply, GaussiansSource::Spz]
+            .into_iter()
+            .find_map(|source| gs::core::Gaussians::read_from_file(model_path, source).ok())
+            .expect("gaussians");
 
         log::debug!("Creating camera");
         let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
@@ -215,7 +220,9 @@ impl core::System for System {
             .update_with_pod(
                 &queue,
                 &gs::editor::BasicColorModifiersPod {
-                    rgb_or_hsv: -Vec3::new(1.0, 1.0, 0.0),
+                    rgb_or_hsv: BasicColorRgbOverrideOrHsvModifiersPod::new_rgb_override(
+                        Vec3::new(1.0, 1.0, 0.0),
+                    ),
                     ..Default::default()
                 },
             );

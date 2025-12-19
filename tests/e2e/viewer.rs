@@ -1,9 +1,10 @@
 use glam::*;
+use wgpu_3dgs_core::GaussianMaxStdDev;
 use wgpu_3dgs_viewer::{
     CameraPod, Viewer,
     core::{
         Gaussian, GaussianDisplayMode, GaussianPodWithShSingleCov3dSingleConfigs, GaussianShDegree,
-        GaussianTransformPod, Gaussians, ModelTransformPod,
+        GaussianTransformPod, ModelTransformPod,
     },
 };
 
@@ -36,15 +37,13 @@ fn render_and_assert(
 #[test]
 fn test_viewer_update_camera_when_with_or_without_pod_should_be_equal() {
     let ctx = TestContext::new();
-    let gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target1 = given::render_target_texture(&ctx);
     let render_target2 = given::render_target_texture(&ctx);
@@ -70,15 +69,13 @@ fn test_viewer_update_camera_when_with_or_without_pod_should_be_equal() {
 #[test]
 fn test_viewer_render_should_render_correctly() {
     let ctx = TestContext::new();
-    let gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
 
@@ -100,15 +97,13 @@ fn test_viewer_when_no_sh0_is_set_should_and_render_as_grayscale(
     update_gaussian_transform: impl FnOnce(&mut Viewer<G>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
-    let gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
 
@@ -134,9 +129,9 @@ fn test_viewer_update_gaussian_transform_when_no_sh0_is_set_should_render_as_gra
             queue,
             1.0,
             GaussianDisplayMode::Splat,
-            GaussianShDegree::new_unchecked(3),
+            GaussianShDegree::new(3).expect("sh deg"),
             true,
-            3.0,
+            GaussianMaxStdDev::new(3.0).expect("max std dev"),
         );
     });
 }
@@ -149,9 +144,9 @@ fn test_viewer_update_gaussian_transform_with_pod_when_no_sh0_is_set_should_rend
             &GaussianTransformPod::new(
                 1.0,
                 GaussianDisplayMode::Splat,
-                GaussianShDegree::new_unchecked(3),
+                GaussianShDegree::new(3).expect("sh deg"),
                 true,
-                3.0,
+                GaussianMaxStdDev::new(3.0).expect("max std dev"),
             ),
         );
     });
@@ -161,15 +156,13 @@ fn test_viewer_when_model_pos_is_behind_camera_should_not_render_gaussian(
     update_model_transform: impl FnOnce(&mut Viewer<G>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
-    let gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
 

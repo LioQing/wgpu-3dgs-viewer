@@ -1,9 +1,10 @@
 use glam::*;
+use wgpu_3dgs_core::GaussianMaxStdDev;
 use wgpu_3dgs_viewer::{
     CameraPod, MultiModelViewer,
     core::{
         Gaussian, GaussianDisplayMode, GaussianPodWithShSingleCov3dSingleConfigs, GaussianShDegree,
-        GaussianTransformPod, Gaussians, ModelTransformPod,
+        GaussianTransformPod, ModelTransformPod,
     },
 };
 
@@ -39,25 +40,21 @@ fn render_and_assert(
 #[test]
 fn test_multi_model_viewer_update_camera_when_with_or_without_pod_should_be_equal() {
     let ctx = TestContext::new();
-    let red_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let red_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
-    let green_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::new(1.0, 0.0, 1.0),
-            color: U8Vec4::new(0, 255, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let green_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::new(1.0, 0.0, 1.0),
+        color: U8Vec4::new(0, 255, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target1 = given::render_target_texture(&ctx);
     let render_target2 = given::render_target_texture(&ctx);
@@ -102,25 +99,21 @@ fn test_multi_model_viewer_update_camera_when_with_or_without_pod_should_be_equa
 #[test]
 fn test_multi_model_viewer_render_should_render_correctly() {
     let ctx = TestContext::new();
-    let red_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let red_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
-    let green_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::new(1.0, 0.0, 1.0),
-            color: U8Vec4::new(0, 255, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let green_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::new(1.0, 0.0, 1.0),
+        color: U8Vec4::new(0, 255, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
 
@@ -151,25 +144,21 @@ fn test_multi_model_viewer_when_no_sh0_is_set_should_render_as_grayscale(
     update_gaussian_transform: impl FnOnce(&mut MultiModelViewer<G, &str>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
-    let red_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let red_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
-    let green_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::new(1.0, 0.0, 1.0),
-            color: U8Vec4::new(0, 255, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let green_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::new(1.0, 0.0, 1.0),
+        color: U8Vec4::new(0, 255, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
 
@@ -205,9 +194,9 @@ fn test_multi_model_viewer_update_gaussian_transform_when_no_sh0_is_set_should_r
             queue,
             1.0,
             GaussianDisplayMode::Splat,
-            GaussianShDegree::new_unchecked(3),
+            GaussianShDegree::new(3).expect("sh deg"),
             true,
-            3.0,
+            GaussianMaxStdDev::new(3.0).expect("max std dev"),
         );
     });
 }
@@ -221,9 +210,9 @@ fn test_multi_model_viewer_update_gaussian_transform_with_pod_when_no_sh0_is_set
             &GaussianTransformPod::new(
                 1.0,
                 GaussianDisplayMode::Splat,
-                GaussianShDegree::new_unchecked(3),
+                GaussianShDegree::new(3).expect("sh deg"),
                 true,
-                3.0,
+                GaussianMaxStdDev::new(3.0).expect("max std dev"),
             ),
         );
     });
@@ -233,25 +222,21 @@ fn test_multi_model_viewer_when_model_pos_is_behind_camera_should_not_render_gau
     update_model_transform: impl FnOnce(&mut MultiModelViewer<G, &str>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
-    let red_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let red_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
-    let green_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::new(1.0, 0.0, 1.0),
-            color: U8Vec4::new(0, 255, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let green_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::new(1.0, 0.0, 1.0),
+        color: U8Vec4::new(0, 255, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
 
@@ -331,25 +316,21 @@ fn test_multi_model_viewer_update_model_transform_with_pod_when_model_pos_is_beh
 #[test]
 fn test_multi_model_viewer_remove_model_should_not_render_removed_model() {
     let ctx = TestContext::new();
-    let red_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::ZERO + Vec3::Z,
-            color: U8Vec4::new(255, 0, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let red_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
-    let green_gaussians = Gaussians {
-        gaussians: vec![Gaussian {
-            rot: Quat::IDENTITY,
-            pos: Vec3::new(1.0, 0.0, 1.0),
-            color: U8Vec4::new(0, 255, 0, 255),
-            sh: [Vec3::ZERO; 15],
-            scale: Vec3::splat(1.0),
-        }],
-    };
+    let green_gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::new(1.0, 0.0, 1.0),
+        color: U8Vec4::new(0, 255, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
 
     let render_target = given::render_target_texture(&ctx);
 
