@@ -1,7 +1,7 @@
 use glam::*;
-use wgpu_3dgs_core::GaussianMaxStdDev;
+use wgpu_3dgs_core::{BufferWrapper, GaussianMaxStdDev};
 use wgpu_3dgs_viewer::{
-    CameraPod, MultiModelViewer,
+    CameraPod, MultiModelViewer, MultiModelViewerGaussianBuffers,
     core::{
         Gaussian, GaussianDisplayMode, GaussianPodWithShSingleCov3dSingleConfigs, GaussianShDegree,
         GaussianTransformPod, ModelTransformPod,
@@ -35,6 +35,19 @@ fn render_and_assert(
     ctx.device.poll(wgpu::PollType::Wait).expect("device poll");
 
     assert_render_target(ctx, &render_target_view, assertion);
+}
+
+#[test]
+fn test_multi_model_viewer_gaussian_buffers_new_empty_should_create_buffer_with_correct_size() {
+    let ctx = TestContext::new();
+    let count = 42;
+    let viewer = MultiModelViewerGaussianBuffers::<G>::new_empty(&ctx.device, count);
+
+    assert_eq!(viewer.gaussians_buffer.len(), 42);
+    assert_eq!(
+        viewer.gaussians_buffer.buffer().size(),
+        (count * std::mem::size_of::<G>()) as wgpu::BufferAddress
+    );
 }
 
 #[test]

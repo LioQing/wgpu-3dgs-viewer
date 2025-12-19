@@ -29,12 +29,15 @@ fn test_select_modify_render_and_assert(
     let render_target = given::render_target_texture(&ctx);
     let camera = given::camera_pod();
 
-    let mut viewer = Viewer::<G>::new_with(
+    let mut viewer = Viewer::<G>::new_with_options(
         &ctx.device,
         wgpu::TextureFormat::Rgba8Unorm,
-        None,
-        GaussiansBuffer::<G>::DEFAULT_USAGES | wgpu::BufferUsages::COPY_SRC,
         &gaussians,
+        wgpu_3dgs_viewer::ViewerCreateOptions {
+            gaussians_buffer_usage: GaussiansBuffer::<G>::DEFAULT_USAGES
+                | wgpu::BufferUsages::COPY_SRC,
+            ..Default::default()
+        },
     )
     .expect("viewer");
 
@@ -75,7 +78,6 @@ fn test_select_modify_render_and_assert(
 
     selection_modifier.modifier.selection_expr =
         SelectionExpr::Selection(0, vec![selection_bind_group]);
-    // TODO(https://github.com/LioQing/wgpu-3dgs-editor/issues/3): Use a better default instantiation method.
     selection_modifier
         .modifier
         .modifier

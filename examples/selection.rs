@@ -153,13 +153,16 @@ impl core::System for System {
         let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
         log::debug!("Creating viewer");
-        let mut viewer = gs::Viewer::new_with(
+        let mut viewer = gs::Viewer::new_with_options(
             &device,
             config.view_formats[0],
-            None,
-            gs::core::GaussiansBuffer::<gs::DefaultGaussianPod>::DEFAULT_USAGES
-                | wgpu::BufferUsages::COPY_SRC,
             &gaussians,
+            gs::ViewerCreateOptions {
+                gaussians_buffer_usage:
+                    gs::core::GaussiansBuffer::<gs::DefaultGaussianPod>::DEFAULT_USAGES
+                        | wgpu::BufferUsages::COPY_SRC,
+                ..Default::default()
+            },
         )
         .expect("viewer");
         viewer.update_model_transform(
