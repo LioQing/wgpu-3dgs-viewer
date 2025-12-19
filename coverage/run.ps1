@@ -17,6 +17,7 @@ cargo llvm-cov run --example selection --all-features -- -m "$BASE_DIR/model.ply
 # `--doctests` flag is currently unstable
 # echo "Running doctests"
 # cargo llvm-cov --no-report --doctests --all-features
+cargo test --doc  # Run doctests without tracking coverage
 
 echo "Running tests"
 cargo llvm-cov --no-report nextest --all-features

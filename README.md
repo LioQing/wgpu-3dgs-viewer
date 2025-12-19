@@ -4,8 +4,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer)
 [![Docs.rs](https://img.shields.io/docsrs/wgpu-3dgs-viewer)](https://docs.rs/wgpu-3dgs-viewer/latest/wgpu_3dgs_viewer)
-[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FLioQing%2Fwgpu-3dgs-viewer%2Frefs%2Fheads%2Fmaster%2Fcoverage%2Fbadge.json
-)](https://github.com/LioQing/wgpu-3dgs-viewer/tree/master/coverage)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FLioQing%2Fwgpu-3dgs-viewer%2Frefs%2Fheads%2Fmaster%2Fcoverage%2Fbadge.json)](https://github.com/LioQing/wgpu-3dgs-viewer/tree/master/coverage)
 [![License](https://img.shields.io/crates/l/wgpu-3dgs-viewer)](https://crates.io/crates/wgpu-3dgs-viewer)
 
 ![Cover.gif](https://raw.githubusercontent.com/LioQing/wgpu-3dgs-viewer/27a35021a67224b59eb6ed737ac4cfa33af91901/media/Cover.gif)
@@ -19,27 +18,29 @@
 > Use at your own risk.
 
 This library displays 3D Gaussian Splatting models with wgpu. It includes a ready‑to‑use pipeline and modular pieces you can swap out.
+
 - Rendering pipeline
-    - Preprocess: cull off‑screen points and set up indirect draw data.
-    - Sort and draw: sort by depth and draw the Gaussians.
-    - Modes: Gaussians may be displayed as splat, ellipse, or point.
-    - Transforms: apply model or per-Gaussian transforms.
+  - Preprocess: cull off‑screen points and set up indirect draw data.
+  - Sort and draw: sort by depth and draw the Gaussians.
+  - Modes: Gaussians may be displayed as splat, ellipse, or point.
+  - Transforms: apply model or per-Gaussian transforms.
 - Abstraction for renderer and buffers
-    - Viewer: one type that manages the buffers and pipelines.
-    - Low-level access: preprocessor, sorter, renderer, and their buffers can be used separately.
+  - Viewer: one type that manages the buffers and pipelines.
+  - Low-level access: preprocessor, sorter, renderer, and their buffers can be used separately.
 - Optional features
-    - Multi-model: render many models with custom draw orders.
-    - Selection: viewport selection (e.g. rectangle, brush) that marks Gaussians for editing.
+  - Multi-model: render many models with custom draw orders.
+  - Selection: viewport selection (e.g. rectangle, brush) that marks Gaussians for editing.
 - Shaders
-    - WGSL shaders packaged with WESL, you can extend or replace them.
+  - WGSL shaders packaged with WESL, you can extend or replace them.
 
 ## Usage
 
 You may read the documentation of the following types for more details:
+
 - [`Viewer`]: Manages buffers and renders a model.
-    - [`Preprocessor`]: Culls Gaussians and fills indirect args and depths.
-    - [`RadixSorter`]: Sorts Gaussians by depth on the GPU.
-    - [`Renderer`]: Draws Gaussians with the selected display mode.
+  - [`Preprocessor`]: Culls Gaussians and fills indirect args and depths.
+  - [`RadixSorter`]: Sorts Gaussians by depth on the GPU.
+  - [`Renderer`]: Draws Gaussians with the selected display mode.
 - [`MultiModelViewer`]: [`Viewer`] equivalent for multiple models. Requires `multi-model` feature.
 - [`selection`]: Select Gaussians based on viewport interactions, e.g. rectangle or brush. Requires `selection` feature.
 
@@ -60,9 +61,8 @@ use glam::UVec2;
 // Setup wgpu...
 
 // Read the Gaussians from the .ply file
-let f = std::fs::File::open(model_path).expect("ply file");
-let mut reader = std::io::BufReader::new(f);
-let gaussians = gs::core::Gaussians::read_ply(&mut reader).expect("gaussians");
+let gaussians = gs::core::Gaussians::read_from_file(model_path, gs::core::GaussiansSource::Ply)
+    .expect("gaussians");
 
 // Create the camera
 let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
@@ -82,11 +82,7 @@ viewer.update_camera(
 // Create wgpu command encoder...
 
 // Render the model
-viewer.render(
-    &mut encoder,
-    &texture_view,
-    gaussians.gaussians.len() as u32,
-);
+viewer.render(&mut encoder, &texture_view);
 ```
 
 ## Examples

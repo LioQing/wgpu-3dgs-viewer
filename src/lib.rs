@@ -88,26 +88,20 @@ impl<G: GaussianPod> Viewer<G> {
         texture_format: wgpu::TextureFormat,
         gaussians: &impl IterGaussian,
     ) -> Result<Self, ViewerCreateError> {
-        Self::new_with(
+        Self::new_with_options(
             device,
             texture_format,
-            None,
-            GaussiansBuffer::<G>::DEFAULT_USAGES,
             gaussians,
+            ViewerCreateOptions::default(),
         )
     }
 
-    /// Create a new viewer with all extra options.
-    ///
-    /// More specifically, you can specify:
-    /// - `depth_stencil`: The optional depth stencil state for the renderer.
-    /// - `gaussians_buffer_usage`: The usage for the gaussians buffer.
-    pub fn new_with(
+    /// Create a new viewer with extra [`ViewerCreateOptions`].
+    pub fn new_with_options(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
-        depth_stencil: Option<wgpu::DepthStencilState>,
-        gaussians_buffer_usage: wgpu::BufferUsages,
         gaussians: &impl IterGaussian,
+        options: ViewerCreateOptions,
     ) -> Result<Self, ViewerCreateError> {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
@@ -120,7 +114,7 @@ impl<G: GaussianPod> Viewer<G> {
 
         log::debug!("Creating gaussians buffer");
         let gaussians_buffer =
-            GaussiansBuffer::new_with_usage(device, gaussians, gaussians_buffer_usage);
+            GaussiansBuffer::new_with_usage(device, gaussians, options.gaussians_buffer_usage);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
@@ -174,7 +168,7 @@ impl<G: GaussianPod> Viewer<G> {
         let renderer = Renderer::new(
             device,
             texture_format,
-            depth_stencil,
+            options.depth_stencil,
             &camera_buffer,
             &model_transform_buffer,
             &gaussian_transform_buffer,
@@ -278,5 +272,22 @@ impl<G: GaussianPod> Viewer<G> {
 
         self.renderer
             .render(encoder, texture_view, &self.indirect_args_buffer);
+    }
+}
+
+/// The options for creating a [`Viewer`] using [`Viewer::new_with_options`].
+pub struct ViewerCreateOptions {
+    /// The optional depth stencil state for the renderer.
+    pub depth_stencil: Option<wgpu::DepthStencilState>,
+    /// The usage for the gaussians buffer.
+    pub gaussians_buffer_usage: wgpu::BufferUsages,
+}
+
+impl Default for ViewerCreateOptions {
+    fn default() -> Self {
+        Self {
+            depth_stencil: None,
+            gaussians_buffer_usage: GaussiansBuffer::<DefaultGaussianPod>::DEFAULT_USAGES,
+        }
     }
 }

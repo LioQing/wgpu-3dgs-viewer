@@ -90,7 +90,7 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         Self::new_with(device, GaussiansBuffer::<G>::DEFAULT_USAGES, gaussians)
     }
 
-    /// Create a new viewer Gaussian buffers with all the extra options.
+    /// Create a new viewer Gaussian buffers with custom gaussians buffer usage.
     pub fn new_with(
         device: &wgpu::Device,
         gaussians_buffer_usage: wgpu::BufferUsages,
@@ -146,11 +146,21 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
 
     /// Create a new viewer Gaussian buffers with only the count.
     pub fn new_empty(device: &wgpu::Device, count: usize) -> Self {
+        Self::new_empty_with(device, count, GaussiansBuffer::<G>::DEFAULT_USAGES)
+    }
+
+    /// Create a new viewer Gaussian buffers with only the count and custom gaussians buffer usage.
+    pub fn new_empty_with(
+        device: &wgpu::Device,
+        count: usize,
+        gaussians_buffer_usage: wgpu::BufferUsages,
+    ) -> Self {
         log::debug!("Creating model transform buffer");
         let model_transform_buffer = ModelTransformBuffer::new(device);
 
         log::debug!("Creating gaussians buffer");
-        let gaussians_buffer = GaussiansBuffer::new_empty(device, count);
+        let gaussians_buffer =
+            GaussiansBuffer::new_empty_with_usage(device, count, gaussians_buffer_usage);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
@@ -284,6 +294,12 @@ pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::
     pub preprocessor: Preprocessor<G, ()>,
     pub radix_sorter: RadixSorter<()>,
     pub renderer: Renderer<G, ()>,
+
+    /// The usage for the gaussians buffer when [`MultiModelViewer::insert_model`] is called.
+    ///
+    /// Can be overridden when inserting model using [`MultiModelViewer::insert_model_with`].
+    // If there are more than one of these default, maybe create something like InsertModelOptions
+    pub gaussians_buffer_usage: wgpu::BufferUsages,
 }
 
 impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
@@ -292,17 +308,18 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
     ) -> Result<Self, ViewerCreateError> {
-        Self::new_with(device, texture_format, None)
+        Self::new_with_options(device, texture_format, ViewerCreateOptions::default())
     }
 
-    /// Create a new viewer with all extra options.
+    /// Create a new viewer with extra [`ViewerCreateOptions`].
     ///
-    /// More specifically, you can specify:
-    /// - `depth_stencil`: The optional depth stencil state for the renderer.
-    pub fn new_with(
+    /// Note that only [`ViewerCreateOptions::gaussians_buffer_usage`] is used when inserting models
+    /// with [`MultiModelViewer::insert_model`]. You can also override the usage using
+    /// [`MultiModelViewer::insert_model_with`].
+    pub fn new_with_options(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
-        depth_stencil: Option<wgpu::DepthStencilState>,
+        options: ViewerCreateOptions,
     ) -> Result<Self, ViewerCreateError> {
         let models = HashMap::new();
 
@@ -316,7 +333,8 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         let radix_sorter = RadixSorter::new_without_bind_groups(device);
 
         log::debug!("Creating renderer");
-        let renderer = Renderer::new_without_bind_group(device, texture_format, depth_stencil)?;
+        let renderer =
+            Renderer::new_without_bind_group(device, texture_format, options.depth_stencil)?;
 
         log::info!("Viewer created");
 
@@ -326,6 +344,8 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             preprocessor,
             radix_sorter,
             renderer,
+
+            gaussians_buffer_usage: options.gaussians_buffer_usage,
         })
     }
 
@@ -336,13 +356,13 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         key: K,
         gaussians: &impl IterGaussian,
     ) -> Option<MultiModelViewerModel<G>> {
-        self.insert_model_with(device, key, GaussiansBuffer::<G>::DEFAULT_USAGES, gaussians)
+        self.insert_model_with(device, key, self.gaussians_buffer_usage, gaussians)
     }
 
-    /// Insert a new model to the viewer with all extra options.
+    /// Insert a new model to the viewer with custom gaussians buffer usage.
     ///
-    /// More specifically, you can specify:
-    /// - `gaussians_buffer_usage`: The usage for the gaussians buffer.
+    /// This ignores [`MultiModelViewer::gaussians_buffer_usage`], and instead uses the provided
+    /// usage in the argument.
     pub fn insert_model_with(
         &mut self,
         device: &wgpu::Device,
