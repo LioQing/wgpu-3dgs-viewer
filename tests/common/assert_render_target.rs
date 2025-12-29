@@ -151,7 +151,9 @@ pub fn assert_render_target(
     }
 
     ctx.queue.submit(Some(encoder.finish()));
-    ctx.device.poll(wgpu::PollType::Wait).expect("device poll");
+    ctx.device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .expect("poll");
 
     let dest = dest_buffer
         .download(&ctx.device, &ctx.queue)

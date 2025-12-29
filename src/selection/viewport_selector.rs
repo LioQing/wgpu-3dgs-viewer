@@ -68,10 +68,8 @@ pub enum ViewportSelectorType {
 /// # let (device, queue) = adapter
 /// #     .request_device(&wgpu::DeviceDescriptor {
 /// #         label: Some("Device"),
-/// #         required_features: wgpu::Features::empty(),
 /// #         required_limits: adapter.limits(),
-/// #         memory_hints: wgpu::MemoryHints::default(),
-/// #         trace: wgpu::Trace::Off,
+/// #         ..Default::default()
 /// #     })
 /// #     .await
 /// #     .expect("device");
