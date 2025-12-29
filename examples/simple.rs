@@ -131,10 +131,8 @@ impl core::System for System {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("Device"),
-                required_features: wgpu::Features::empty(),
                 required_limits: adapter.limits(),
-                memory_hints: wgpu::MemoryHints::default(),
-                trace: wgpu::Trace::Off,
+                ..Default::default()
             })
             .await
             .expect("device");
@@ -273,7 +271,7 @@ impl core::System for System {
         self.viewer.render(&mut encoder, &texture_view);
 
         self.queue.submit(std::iter::once(encoder.finish()));
-        if let Err(e) = self.device.poll(wgpu::PollType::Wait) {
+        if let Err(e) = self.device.poll(wgpu::PollType::wait_indefinitely()) {
             log::error!("Failed to poll device: {e:?}");
         }
         texture.present();

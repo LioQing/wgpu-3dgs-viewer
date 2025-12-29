@@ -32,7 +32,9 @@ fn render_and_assert(
         .expect("render");
 
     ctx.queue.submit(Some(encoder.finish()));
-    ctx.device.poll(wgpu::PollType::Wait).expect("device poll");
+    ctx.device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .expect("device poll");
 
     assert_render_target(ctx, &render_target_view, assertion);
 }

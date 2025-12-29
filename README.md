@@ -95,6 +95,7 @@ This crate depends on the following crates:
 
 | `wgpu-3dgs-viewer` | `wgpu` | `glam` | `wesl` |
 | ------------------ | ------ | ------ | ------ |
+| 0.5                | 27.0   | 0.30   | 0.2    |
 | 0.4                | 26.0   | 0.30   | 0.2    |
 | 0.3                | 25.0   | 0.30   | N/A    |
 | 0.1 - 0.2          | 24.0   | 0.29   | N/A    |

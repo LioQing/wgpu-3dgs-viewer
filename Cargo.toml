@@ -1,6 +1,6 @@
 [package]
 name = "wgpu-3dgs-viewer"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2024"
 authors = ["Lio Qing"]
 license = "MIT OR Apache-2.0"
@@ -68,14 +68,14 @@ bytemuck = { version = "1.23", features = [
     "extern_crate_alloc",
     "min_const_generics",
 ] }
-bitflags = { version = "2.9", features = ["bytemuck"] }
+bitflags = { version = "2.10", features = ["bytemuck"] }
 glam = { version = "0.30", features = ["bytemuck"] }
 half = { version = "2.6", features = ["bytemuck"] }
 log = "0.4"
 oneshot = "0.1"
 paste = "1.0"
 thiserror = "2.0"
-wgpu = "26.0"
+wgpu = "27.0"
 wesl = "0.2"
 
 [dev-dependencies]
