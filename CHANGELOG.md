@@ -1,6 +1,27 @@
 # Changelog
 
-Please also check out the [wgpu-3dgs-editor changelog](https://github.com/LioQing/wgpu-3dgs-editor/blob/master/CHANGELOG.md) and the [wgpu-3dgs-core changelog](https://github.com/LioQing/wgpu-3dgs-core/blob/master/CHANGELOG.md).
+Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQing/wgpu-3dgs-editor/blob/master/CHANGELOG.md) and the [`wgpu-3dgs-core` changelog](https://github.com/LioQing/wgpu-3dgs-core/blob/master/CHANGELOG.md).
+
+## [0.5.0](https://crates.io/crates/wgpu-3dgs-viewer/0.5.0) - 2025-12-30
+
+🎅 Merry Christmas, and in advance Happy New Year! 🎉
+
+This release doesn't have signficant new features to this crate or `wgpu-3dgs-editor`, but `wgpu-3dgs-core` has major updates including [SPZ](https://github.com/nianticlabs/spz) support!
+
+While `wgpu` and `wesl` versions are lagging behind, I will try to keep them up-to-date in the next releases hopefully in early 2026.
+
+### Added
+
+- 🎨 Add `ViewerCreateOptions` for more flexible viewer creation. [#12](https://github.com/LioQing/wgpu-3dgs-viewer/pull/12)
+
+### Changed
+
+- ⚡ Upgrade `wgpu` to 27.0 and `bitflags` to 2.10. [#13](https://github.com/LioQing/wgpu-3dgs-viewer/pull/13)
+- 🔍 Update usage of `gaussian_unpack_sh` to zero-based indexing. [#10](https://github.com/LioQing/wgpu-3dgs-viewer/pull/10)
+
+### Breaking Changes
+
+- Rename `Viewer::new_with` and `MultiModelViewer::new_with` to `new_with_options`. [#12](https://github.com/LioQing/wgpu-3dgs-viewer/pull/12)
 
 ## [0.4.1](https://crates.io/crates/wgpu-3dgs-viewer/0.4.1) - 2025-10-01
 

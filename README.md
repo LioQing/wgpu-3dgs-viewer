@@ -27,6 +27,8 @@ This library displays 3D Gaussian Splatting models with wgpu. It includes a read
 - Abstraction for renderer and buffers
   - Viewer: one type that manages the buffers and pipelines.
   - Low-level access: preprocessor, sorter, renderer, and their buffers can be used separately.
+  - Supports PLY and SPZ file formats.
+  - GPU buffer allows for compressed and uncompressed formats.
 - Optional features
   - Multi-model: render many models with custom draw orders.
   - Selection: viewport selection (e.g. rectangle, brush) that marks Gaussians for editing.

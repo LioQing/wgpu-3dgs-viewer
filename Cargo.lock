@@ -1880,28 +1880,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "proc-macro-error-attr2"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96de42df36bb9bba5542fe9f1a054b8cc87e172759a1868aa05c1f3acc89dfc5"
-dependencies = [
- "proc-macro2",
- "quote",
-]
-
-[[package]]
-name = "proc-macro-error2"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11ec05c52be0a07b08061f7dd003e7d7092e0472bc731b4af7bb1ef876109802"
-dependencies = [
- "proc-macro-error-attr2",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "proc-macro2"
 version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2404,15 +2382,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "token_stream_flatten"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a84dee1c47b2bb20c681c923f68d1700bf04a83a6b316151634bb1915c5ddd7"
-dependencies = [
- "proc-macro2",
-]
-
-[[package]]
 name = "tokrepr"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2764,11 +2733,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a5c295ac6a3af945b1c1860dd55aca89691bf7c2ea35b596ce74dba989d4711"
 dependencies = [
  "itertools",
- "proc-macro-error2",
  "proc-macro2",
  "quote",
  "syn",
- "token_stream_flatten",
  "wgsl-parse",
 ]
 
@@ -2804,7 +2771,8 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-core"
 version = "0.5.0"
-source = "git+https://github.com/LioQing/wgpu-3dgs-core#7dcde832aa7d8ecb540a425174f77741f9c1c246"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffe1fa4744361849421c617106d4148b8e22d7acbf6d5ea94016a0a7c8eff973"
 dependencies = [
  "bytemuck",
  "flate2",
@@ -2823,7 +2791,8 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-editor"
 version = "0.5.0"
-source = "git+https://github.com/LioQing/wgpu-3dgs-editor#c7650c1a4797bbd93cda93a3b66cfcc36c2be3c4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbf37d10ef4a62df71a82d0c930b72b323b5ab5405a2356ff82e9fcfbb8d0a99"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
