@@ -4,7 +4,7 @@ use wgpu_3dgs_core::BufferWrapper;
 
 use crate::{common::TestContext, inline_wesl_pkg};
 
-pub const ASSERT_RENDER_TARGET_PACKAGE: wesl::Pkg = inline_wesl_pkg!(
+pub const ASSERT_RENDER_TARGET_PACKAGE: wesl::CodegenPkg = inline_wesl_pkg!(
     mod assert_render_target { // Sums up the color components (ceiled to u32) in each local workgroup
         @group(0) @binding(0)
         var texture: texture_2d<f32>;
@@ -105,7 +105,7 @@ pub fn assert_render_target(
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Assert Render Target Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            ..Default::default()
         });
 
     let pipeline = ctx

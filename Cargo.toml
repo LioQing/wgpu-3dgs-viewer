@@ -52,31 +52,31 @@ viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]
-wgpu-3dgs-core = { version = "0.5" }
-wgpu-3dgs-editor = { version = "0.5", optional = true }
+# wgpu-3dgs-core = { version = "0.5" }
+# wgpu-3dgs-editor = { version = "0.5", optional = true }
 
 # For local development:
 # wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
 # wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", optional = true }
 
 # For developing against latest upstream:
-# wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core" }
-# wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true }
+wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core" }
+wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true }
 
-bytemuck = { version = "1.23", features = [
+bytemuck = { version = "1.24", features = [
     "derive",
     "extern_crate_alloc",
     "min_const_generics",
 ] }
 bitflags = { version = "2.10", features = ["bytemuck"] }
 glam = { version = "0.30", features = ["bytemuck"] }
-half = { version = "2.6", features = ["bytemuck"] }
+half = { version = "2.7", features = ["bytemuck"] }
 log = "0.4"
 oneshot = "0.1"
 paste = "1.0"
 thiserror = "2.0"
-wgpu = "27.0"
-wesl = "0.2"
+wgpu = "28.0"
+wesl = "0.3"
 
 [dev-dependencies]
 clap = { version = "4.5", features = ["derive"] }

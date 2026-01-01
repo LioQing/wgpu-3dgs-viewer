@@ -76,7 +76,7 @@ impl ViewportTextureOverlayRenderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Selection Viewport Texture Overlay Renderer Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            ..Default::default()
         });
 
         log::debug!("Creating selection viewport texture overlay renderer shader");
@@ -110,7 +110,7 @@ impl ViewportTextureOverlayRenderer {
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -155,9 +155,7 @@ impl ViewportTextureOverlayRenderer {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
+            ..Default::default()
         });
 
         self.render_with_pass(&mut render_pass);

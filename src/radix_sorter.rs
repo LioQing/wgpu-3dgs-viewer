@@ -217,7 +217,7 @@ pub(crate) mod wgpu_sort {
                 device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("radix sort pipeline layout"),
                     bind_group_layouts: &[&bind_group_layout],
-                    push_constant_ranges: &[],
+                    ..Default::default()
                 });
 
             let raw_shader: &str = include_str!("shader/radix_sort.wgsl");

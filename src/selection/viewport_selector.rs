@@ -284,9 +284,7 @@ impl ViewportSelector {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
+            ..Default::default()
         });
     }
 

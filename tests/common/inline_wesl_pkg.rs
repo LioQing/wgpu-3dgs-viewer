@@ -7,9 +7,9 @@ macro_rules! inline_wesl_pkg {
 
         mod $module_name:ident { $($body:tt)+ }
     ) => {
-        wesl::Pkg {
+        wesl::CodegenPkg {
             crate_name: stringify!($crate_name),
-            root: &wesl::PkgModule {
+            root: &wesl::CodegenModule {
                 name: stringify!($module_name),
                 source: {
                     stringify!($($body)+)
