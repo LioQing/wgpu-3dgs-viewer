@@ -111,9 +111,7 @@ impl ViewportTextureRectangleRenderer {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
+            ..Default::default()
         });
 
         self.render_with_pass(&mut render_pass);
@@ -176,7 +174,7 @@ impl ViewportTextureRectangleRenderer<()> {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Viewport Texture Rectangle Renderer Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            ..Default::default()
         });
 
         log::debug!("Creating viewport texture rectangle renderer shader");
@@ -219,7 +217,7 @@ impl ViewportTextureRectangleRenderer<()> {
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -250,9 +248,7 @@ impl ViewportTextureRectangleRenderer<()> {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
+            ..Default::default()
         });
 
         self.render_with_pass(&mut render_pass, bind_group);

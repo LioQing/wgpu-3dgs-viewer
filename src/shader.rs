@@ -1,20 +1,20 @@
-//! Shader modules for the [`wesl::Pkg`] `wgpu-3dgs-viewer`.
+//! Shader modules for the [`wesl::CodegenPkg`] `wgpu-3dgs-viewer`.
 //!
 //! See the documentation of each module for details.
 
-use wesl::{Pkg, PkgModule};
+use wesl::{CodegenModule, CodegenPkg};
 
 use crate::core;
 
-/// The `wgpu-3dgs-viewer` [`wesl::Pkg`].
-pub const PACKAGE: Pkg = Pkg {
+/// The `wgpu-3dgs-viewer` [`wesl::CodegenPkg`].
+pub const PACKAGE: CodegenPkg = CodegenPkg {
     crate_name: "wgpu-3dgs-viewer",
     root: &MODULE,
     dependencies: &[&core::shader::PACKAGE],
 };
 
 /// The root module of the `wgpu-3dgs-viewer` package.
-pub const MODULE: PkgModule = PkgModule {
+pub const MODULE: CodegenModule = CodegenModule {
     name: "wgpu_3dgs_viewer",
     source: "",
     submodules: &[
@@ -28,10 +28,10 @@ pub const MODULE: PkgModule = PkgModule {
 };
 
 pub mod camera {
-    use super::PkgModule;
+    use super::CodegenModule;
 
     #[doc = concat!("```wgsl\n", include_str!("shader/camera.wesl"), "\n```")]
-    pub const MODULE: PkgModule = PkgModule {
+    pub const MODULE: CodegenModule = CodegenModule {
         name: "camera",
         source: include_str!("shader/camera.wesl"),
         submodules: &[],
@@ -39,10 +39,10 @@ pub mod camera {
 }
 
 pub mod preprocess {
-    use super::PkgModule;
+    use super::CodegenModule;
 
     #[doc = concat!("```wgsl\n", include_str!("shader/preprocess.wesl"), "\n```")]
-    pub const MODULE: PkgModule = PkgModule {
+    pub const MODULE: CodegenModule = CodegenModule {
         name: "preprocess",
         source: include_str!("shader/preprocess.wesl"),
         submodules: &[],
@@ -50,10 +50,10 @@ pub mod preprocess {
 }
 
 pub mod render {
-    use super::PkgModule;
+    use super::CodegenModule;
 
     #[doc = concat!("```wgsl\n", include_str!("shader/render.wesl"), "\n```")]
-    pub const MODULE: PkgModule = PkgModule {
+    pub const MODULE: CodegenModule = CodegenModule {
         name: "render",
         source: include_str!("shader/render.wesl"),
         submodules: &[],
@@ -61,10 +61,10 @@ pub mod render {
 }
 
 pub mod utils {
-    use super::PkgModule;
+    use super::CodegenModule;
 
     #[doc = concat!("```wgsl\n", include_str!("shader/utils.wesl"), "\n```")]
-    pub const MODULE: PkgModule = PkgModule {
+    pub const MODULE: CodegenModule = CodegenModule {
         name: "utils",
         source: include_str!("shader/utils.wesl"),
         submodules: &[],
@@ -73,10 +73,10 @@ pub mod utils {
 
 #[cfg(feature = "selection")]
 pub mod selection {
-    use super::PkgModule;
+    use super::CodegenModule;
 
     /// The root module of the viewport selection shaders.
-    pub const MODULE: PkgModule = PkgModule {
+    pub const MODULE: CodegenModule = CodegenModule {
         name: "selection",
         source: "",
         submodules: &[
@@ -87,10 +87,10 @@ pub mod selection {
     };
 
     pub mod viewport {
-        use super::PkgModule;
+        use super::CodegenModule;
 
         #[doc = concat!("```wgsl\n", include_str!("shader/selection/viewport.wesl"), "\n```")]
-        pub const MODULE: PkgModule = PkgModule {
+        pub const MODULE: CodegenModule = CodegenModule {
             name: "viewport",
             source: include_str!("shader/selection/viewport.wesl"),
             submodules: &[],
@@ -98,10 +98,10 @@ pub mod selection {
     }
 
     pub mod viewport_texture_rectangle {
-        use super::PkgModule;
+        use super::CodegenModule;
 
         #[doc = concat!("```wgsl\n", include_str!("shader/selection/viewport_texture_rectangle.wesl"), "\n```")]
-        pub const MODULE: PkgModule = PkgModule {
+        pub const MODULE: CodegenModule = CodegenModule {
             name: "viewport_texture_rectangle",
             source: include_str!("shader/selection/viewport_texture_rectangle.wesl"),
             submodules: &[],
@@ -109,10 +109,10 @@ pub mod selection {
     }
 
     pub mod viewport_texture_brush {
-        use super::PkgModule;
+        use super::CodegenModule;
 
         #[doc = concat!("```wgsl\n", include_str!("shader/selection/viewport_texture_brush.wesl"), "\n```")]
-        pub const MODULE: PkgModule = PkgModule {
+        pub const MODULE: CodegenModule = CodegenModule {
             name: "viewport_texture_brush",
             source: include_str!("shader/selection/viewport_texture_brush.wesl"),
             submodules: &[],
