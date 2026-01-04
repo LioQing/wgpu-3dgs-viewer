@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use clap::Parser;
 use colored::Colorize;
 use glam::*;
@@ -104,6 +105,7 @@ struct System {
     viewer: gs::Viewer,
 }
 
+#[async_trait]
 impl core::System for System {
     type Args = Args;
 

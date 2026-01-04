@@ -1,5 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
+use async_trait::async_trait;
 use clap::Parser;
 use glam::*;
 use winit::{
@@ -105,15 +106,13 @@ impl Default for Input {
 }
 
 /// The system for application.
+#[async_trait]
 pub trait System {
     /// The arguments.
     type Args: Parser + Send + Sync + 'static;
 
     /// Initialize the system.
-    #[allow(async_fn_in_trait)]
-    async fn init(window: Arc<Window>, args: &Self::Args) -> Self
-    where
-        Self: Sized;
+    async fn init(window: Arc<Window>, args: &Self::Args) -> Self;
 
     /// Update the system.
     fn update(&mut self, input: &Input, delta_time: f32);

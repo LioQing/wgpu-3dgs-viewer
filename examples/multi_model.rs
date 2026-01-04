@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use clap::Parser;
 use glam::*;
 use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
@@ -73,6 +74,7 @@ struct System {
     viewer: gs::MultiModelViewer<gs::DefaultGaussianPod, usize>,
 }
 
+#[async_trait]
 impl core::System for System {
     type Args = Args;
 
