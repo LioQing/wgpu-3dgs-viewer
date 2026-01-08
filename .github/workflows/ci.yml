@@ -20,5 +20,9 @@ jobs:
       #   run: cargo fmt -- --check
       # - name: Lint
       #   run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Install Dependencies
+        run: |
+          cargo install cargo-nextest
+          cargo install cargo-llvm-cov
       - name: Test
         run: sh ./coverage/run.sh
