@@ -21,4 +21,4 @@ jobs:
       # - name: Lint
       #   run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Test
-        run: ./coverage/run.sh
+        run: sh ./coverage/run.sh
