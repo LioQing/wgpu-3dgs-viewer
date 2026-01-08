@@ -14,15 +14,56 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo build --verbose
-      # - name: Format
-      #   run: cargo fmt -- --check
-      # - name: Lint
-      #   run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo build --verbose --all-features
+
+  checks:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Install rustfmt/clippy
+        run: rustup component add rustfmt clippy
+      - name: Format
+        run: cargo fmt --all-features -- --check --verbose
+      - name: Lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache apt packages (xvfb)
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ runner.arch }}-xvfb
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Cache cargo install binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-bin-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bin-
       - name: Install Dependencies
         run: |
-          cargo install cargo-nextest
-          cargo install cargo-llvm-cov
+          if ! command -v cargo-nextest >/dev/null 2>&1; then
+            cargo install cargo-nextest --locked
+          fi
+          if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
+            cargo install cargo-llvm-cov --locked
+          fi
+      - name: Setup Xvfb for screen 0
+        run: Xvfb :1 -screen 0 1600x1200x24 &
       - name: Test
         run: sh ./coverage/run.sh
+        env:
+          DISPLAY: :1
+      - name: Tear down Xvfb
+        run: killall Xvfb
