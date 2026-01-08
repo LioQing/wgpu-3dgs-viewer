@@ -68,10 +68,7 @@ fn main() -> Result<(), EventLoopError> {
 /// The application system.
 #[allow(dead_code)]
 struct System {
-    surface: wgpu::Surface<'static>,
-    queue: wgpu::Queue,
-    device: wgpu::Device,
-    config: wgpu::SurfaceConfiguration,
+    core: core::WgpuCore,
 
     filter: bool,
     immediate: bool,
@@ -99,47 +96,8 @@ impl core::System for System {
         let immediate = args.immediate;
         let size = window.inner_size();
 
-        log::debug!("Creating wgpu instance");
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-
-        log::debug!("Creating window surface");
-        let surface = instance.create_surface(window.clone()).expect("surface");
-
-        log::debug!("Requesting adapter");
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .expect("adapter");
-
-        log::debug!("Requesting device");
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("Device"),
-                required_limits: adapter.limits(),
-                ..Default::default()
-            })
-            .await
-            .expect("device");
-
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps.formats[0];
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.width.max(1),
-            height: size.height.max(1),
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![surface_format.remove_srgb_suffix()],
-            desired_maximum_frame_latency: 2,
-        };
-
-        log::debug!("Configuring surface");
-        surface.configure(&device, &config);
+        log::debug!("Creating wgpu core");
+        let core = core::WgpuCore::new(window).await;
 
         log::debug!("Creating gaussians");
         let gaussians = [GaussiansSource::Ply, GaussiansSource::Spz]
@@ -152,8 +110,8 @@ impl core::System for System {
 
         log::debug!("Creating viewer");
         let mut viewer = gs::Viewer::new_with_options(
-            &device,
-            config.view_formats[0],
+            &core.device,
+            core.config.view_formats[0],
             &gaussians,
             gs::ViewerCreateOptions {
                 gaussians_buffer_usage:
@@ -164,7 +122,7 @@ impl core::System for System {
         )
         .expect("viewer");
         viewer.update_model_transform(
-            &queue,
+            &core.queue,
             Vec3::ZERO,
             Quat::from_axis_angle(Vec3::Z, 180f32.to_radians()),
             Vec3::ONE,
@@ -172,8 +130,8 @@ impl core::System for System {
 
         log::debug!("Creating selector");
         let mut selector = gs::selection::ViewportSelector::new(
-            &device,
-            &queue,
+            &core.device,
+            &core.queue,
             UVec2::new(size.width, size.height),
             &viewer.camera_buffer,
         )
@@ -182,16 +140,16 @@ impl core::System for System {
 
         log::debug!("Creating selection viewport selection modifier");
         let mut viewport_selection_modifier = gs::editor::NonDestructiveModifier::new(
-            &device,
-            &queue,
+            &core.device,
+            &core.queue,
             gs::editor::BasicSelectionModifier::new_with_basic_modifier(
-                &device,
+                &core.device,
                 &viewer.gaussians_buffer,
                 &viewer.model_transform_buffer,
                 &viewer.gaussian_transform_buffer,
                 vec![gs::selection::create_viewport_bundle::<
                     gs::DefaultGaussianPod,
-                >(&device)],
+                >(&core.device)],
             ),
             &viewer.gaussians_buffer,
         )
@@ -200,7 +158,7 @@ impl core::System for System {
         let viewport_selection_bind_group = viewport_selection_modifier.modifier.selection.bundles
             [0]
         .create_bind_group(
-            &device,
+            &core.device,
             // index 0 is the Gaussians buffer, so we use 1,
             // see docs of create_viewport_bundle
             1,
@@ -219,7 +177,7 @@ impl core::System for System {
             .modifier // Basic modifier
             .basic_color_modifiers_buffer
             .update_with_pod(
-                &queue,
+                &core.queue,
                 &gs::editor::BasicColorModifiersPod {
                     rgb_or_hsv: BasicColorRgbOverrideOrHsvModifiersPod::new_rgb_override(
                         Vec3::new(1.0, 1.0, 0.0),
@@ -231,18 +189,15 @@ impl core::System for System {
         log::debug!("Creating selection viewport texture overlay renderer");
         let viewport_texture_overlay_renderer =
             utils::selection::ViewportTextureOverlayRenderer::new(
-                &device,
-                config.view_formats[0],
+                &core.device,
+                core.config.view_formats[0],
                 selector.texture(),
             );
 
         log::info!("System initialized");
 
         Self {
-            surface,
-            device,
-            queue,
-            config,
+            core,
 
             filter,
             immediate,
@@ -281,7 +236,7 @@ impl core::System for System {
             if self.filter {
                 self.viewer
                     .invert_selection_buffer
-                    .update(&self.queue, self.inverted);
+                    .update(&self.core.queue, self.inverted);
             }
         }
 
@@ -293,31 +248,41 @@ impl core::System for System {
 
         // Update the viewer
         self.viewer.update_camera(
-            &self.queue,
+            &self.core.queue,
             &self.camera,
-            uvec2(self.config.width, self.config.height),
+            uvec2(self.core.config.width, self.core.config.height),
         );
     }
 
     fn render(&mut self) {
-        let texture = match self.surface.get_current_texture() {
-            Ok(texture) => texture,
-            Err(e) => {
-                log::error!("Failed to get current texture: {e:?}");
-                return;
-            }
+        #[cfg(not(coverage))]
+        let (surface_texture, texture) = {
+            let surface_texture = match self.core.surface.get_current_texture() {
+                Ok(texture) => texture,
+                Err(e) => {
+                    log::error!("Failed to get current texture: {e:?}");
+                    return;
+                }
+            };
+            let texture = surface_texture.texture.clone();
+
+            (surface_texture, texture)
         };
-        let texture_view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
+        #[cfg(coverage)]
+        let texture = self.core.get_current_texture_for_coverage();
+
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Texture View"),
-            format: Some(self.config.view_formats[0]),
+            format: Some(self.core.config.view_formats[0]),
             ..Default::default()
         });
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Command Encoder"),
-            });
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Command Encoder"),
+                });
 
         self.viewer.render(&mut encoder, &texture_view);
 
@@ -326,28 +291,32 @@ impl core::System for System {
                 .render(&mut encoder, &texture_view);
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
-        if let Err(e) = self.device.poll(wgpu::PollType::wait_indefinitely()) {
+        self.core.queue.submit(std::iter::once(encoder.finish()));
+        if let Err(e) = self.core.device.poll(wgpu::PollType::wait_indefinitely()) {
             log::error!("Failed to poll device: {e:?}");
         }
-        texture.present();
+        #[cfg(not(coverage))]
+        surface_texture.present();
     }
 
     fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
         if size.width > 0 && size.height > 0 {
-            self.config.width = size.width;
-            self.config.height = size.height;
-            self.surface.configure(&self.device, &self.config);
+            self.core.config.width = size.width;
+            self.core.config.height = size.height;
+            #[cfg(not(coverage))]
+            self.core
+                .surface
+                .configure(&self.core.device, &self.core.config);
 
             // Update selector viewport texture
             self.selector
-                .resize(&self.device, UVec2::new(size.width, size.height));
+                .resize(&self.core.device, UVec2::new(size.width, size.height));
 
             // Update viewport selection bundle
             let viewport_selection_bind_group =
                 self.viewport_selection_modifier.modifier.selection.bundles[0]
                     .create_bind_group(
-                        &self.device,
+                        &self.core.device,
                         // index 0 is the Gaussians buffer, so we use 1,
                         // see docs of create_viewport_bundle
                         1,
@@ -364,28 +333,29 @@ impl core::System for System {
 
             // Update viewport texture overlay renderer
             self.viewport_texture_overlay_renderer
-                .update_bind_group(&self.device, self.selector.texture());
+                .update_bind_group(&self.core.device, self.selector.texture());
         }
     }
 }
 
 impl System {
     fn update_selection(&mut self, input: &core::Input, _delta_time: f32) {
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Command Encoder"),
-            });
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Command Encoder"),
+                });
 
         if input
             .pressed_mouse
             .contains(&winit::event::MouseButton::Left)
         {
-            self.selector.start(&self.queue, input.mouse_pos);
+            self.selector.start(&self.core.queue, input.mouse_pos);
         }
 
         if input.held_mouse.contains(&winit::event::MouseButton::Left) {
-            self.selector.update(&self.queue, input.mouse_pos);
+            self.selector.update(&self.core.queue, input.mouse_pos);
 
             if self.immediate {
                 self.apply_selection(&mut encoder);
@@ -404,8 +374,8 @@ impl System {
             self.selector.render(&mut encoder);
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
-        if let Err(e) = self.device.poll(wgpu::PollType::wait_indefinitely()) {
+        self.core.queue.submit(std::iter::once(encoder.finish()));
+        if let Err(e) = self.core.device.poll(wgpu::PollType::wait_indefinitely()) {
             log::error!("Failed to poll device: {e:?}");
         }
     }
@@ -420,7 +390,7 @@ impl System {
                     &self.viewer.gaussians_buffer,
                     |encoder, modifier, gaussians| {
                         modifier.selection.evaluate(
-                            &self.device,
+                            &self.core.device,
                             encoder,
                             &modifier.selection_expr,
                             &self.viewer.selection_buffer,
@@ -440,7 +410,7 @@ impl System {
             }
 
             self.viewport_selection_modifier.apply(
-                &self.device,
+                &self.core.device,
                 encoder,
                 &self.viewer.gaussians_buffer,
                 &self.viewer.model_transform_buffer,

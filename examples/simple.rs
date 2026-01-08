@@ -94,10 +94,7 @@ fn main() -> Result<(), EventLoopError> {
 /// The application system.
 #[allow(dead_code)]
 struct System {
-    surface: wgpu::Surface<'static>,
-    queue: wgpu::Queue,
-    device: wgpu::Device,
-    config: wgpu::SurfaceConfiguration,
+    core: core::WgpuCore,
 
     camera: gs::Camera,
     gaussians: gs::core::Gaussians,
@@ -109,49 +106,9 @@ impl core::System for System {
 
     async fn init(window: Arc<Window>, args: &Args) -> Self {
         let model_path = &args.model;
-        let size = window.inner_size();
 
-        log::debug!("Creating wgpu instance");
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-
-        log::debug!("Creating window surface");
-        let surface = instance.create_surface(window.clone()).expect("surface");
-
-        log::debug!("Requesting adapter");
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .expect("adapter");
-
-        log::debug!("Requesting device");
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("Device"),
-                required_limits: adapter.limits(),
-                ..Default::default()
-            })
-            .await
-            .expect("device");
-
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps.formats[0];
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.width.max(1),
-            height: size.height.max(1),
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![surface_format.remove_srgb_suffix()],
-            desired_maximum_frame_latency: 2,
-        };
-
-        log::debug!("Configuring surface");
-        surface.configure(&device, &config);
+        log::debug!("Creating wgpu core");
+        let core = core::WgpuCore::new(window).await;
 
         log::debug!("Creating gaussians");
         let gaussians = [GaussiansSource::Ply, GaussiansSource::Spz]
@@ -164,16 +121,16 @@ impl core::System for System {
 
         log::debug!("Creating viewer");
         let mut viewer =
-            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
+            gs::Viewer::new(&core.device, core.config.view_formats[0], &gaussians).expect("viewer");
         viewer.update_model_transform(
-            &queue,
+            &core.queue,
             Vec3::ZERO,
             Quat::from_axis_angle(Vec3::Z, 180f32.to_radians()),
             Vec3::ONE,
         );
 
         viewer.update_gaussian_transform(
-            &queue,
+            &core.queue,
             args.size,
             match args.mode {
                 DisplayMode::Splat => gs::core::GaussianDisplayMode::Splat,
@@ -188,10 +145,7 @@ impl core::System for System {
         log::info!("System initialized");
 
         Self {
-            surface,
-            device,
-            queue,
-            config,
+            core,
 
             camera,
             gaussians,
@@ -242,46 +196,58 @@ impl core::System for System {
 
         // Update the viewer
         self.viewer.update_camera(
-            &self.queue,
+            &self.core.queue,
             &self.camera,
-            uvec2(self.config.width, self.config.height),
+            uvec2(self.core.config.width, self.core.config.height),
         );
     }
 
     fn render(&mut self) {
-        let texture = match self.surface.get_current_texture() {
-            Ok(texture) => texture,
-            Err(e) => {
-                log::error!("Failed to get current texture: {e:?}");
-                return;
-            }
+        #[cfg(not(coverage))]
+        let (surface_texture, texture) = {
+            let surface_texture = match self.core.surface.get_current_texture() {
+                Ok(texture) => texture,
+                Err(e) => {
+                    log::error!("Failed to get current texture: {e:?}");
+                    return;
+                }
+            };
+            let texture = surface_texture.texture.clone();
+
+            (surface_texture, texture)
         };
-        let texture_view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
+        #[cfg(coverage)]
+        let texture = self.core.get_current_texture_for_coverage();
+
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Texture View"),
-            format: Some(self.config.view_formats[0]),
+            format: Some(self.core.config.view_formats[0]),
             ..Default::default()
         });
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Command Encoder"),
-            });
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Command Encoder"),
+                });
 
         self.viewer.render(&mut encoder, &texture_view);
 
-        self.queue.submit(std::iter::once(encoder.finish()));
-        if let Err(e) = self.device.poll(wgpu::PollType::wait_indefinitely()) {
+        self.core.queue.submit(std::iter::once(encoder.finish()));
+        if let Err(e) = self.core.device.poll(wgpu::PollType::wait_indefinitely()) {
             log::error!("Failed to poll device: {e:?}");
         }
-        texture.present();
+        #[cfg(not(coverage))]
+        surface_texture.present();
     }
 
     fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
-        if size.width > 0 && size.height > 0 {
-            self.config.width = size.width;
-            self.config.height = size.height;
-            self.surface.configure(&self.device, &self.config);
-        }
+        self.core.config.width = size.width;
+        self.core.config.height = size.height;
+        #[cfg(not(coverage))]
+        self.core
+            .surface
+            .configure(&self.core.device, &self.core.config);
     }
 }
