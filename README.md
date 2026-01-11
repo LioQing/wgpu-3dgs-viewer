@@ -58,7 +58,7 @@ You can use [`Viewer`] to render a single 3D Gaussian Splatting model:
 
 ```rust ignore
 use wgpu_3dgs_viewer as gs;
-use glam::UVec2;
+use wgpu_3dgs_viewer::core::glam::UVec2;
 
 // Setup wgpu...
 
@@ -97,6 +97,7 @@ This crate depends on the following crates:
 
 | `wgpu-3dgs-viewer` | `wgpu` | `glam` | `wesl` |
 | ------------------ | ------ | ------ | ------ |
+| 0.6                | 28.0   | 0.30   | 0.3    |
 | 0.5                | 27.0   | 0.30   | 0.2    |
 | 0.4                | 26.0   | 0.30   | 0.2    |
 | 0.3                | 25.0   | 0.30   | N/A    |

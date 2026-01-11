@@ -8,10 +8,64 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  detect_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.tag.outputs.should_publish }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          tag=$(git tag --points-at "$GITHUB_SHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          if [[ -n "${tag}" ]]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+  check_versions:
+    runs-on: ubuntu-latest
+    needs: [detect_tag]
+    if: ${{ needs.detect_tag.outputs.should_publish == 'true' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify version matches tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ needs.detect_tag.outputs.tag }}"
+          echo "Checking version in Cargo.toml against tag ${tag}"
+          version_in_cargo_toml=$(grep '^version =' Cargo.toml | head -n 1 | cut -d '"' -f 2)
+          if [[ "v${version_in_cargo_toml}" != "${tag}" ]]; then
+            echo "Version in Cargo.toml (${version_in_cargo_toml}) does not match tag (${tag})"
+            exit 1
+          fi
+          tag_version="${tag#v}"
+          echo "Checking major.minor version in README.md against tag ${tag}"
+          major_minor=$(echo "${tag_version}" | cut -d '.' -f 1,2)
+          if ! grep -A 100 "## Dependencies" README.md | grep -q "^| ${major_minor}"; then
+            echo "Major.minor version (${major_minor}) from tag not found in README.md Dependencies table"
+            exit 1
+          fi
+          echo "Checking version in CHANGELOG.md against tag ${tag}"
+          if ! grep -q "^## \[${tag_version}\]" CHANGELOG.md; then
+            echo "Version (${tag_version}) from tag not found in CHANGELOG.md"
+            exit 1
+          fi
+
   publish:
     runs-on: ubuntu-latest
+    needs: [detect_tag, check_versions]
+    if: ${{ needs.detect_tag.outputs.should_publish == 'true' }}
     environment: release
     permissions:
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v5

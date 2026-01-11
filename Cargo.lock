@@ -185,6 +185,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2733,9 +2744,11 @@ dependencies = [
 
 [[package]]
 name = "wgpu-3dgs-core"
-version = "0.5.0"
-source = "git+https://github.com/LioQing/wgpu-3dgs-core#cb77cc1a7b7181042404ae52115c8025faca9992"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2425629645c602dcff91b8e1b094f1c2fee430c37b21dbaeeb8c781b46d08fd9"
 dependencies = [
+ "async-trait",
  "bytemuck",
  "flate2",
  "glam",
@@ -2752,8 +2765,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu-3dgs-editor"
-version = "0.5.0"
-source = "git+https://github.com/LioQing/wgpu-3dgs-editor#888c6adde0b129a4d73c7c0c6c8b93357b1b4aec"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd528de0ca3ef5080382ee379dad0f9131b4cf4c20ed79b9e4d0890163ca83f"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
