@@ -67,7 +67,8 @@ fn cov2d_axes(
         return vec4<f32>(0.0);
     }
 
-    let diag_dir = normalize(vec2<f32>(cov2d.y, major_lambda - cov2d.x));
+    let diag = vec2<f32>(cov2d.y, major_lambda - cov2d.x);
+    let diag_dir = select(normalize(diag), vec2<f32>(0.0, 1.0), all(diag == vec2<f32>(0.0)));
     let ortho_diag_dir = vec2<f32>(diag_dir.y, -diag_dir.x);
     let major_len = min(std_dev * sqrt(major_lambda), 1024.0);
     let minor_len = min(std_dev * sqrt(minor_lambda), 1024.0);
