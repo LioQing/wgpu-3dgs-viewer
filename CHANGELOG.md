@@ -2,6 +2,12 @@
 
 Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQing/wgpu-3dgs-editor/blob/master/CHANGELOG.md) and the [`wgpu-3dgs-core` changelog](https://github.com/LioQing/wgpu-3dgs-core/blob/master/CHANGELOG.md).
 
+## [0.6.1](https://crates.io/crates/wgpu-3dgs-viewer/0.6.1) - 2026-03-01
+
+### Changed
+
+- 🐛 Fixed an NaN bug in the render shader caused by axis-aligned Gaussians. [#18](https://github.com/LioQing/wgpu-3dgs-viewer/pull/18)
+
 ## [0.6.0](https://crates.io/crates/wgpu-3dgs-viewer/0.6.0) - 2026-01-11
 
 ### Added
