@@ -8,7 +8,6 @@ use crate::{
 #[derive(Debug)]
 pub struct Renderer<G: GaussianPod, B = wgpu::BindGroup> {
     /// The bind group layout.
-    #[allow(dead_code)]
     bind_group_layout: wgpu::BindGroupLayout,
     /// The bind group.
     bind_group: B,
@@ -39,6 +38,16 @@ impl<G: GaussianPod, B> Renderer<G, B> {
             gaussians,
             indirect_indices,
         )
+    }
+
+    /// Get the bind group layout.
+    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.bind_group_layout
+    }
+
+    /// Get the render pipeline.
+    pub fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
     }
 }
 
@@ -143,6 +152,11 @@ impl<G: GaussianPod> Renderer<G> {
             pipeline: this.pipeline,
             gaussian_pod_marker: std::marker::PhantomData,
         })
+    }
+
+    /// Get the bind group.
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
     }
 
     /// Render the scene.

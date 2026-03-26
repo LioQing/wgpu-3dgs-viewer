@@ -2,6 +2,12 @@
 
 Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQing/wgpu-3dgs-editor/blob/master/CHANGELOG.md) and the [`wgpu-3dgs-core` changelog](https://github.com/LioQing/wgpu-3dgs-core/blob/master/CHANGELOG.md).
 
+## Next release
+
+### Added
+
+- 🔧 Added `bind_group_layout`, `pre_bundle`, `bundle`, `post_bundle`, and `bind_group` getters in `Preprocessor`. Added `bind_group_layout`, `pipeline`, and `bind_group` getters in `Renderer`.
+
 ## [0.6.1](https://crates.io/crates/wgpu-3dgs-viewer/0.6.1) - 2026-03-01
 
 ### Changed

@@ -11,12 +11,6 @@
 
 ## Overview
 
-> [!WARNING]
->
-> This library is under active development, breaking API changes between versions may occur frequently.
->
-> Use at your own risk.
-
 This library displays 3D Gaussian Splatting models with wgpu. It includes a ready‑to‑use pipeline and modular pieces you can swap out.
 
 - Rendering pipeline
