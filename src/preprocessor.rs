@@ -72,9 +72,24 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
         self.bundle.workgroup_size()
     }
 
-    /// Get the bind group layouts.
+    /// Get the bind group layout.
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.bind_group_layout
+    }
+
+    /// Get the pre preprocess bundle.
+    pub fn pre_bundle(&self) -> &ComputeBundle<()> {
+        &self.pre_bundle
+    }
+
+    /// Get the preprocess bundle.
+    pub fn bundle(&self) -> &ComputeBundle<()> {
+        &self.bundle
+    }
+
+    /// Get the post preprocess bundle.
+    pub fn post_bundle(&self) -> &ComputeBundle<()> {
+        &self.post_bundle
     }
 }
 
@@ -257,6 +272,11 @@ impl<G: GaussianPod> Preprocessor<G> {
             post_bundle: this.post_bundle,
             gaussian_pod_marker: std::marker::PhantomData,
         })
+    }
+
+    /// Get the bind group.
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
     }
 
     /// Preprocess the Gaussians.
