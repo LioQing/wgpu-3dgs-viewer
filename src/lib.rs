@@ -18,6 +18,12 @@ pub mod selection;
 #[cfg(feature = "bevy")]
 pub mod bevy_plugin;
 
+#[cfg(feature = "lod")]
+pub mod lod;
+
+#[cfg(feature = "streaming")]
+pub mod streaming;
+
 use glam::*;
 use wgpu_3dgs_core::{
     BufferWrapper, GaussianDisplayMode, GaussianMaxStdDev, GaussianPod, GaussianShDegree,
@@ -82,6 +88,11 @@ pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
     pub preprocessor: Preprocessor<G>,
     pub radix_sorter: RadixSorter,
     pub renderer: Renderer<G>,
+
+    #[cfg(feature = "lod")]
+    pub lod_config: lod::LodConfig,
+    #[cfg(feature = "streaming")]
+    pub streaming_config: streaming::StreamingConfig,
 }
 
 impl<G: GaussianPod> Viewer<G> {
@@ -198,6 +209,11 @@ impl<G: GaussianPod> Viewer<G> {
             preprocessor,
             radix_sorter,
             renderer,
+
+            #[cfg(feature = "lod")]
+            lod_config: lod::LodConfig::default(),
+            #[cfg(feature = "streaming")]
+            streaming_config: streaming::StreamingConfig::default(),
         })
     }
 
@@ -265,10 +281,31 @@ impl<G: GaussianPod> Viewer<G> {
         self.gaussian_transform_buffer.update_with_pod(queue, pod);
     }
 
+    /// Return the effective number of gaussians to render, taking into account
+    /// LOD budget and streaming progress when those features are enabled.
+    pub fn effective_gaussian_count(&self) -> u32 {
+        let total = self.gaussians_buffer.len() as u32;
+
+        #[allow(unused_mut)]
+        let mut count = total;
+
+        #[cfg(feature = "lod")]
+        {
+            count = self.lod_config.effective_count(count);
+        }
+
+        #[cfg(feature = "streaming")]
+        {
+            count = self.streaming_config.effective_count(count);
+        }
+
+        count
+    }
+
     /// Render the viewer.
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder, texture_view: &wgpu::TextureView) {
         self.preprocessor
-            .preprocess(encoder, self.gaussians_buffer.len() as u32);
+            .preprocess(encoder, self.effective_gaussian_count());
 
         self.radix_sorter
             .sort(encoder, &self.radix_sort_indirect_args_buffer);

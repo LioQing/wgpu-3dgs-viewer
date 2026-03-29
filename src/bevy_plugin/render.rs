@@ -64,7 +64,6 @@ impl GaussianSplattingPipeline {
 
 struct ViewerState {
     viewer: Viewer,
-    gaussian_count: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -128,13 +127,9 @@ pub(crate) fn prepare_gaussian_clouds(
         if !pipeline.viewers.contains_key(&cloud.entity) {
             match Viewer::new(device, format, cloud.gaussians.as_ref()) {
                 Ok(viewer) => {
-                    let count = cloud.gaussians.iter_gaussian().len() as u32;
                     pipeline.viewers.insert(
                         cloud.entity,
-                        ViewerState {
-                            viewer,
-                            gaussian_count: count,
-                        },
+                        ViewerState { viewer },
                     );
                 }
                 Err(e) => {
@@ -233,7 +228,7 @@ impl ViewNode for GaussianSplattingNode {
             state
                 .viewer
                 .preprocessor
-                .preprocess(encoder, state.gaussian_count);
+                .preprocess(encoder, state.viewer.effective_gaussian_count());
             state
                 .viewer
                 .radix_sorter

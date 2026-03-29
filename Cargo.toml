@@ -57,6 +57,8 @@ selection = ["editor"]
 viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 bevy = ["dep:bevy"]
+lod = []
+streaming = []
 
 [dependencies]
 wgpu-3dgs-core = { version = "0.6" }
@@ -104,4 +106,4 @@ pollster = { version = "0.4" }
 winit = { version = "0.30" }
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)', 'cfg(feature, values("bevy"))'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)', 'cfg(feature, values("bevy", "lod", "streaming"))'] }
