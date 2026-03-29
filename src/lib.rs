@@ -15,6 +15,9 @@ mod multi_model;
 #[cfg(feature = "selection")]
 pub mod selection;
 
+#[cfg(feature = "bevy")]
+pub mod bevy_plugin;
+
 use glam::*;
 use wgpu_3dgs_core::{
     BufferWrapper, GaussianDisplayMode, GaussianMaxStdDev, GaussianPod, GaussianShDegree,

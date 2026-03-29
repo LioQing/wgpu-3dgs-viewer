@@ -41,6 +41,12 @@ name = "simple"
 path = "examples/simple.rs"
 doc-scrape-examples = true
 
+[[example]]
+name = "bevy-simple"
+path = "examples/bevy_simple.rs"
+required-features = ["bevy"]
+doc-scrape-examples = true
+
 [package.metadata.docs.rs]
 all-features = true
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
@@ -50,6 +56,7 @@ multi-model = []
 selection = ["editor"]
 viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
+bevy = ["dep:bevy"]
 
 [dependencies]
 wgpu-3dgs-core = { version = "0.6" }
@@ -62,6 +69,17 @@ wgpu-3dgs-editor = { version = "0.6", optional = true }
 # For developing against latest upstream:
 # wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core" }
 # wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true }
+
+# Bevy integration (optional).
+# NOTE: Requires that bevy's wgpu version matches this crate's wgpu version.
+# You may need to use [patch.crates-io] or a compatible Bevy fork to align
+# wgpu versions. wgpu-3dgs-core v0.6 uses wgpu 28.0.
+bevy = { version = "0.18", optional = true, default-features = false, features = [
+    "bevy_render",
+    "bevy_asset",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+] }
 
 bytemuck = { version = "1.24", features = [
     "derive",
@@ -86,4 +104,4 @@ pollster = { version = "0.4" }
 winit = { version = "0.30" }
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)', 'cfg(feature, values("bevy"))'] }
