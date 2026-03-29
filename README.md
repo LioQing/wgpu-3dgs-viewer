@@ -26,6 +26,9 @@ This library displays 3D Gaussian Splatting models with wgpu. It includes a read
 - Optional features
   - Multi-model: render many models with custom draw orders.
   - Selection: viewport selection (e.g. rectangle, brush) that marks Gaussians for editing.
+  - Bevy integration: drop-in plugin for the [Bevy](https://bevyengine.org/) game engine.
+  - LOD (Level of Detail): importance-based budget cap to trade quality for performance.
+  - Streaming: progressive gaussian loading with incremental GPU buffer uploads.
 - Shaders
   - WGSL shaders packaged with WESL, you can extend or replace them.
 
@@ -39,6 +42,9 @@ You may read the documentation of the following types for more details:
   - [`Renderer`]: Draws Gaussians with the selected display mode.
 - [`MultiModelViewer`]: [`Viewer`] equivalent for multiple models. Requires `multi-model` feature.
 - [`selection`]: Select Gaussians based on viewport interactions, e.g. rectangle or brush. Requires `selection` feature.
+- [`bevy_plugin`]: Bevy plugin for rendering Gaussian splats in a Bevy app. Requires `bevy` feature.
+- [`lod`]: Level of Detail with importance-based sorting and budget cap. Requires `lod` feature.
+- [`streaming`]: Progressive gaussian loading. Requires `streaming` feature.
 
 > [!TIP]
 >
@@ -81,9 +87,90 @@ viewer.update_camera(
 viewer.render(&mut encoder, &texture_view);
 ```
 
+### Bevy Integration
+
+Enable the `bevy` feature to use the Bevy plugin. Note that Bevy's internal wgpu version must match this crate's wgpu version (28.0); you may need `[patch.crates-io]` to align versions.
+
+```rust ignore
+use bevy::prelude::*;
+use wgpu_3dgs_viewer::bevy_plugin::{
+    GaussianSplattingPlugin, GaussianCloud, GaussianSplatSettings,
+};
+
+fn main() {
+    App::new()
+        .add_plugins((DefaultPlugins, GaussianSplattingPlugin::default()))
+        .add_systems(Startup, setup)
+        .run();
+}
+
+fn setup(mut commands: Commands) {
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 0.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+
+    commands.spawn((
+        GaussianCloud::from_file("model.ply"),
+        GaussianSplatSettings::default(),
+        Transform::default(),
+    ));
+}
+```
+
+### LOD (Level of Detail)
+
+Enable the `lod` feature to cap how many gaussians are rendered per frame. Sort by importance before creating the viewer so that reducing the budget drops the least visible splats first:
+
+```rust ignore
+use wgpu_3dgs_viewer::lod;
+
+// Sort gaussians by importance (most important first).
+let sorted = lod::sort_gaussians_by_importance(&gaussians);
+
+// Create the viewer with sorted gaussians.
+let mut viewer = gs::Viewer::new(&device, format, &sorted).expect("viewer");
+
+// Enable LOD with a budget of 500k gaussians.
+viewer.lod_config = lod::LodConfig::with_budget(500_000);
+
+// Disable LOD to render all gaussians again.
+viewer.lod_config.enabled = false;
+```
+
+### Streaming
+
+Enable the `streaming` feature to progressively load gaussians into the GPU buffer. Only the loaded portion is rendered:
+
+```rust ignore
+use wgpu_3dgs_viewer::streaming::StreamingConfig;
+
+// Pre-allocate viewer with full gaussian set, then enable streaming.
+let mut viewer = gs::Viewer::new(&device, format, &gaussians).expect("viewer");
+viewer.streaming_config = StreamingConfig::new(total_count);
+
+// Each frame, after uploading a chunk via queue.write_buffer():
+viewer.streaming_config.loaded_count = uploaded_so_far;
+
+// Check progress.
+println!("{}% loaded", viewer.streaming_config.progress() * 100.0);
+```
+
 ## Examples
 
 See the [examples](https://github.com/LioQing/wgpu-3dgs-viewer/tree/master/examples) directory for usage examples.
+
+## Feature Flags
+
+| Feature            | Description                                         | Default |
+| ------------------ | --------------------------------------------------- | ------- |
+| `multi-model`      | Multi-model viewer with custom draw orders          | off     |
+| `selection`        | Viewport selection (rectangle, brush) for editing   | off     |
+| `viewer-selection` | Selection integrated into the `Viewer` struct       | off     |
+| `editor`           | Re-exports `wgpu-3dgs-editor`                       | off     |
+| `bevy`             | Bevy game engine plugin (requires wgpu 28.0 match)  | off     |
+| `lod`              | Level of Detail with importance-based budget cap     | off     |
+| `streaming`        | Progressive gaussian loading                        | off     |
 
 ## Dependencies
 

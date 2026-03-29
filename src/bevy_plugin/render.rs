@@ -22,6 +22,7 @@ use super::{GaussianCloud, GaussianSplatSettings};
 // Render graph label
 // ---------------------------------------------------------------------------
 
+/// Render graph label for the Gaussian Splatting pass.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub(crate) struct GaussianSplattingLabel;
 
@@ -35,6 +36,7 @@ pub(crate) struct ExtractedGaussianData {
     pub clouds: Vec<ExtractedCloud>,
 }
 
+/// A single gaussian cloud extracted from the main world.
 pub(crate) struct ExtractedCloud {
     pub entity: Entity,
     pub gaussians: Arc<Gaussians>,
@@ -62,6 +64,7 @@ impl GaussianSplattingPipeline {
     }
 }
 
+/// Per-entity viewer state holding the GPU pipeline for one gaussian cloud.
 struct ViewerState {
     viewer: Viewer,
 }

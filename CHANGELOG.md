@@ -7,6 +7,10 @@ Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQ
 ### Added
 
 - 🔧 Added `bind_group_layout`, `pre_bundle`, `bundle`, `post_bundle`, and `bind_group` getters in `Preprocessor`. Added `bind_group_layout`, `pipeline`, and `bind_group` getters in `Renderer`.
+- 🎮 Added Bevy integration plugin (`bevy` feature). Provides `GaussianSplattingPlugin`, `GaussianCloud`, and `GaussianSplatSettings` components for rendering gaussian splats in Bevy apps. Requires wgpu version alignment with Bevy.
+- 📉 Added Level of Detail support (`lod` feature). Includes importance-based gaussian sorting and a runtime budget cap via `LodConfig` to trade quality for performance without shader changes.
+- 📡 Added streaming support (`streaming` feature). Enables progressive gaussian loading with `StreamingConfig` to track and render only the uploaded portion of the GPU buffer.
+- 📝 Added `bevy-simple` example demonstrating minimal Bevy integration with a WASD camera controller.
 
 ## [0.6.1](https://crates.io/crates/wgpu-3dgs-viewer/0.6.1) - 2026-03-01
 
