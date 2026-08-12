@@ -129,9 +129,14 @@ impl core::System for System {
             .expect("adapter");
 
         log::debug!("Requesting device");
+        #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+        let required_features = adapter.features() & wgpu::Features::SUBGROUP;
+        #[cfg(not(all(feature = "lampshade-sort", not(target_arch = "wasm32"))))]
+        let required_features = wgpu::Features::empty();
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("Device"),
+                required_features,
                 required_limits: adapter.limits(),
                 ..Default::default()
             })
@@ -164,8 +169,13 @@ impl core::System for System {
         let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
         log::debug!("Creating viewer");
-        let mut viewer =
-            gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
+        let mut viewer = gs::Viewer::new_for_adapter(
+            &device,
+            &adapter.get_info(),
+            config.view_formats[0],
+            &gaussians,
+        )
+        .expect("viewer");
         viewer.update_model_transform(
             &queue,
             Vec3::ZERO,

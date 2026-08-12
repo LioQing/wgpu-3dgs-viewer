@@ -1,18 +1,28 @@
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+use crate::IndirectArgsBuffer;
 use crate::{
     GaussiansDepthBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer, core::BufferWrapper,
 };
+use std::sync::OnceLock;
 
 pub type RadixSorterBindGroups = wgpu_sort::InternalSortBuffers;
 
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+struct LampshadeRadixSorter {
+    sorter: lampshade::KeyValueSoaSorter,
+    keys: wgpu::Buffer,
+    values: wgpu::Buffer,
+    count: wgpu::Buffer,
+    capacity: u32,
+}
+
 /// Radix sorter for sorting Gaussians based on their depth (i.e. clipped z value).
-#[derive(Debug)]
 pub struct RadixSorter<B = RadixSorterBindGroups> {
-    /// The sorter.
-    ///
-    /// Using modified version of the [wgpu_sort](https://crates.io/crates/wgpu_sort) crate.
-    sorter: wgpu_sort::GPUSorter,
+    sorter: OnceLock<wgpu_sort::GPUSorter>,
     /// The internal sort buffers.
-    internal_sort_buffers: B,
+    internal_sort_buffers: Option<B>,
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    lampshade: Option<LampshadeRadixSorter>,
 }
 
 impl<B> RadixSorter<B> {
@@ -23,11 +33,13 @@ impl<B> RadixSorter<B> {
         gaussians_depth: &GaussiansDepthBuffer,
         indirect_indices: &IndirectIndicesBuffer,
     ) -> RadixSorterBindGroups {
-        self.sorter.create_internal_sort_buffers(
-            device,
-            gaussians_depth.buffer(),
-            indirect_indices.buffer(),
-        )
+        self.sorter
+            .get_or_init(|| wgpu_sort::GPUSorter::new(device, 1))
+            .create_internal_sort_buffers(
+                device,
+                gaussians_depth.buffer(),
+                indirect_indices.buffer(),
+            )
     }
 }
 
@@ -48,21 +60,97 @@ impl RadixSorter {
 
         Self {
             sorter: this.sorter,
-            internal_sort_buffers,
+            internal_sort_buffers: Some(internal_sort_buffers),
+            #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+            lampshade: None,
         }
     }
 
+    /// Creates the Viewer-owned adapter-aware sorter. The Lampshade backend
+    /// reads the exact count from `indirect_args.instance_count`; its later
+    /// [`sort`](Self::sort) call must therefore remain paired with these Viewer
+    /// buffers. Unsupported devices retain the embedded sorter.
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    pub(crate) fn new_for_adapter(
+        device: &wgpu::Device,
+        adapter_info: &wgpu::AdapterInfo,
+        gaussians_depth: &GaussiansDepthBuffer,
+        indirect_indices: &IndirectIndicesBuffer,
+        indirect_args: &IndirectArgsBuffer,
+    ) -> Self {
+        let capacity = (indirect_indices.buffer().size() / 4) as u32;
+        if let Some(mut sorter) =
+            lampshade::KeyValueSoaSorter::new_for_adapter(device, adapter_info)
+        {
+            match sorter.prepare_counted_from_word(
+                gaussians_depth.buffer(),
+                indirect_indices.buffer(),
+                indirect_args.buffer(),
+                1,
+                capacity,
+            ) {
+                Ok(()) => {
+                    log::debug!("Using Lampshade's native SoA Gaussian sorter");
+                    return Self {
+                        sorter: OnceLock::new(),
+                        internal_sort_buffers: None,
+                        lampshade: Some(LampshadeRadixSorter {
+                            sorter,
+                            keys: gaussians_depth.buffer().clone(),
+                            values: indirect_indices.buffer().clone(),
+                            count: indirect_args.buffer().clone(),
+                            capacity,
+                        }),
+                    };
+                }
+                Err(error) => {
+                    log::warn!(
+                        "Could not prepare Lampshade sorter ({error}); using embedded sorter"
+                    );
+                }
+            }
+        }
+        log::debug!("Using embedded Gaussian sorter");
+        Self::new(device, gaussians_depth, indirect_indices)
+    }
+
     /// Sort the Gaussians based on their depth.
+    ///
+    /// A sorter created by [`Viewer::new_for_adapter`](crate::Viewer::new_for_adapter)
+    /// is coupled to that Viewer's depth, index, and draw-argument buffers. The
+    /// adapter-selected backend reads the exact count from the linked draw
+    /// arguments; `indirect_args_buffer` remains the dispatch source for the
+    /// fallback backend.
     pub fn sort(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         indirect_args_buffer: &RadixSortIndirectArgsBuffer,
     ) {
-        self.sorter.sort_indirect(
-            encoder,
-            &self.internal_sort_buffers,
-            indirect_args_buffer.buffer(),
-        );
+        #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+        if let Some(lampshade) = &self.lampshade {
+            lampshade
+                .sorter
+                .record_reserved_sort_counted_from_word(
+                    encoder,
+                    &lampshade.keys,
+                    &lampshade.values,
+                    &lampshade.count,
+                    1,
+                    lampshade.capacity,
+                )
+                .expect("Lampshade viewer sort recording is valid");
+            return;
+        }
+        self.sorter
+            .get()
+            .expect("legacy sort backend is initialized")
+            .sort_indirect(
+                encoder,
+                self.internal_sort_buffers
+                    .as_ref()
+                    .expect("legacy sort buffers are initialized"),
+                indirect_args_buffer.buffer(),
+            );
     }
 }
 
@@ -75,8 +163,10 @@ impl RadixSorter<()> {
         log::info!("Radix sorter created");
 
         Self {
-            sorter,
-            internal_sort_buffers: (),
+            sorter: OnceLock::from(sorter),
+            internal_sort_buffers: Some(()),
+            #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+            lampshade: None,
         }
     }
 
@@ -91,7 +181,29 @@ impl RadixSorter<()> {
         indirect_args_buffer: &RadixSortIndirectArgsBuffer,
     ) {
         self.sorter
+            .get()
+            .expect("shared sort backend is the legacy implementation")
             .sort_indirect(encoder, bind_groups, indirect_args_buffer.buffer());
+    }
+}
+
+impl<B: std::fmt::Debug> std::fmt::Debug for RadixSorter<B> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RadixSorter")
+            .field("legacy_sorter_initialized", &self.sorter.get().is_some())
+            .field("internal_sort_buffers", &self.internal_sort_buffers)
+            .field("lampshade", &{
+                #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+                {
+                    self.lampshade.is_some()
+                }
+                #[cfg(not(all(feature = "lampshade-sort", not(target_arch = "wasm32"))))]
+                {
+                    false
+                }
+            })
+            .finish_non_exhaustive()
     }
 }
 

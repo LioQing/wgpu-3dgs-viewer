@@ -26,6 +26,7 @@ This library displays 3D Gaussian Splatting models with wgpu. It includes a read
 - Optional features
   - Multi-model: render many models with custom draw orders.
   - Selection: viewport selection (e.g. rectangle, brush) that marks Gaussians for editing.
+  - `lampshade-sort`: accelerate depth sorting on supported NVIDIA/Vulkan subgroup devices, with the existing sorter as fallback. Enable it with `wgpu-3dgs-viewer = { version = "0.7", features = ["lampshade-sort"] }`.
 - Shaders
   - WGSL shaders packaged with WESL, you can extend or replace them.
 
@@ -64,7 +65,17 @@ let gaussians = gs::core::Gaussians::read_from_file(model_path, gs::core::Gaussi
 let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
 
 // Create the viewer
-let mut viewer = gs::Viewer::new(&device, config.view_formats[0], &gaussians).expect("viewer");
+// On native targets with the `lampshade-sort` feature, request
+// `adapter.features() & wgpu::Features::SUBGROUP` when creating the device.
+// The accelerated route currently targets NVIDIA/Vulkan; other adapters keep
+// the existing portable sorter.
+let mut viewer = gs::Viewer::new_for_adapter(
+    &device,
+    &adapter.get_info(),
+    config.view_formats[0],
+    &gaussians,
+)
+.expect("viewer");
 
 // Setup camera parameters...
 

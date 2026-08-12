@@ -103,6 +103,55 @@ impl<G: GaussianPod> Viewer<G> {
         gaussians: &impl IterGaussian,
         options: ViewerCreateOptions,
     ) -> Result<Self, ViewerCreateError> {
+        Self::new_with_options_and_adapter(device, None, texture_format, gaussians, options)
+    }
+
+    /// Creates an adapter-aware viewer. With the `lampshade-sort` feature and
+    /// supported NVIDIA/Vulkan subgroup configuration, Gaussian depth sorting
+    /// uses Lampshade's native separate-buffer backend; otherwise it retains
+    /// the existing sorter.
+    pub fn new_for_adapter(
+        device: &wgpu::Device,
+        adapter_info: &wgpu::AdapterInfo,
+        texture_format: wgpu::TextureFormat,
+        gaussians: &impl IterGaussian,
+    ) -> Result<Self, ViewerCreateError> {
+        Self::new_with_options_for_adapter(
+            device,
+            adapter_info,
+            texture_format,
+            gaussians,
+            ViewerCreateOptions::default(),
+        )
+    }
+
+    /// Creates an adapter-aware viewer with extra [`ViewerCreateOptions`]. With
+    /// the `lampshade-sort` feature, supported NVIDIA/Vulkan subgroup devices
+    /// use Lampshade's native separate-buffer sorter; other devices retain the
+    /// existing sorter.
+    pub fn new_with_options_for_adapter(
+        device: &wgpu::Device,
+        adapter_info: &wgpu::AdapterInfo,
+        texture_format: wgpu::TextureFormat,
+        gaussians: &impl IterGaussian,
+        options: ViewerCreateOptions,
+    ) -> Result<Self, ViewerCreateError> {
+        Self::new_with_options_and_adapter(
+            device,
+            Some(adapter_info),
+            texture_format,
+            gaussians,
+            options,
+        )
+    }
+
+    fn new_with_options_and_adapter(
+        device: &wgpu::Device,
+        adapter_info: Option<&wgpu::AdapterInfo>,
+        texture_format: wgpu::TextureFormat,
+        gaussians: &impl IterGaussian,
+        options: ViewerCreateOptions,
+    ) -> Result<Self, ViewerCreateError> {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 
@@ -161,8 +210,19 @@ impl<G: GaussianPod> Viewer<G> {
         )?;
 
         log::debug!("Creating radix sorter");
-        let radix_sorter =
-            RadixSorter::new(device, &gaussians_depth_buffer, &indirect_indices_buffer);
+        let radix_sorter = match adapter_info {
+            #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+            Some(adapter_info) => RadixSorter::new_for_adapter(
+                device,
+                adapter_info,
+                &gaussians_depth_buffer,
+                &indirect_indices_buffer,
+                &indirect_args_buffer,
+            ),
+            #[cfg(not(all(feature = "lampshade-sort", not(target_arch = "wasm32"))))]
+            Some(_) => RadixSorter::new(device, &gaussians_depth_buffer, &indirect_indices_buffer),
+            None => RadixSorter::new(device, &gaussians_depth_buffer, &indirect_indices_buffer),
+        };
 
         log::debug!("Creating renderer");
         let renderer = Renderer::new(

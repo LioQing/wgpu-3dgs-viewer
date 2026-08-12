@@ -95,6 +95,132 @@ fn test_viewer_render_should_render_correctly() {
     });
 }
 
+#[test]
+fn test_adapter_aware_viewer_render_should_render_correctly() {
+    let ctx = TestContext::new_with_subgroups();
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
+    let render_target = given::render_target_texture(&ctx);
+    let adapter_info = ctx.adapter.get_info();
+    let mut viewer = Viewer::<G>::new_for_adapter(
+        &ctx.device,
+        &adapter_info,
+        wgpu::TextureFormat::Rgba8Unorm,
+        &gaussians,
+    )
+    .expect("adapter-aware viewer");
+    let _legacy_bind_groups = viewer.radix_sorter.create_bind_groups(
+        &ctx.device,
+        &viewer.gaussians_depth_buffer,
+        &viewer.indirect_indices_buffer,
+    );
+    viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
+    render_and_assert(&ctx, &viewer, &render_target, |pixels: &[UVec4]| {
+        let sum = pixels.iter().sum::<UVec4>();
+        assert!(sum.x > 1);
+        assert!(sum.y < 1);
+        assert!(sum.z < 1);
+        assert!(sum.w > 1);
+    });
+}
+
+#[test]
+fn test_adapter_aware_viewer_renders_without_enabled_subgroups() {
+    let ctx = TestContext::new();
+    assert!(!ctx.device.features().contains(wgpu::Features::SUBGROUP));
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
+    let adapter_info = ctx.adapter.get_info();
+    let mut viewer = Viewer::<G>::new_for_adapter(
+        &ctx.device,
+        &adapter_info,
+        wgpu::TextureFormat::Rgba8Unorm,
+        &gaussians,
+    )
+    .expect("fallback viewer");
+    viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
+    let render_target = given::render_target_texture(&ctx);
+    render_and_assert(&ctx, &viewer, &render_target, |pixels: &[UVec4]| {
+        assert!(pixels.iter().sum::<UVec4>().x > 1);
+    });
+}
+
+#[test]
+fn test_adapter_aware_viewer_matches_legacy_for_overlapping_multi_gaussian_scene() {
+    let ctx = TestContext::new_with_subgroups();
+    let gaussians: Vec<_> = (0_u32..64)
+        .map(|index| {
+            let column = (index % 4) as f32 - 1.5;
+            let row = ((index / 4) % 4) as f32 - 1.5;
+            let depth_band = (index % 8) as f32;
+            Gaussian {
+                rot: Quat::IDENTITY,
+                pos: Vec3::new(column * 0.08, row * 0.08, 1.0 + depth_band * 0.04),
+                color: U8Vec4::new(
+                    (31 + index * 17) as u8,
+                    (251 - index * 3) as u8,
+                    (67 + index * 11) as u8,
+                    96,
+                ),
+                sh: [Vec3::ZERO; 15],
+                scale: Vec3::splat(0.18),
+            }
+        })
+        .collect();
+    let adapter_info = ctx.adapter.get_info();
+    let mut legacy = Viewer::<G>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm, &gaussians)
+        .expect("legacy viewer");
+    let mut adaptive = Viewer::<G>::new_for_adapter(
+        &ctx.device,
+        &adapter_info,
+        wgpu::TextureFormat::Rgba8Unorm,
+        &gaussians,
+    )
+    .expect("adapter-aware viewer");
+    #[cfg(feature = "lampshade-sort")]
+    if adapter_info.backend == wgpu::Backend::Vulkan
+        && adapter_info.vendor == 0x10de
+        && adapter_info.device_type == wgpu::DeviceType::DiscreteGpu
+        && ctx.device.features().contains(wgpu::Features::SUBGROUP)
+    {
+        assert!(
+            format!("{:?}", adaptive.radix_sorter).contains("lampshade: true"),
+            "a compatible NVIDIA/Vulkan device should select Lampshade"
+        );
+    }
+    let camera = given::camera_pod();
+    legacy.update_camera_with_pod(&ctx.queue, &camera);
+    adaptive.update_camera_with_pod(&ctx.queue, &camera);
+    let legacy_target = given::render_target_texture(&ctx);
+    let adaptive_target = given::render_target_texture(&ctx);
+
+    render_and_assert(
+        &ctx,
+        &legacy,
+        &legacy_target,
+        |legacy_pixels: &[UVec4]| {
+            render_and_assert(
+                &ctx,
+                &adaptive,
+                &adaptive_target,
+                |adaptive_pixels: &[UVec4]| {
+                    assert_eq!(adaptive_pixels, legacy_pixels);
+                },
+            );
+        },
+    );
+}
+
 fn test_viewer_when_no_sh0_is_set_should_and_render_as_grayscale(
     update_gaussian_transform: impl FnOnce(&mut Viewer<G>, &wgpu::Queue),
 ) {
