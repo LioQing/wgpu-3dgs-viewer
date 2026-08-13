@@ -72,7 +72,7 @@ wgpu = "29.0"
 wesl = "0.3"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-lampshade = { version = "0.10", optional = true }
+lampshade = { version = "0.12", optional = true }
 
 [dev-dependencies]
 clap = { version = "4.6", features = ["derive"] }
