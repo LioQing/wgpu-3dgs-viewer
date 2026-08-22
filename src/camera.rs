@@ -84,10 +84,15 @@ impl Camera {
 
 impl CameraTrait for Camera {
     fn view(&self) -> Mat4 {
-        Mat4::look_to_rh(self.pos, self.get_forward(), Self::UP)
+        glam::camera::rh::view::look_to_mat4(self.pos, self.get_forward(), Self::UP)
     }
 
     fn projection(&self, aspect_ratio: f32) -> Mat4 {
-        Mat4::perspective_rh(self.vertical_fov, aspect_ratio, self.z.start, self.z.end)
+        glam::camera::rh::proj::directx::perspective(
+            self.vertical_fov,
+            aspect_ratio,
+            self.z.start,
+            self.z.end,
+        )
     }
 }

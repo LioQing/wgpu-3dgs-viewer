@@ -60,26 +60,30 @@ bytemuck = { version = "1.25", features = [
     "extern_crate_alloc",
     "min_const_generics",
 ] }
-bitflags = { version = "2.11", features = ["bytemuck"] }
-glam = { version = "0.32", features = ["bytemuck"] }
+bitflags = { version = "2.13", features = ["bytemuck"] }
+glam = { version = "0.33", features = ["bytemuck"] }
 half = { version = "2.7", features = ["bytemuck"] }
 log = "0.4"
 oneshot = "0.2"
 paste = "1.0"
 thiserror = "2.0"
-wgpu = "29.0"
-wesl = "0.3"
+wgpu = "30.0"
+wesl = "0.4"
 
 [dev-dependencies]
 clap = { version = "4.6", features = ["derive"] }
 colored = { version = "3.1" }
 env_logger = { version = "0.11" }
-pollster = { version = "0.4" }
+pollster = { version = "1.0" }
 winit = { version = "0.30" }
 
 [patch.crates-io]
-wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core", tag = "v0.7.0" }
-wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true, tag = "v0.7.0" }
+# wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core", tag = "v0.8.0" }
+# wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true, tag = "v0.8.0" }
+
+# For development against latest master:
+wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core" }
+wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true }
 
 # For local development:
 # wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }

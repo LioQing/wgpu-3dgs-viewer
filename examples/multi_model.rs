@@ -94,6 +94,7 @@ impl core::System for System {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .expect("adapter");
@@ -113,6 +114,7 @@ impl core::System for System {
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
+            color_space: wgpu::SurfaceColorSpace::Auto,
             width: size.width.max(1),
             height: size.height.max(1),
             present_mode: surface_caps.present_modes[0],
@@ -284,7 +286,7 @@ impl core::System for System {
         if let Err(e) = self.device.poll(wgpu::PollType::wait_indefinitely()) {
             log::error!("Failed to poll device: {e:?}");
         }
-        texture.present();
+        self.queue.present(texture);
     }
 
     fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
