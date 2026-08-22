@@ -6,7 +6,7 @@ Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQ
 
 ### Changed
 
-- ⚡ Upgrade `wgpu` to 30.0, `wesl` to 0.4, `glam` to 0.33, `bitflags` to 2.13, and a few other internal dependencies. [#22](https://github.com/LioQing/wgpu-3dgs-core/pull/22)
+- ⚡ Upgrade `wgpu` to 30.0, `wesl` to 0.4, `glam` to 0.33, `bitflags` to 2.13, and a few other internal dependencies. [#23](https://github.com/LioQing/wgpu-3dgs-core/pull/23)
 
 ## [0.7.0](https://crates.io/crates/wgpu-3dgs-viewer/0.7.0) - 2026-05-16
 
