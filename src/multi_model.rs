@@ -339,8 +339,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             color_write_mask: options.color_write_mask,
             cache: options.cache,
         };
-        let renderer =
-            Renderer::new_without_bind_group(device, &renderer_options)?;
+        let renderer = Renderer::new_without_bind_group(device, &renderer_options)?;
 
         log::info!("Viewer created");
 
