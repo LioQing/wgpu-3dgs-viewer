@@ -6,17 +6,18 @@ Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQ
 
 ### Added
 
-- 🖌️ Added `RendererCreateOptions`, containing the existing `texture_format` and `depth_stencil` from existing `Renderer::new` parameters plus the new `color_write_mask` and `cache` options, to allow more flexible renderer creation. [#24](https://github.com/LioQing/wgpu-3dgs-viewer/pull/24)
+- 🖌️ Add `RendererCreateOptions`, containing the existing `texture_format` and `depth_stencil` from existing `Renderer::new` parameters plus the new `color_write_mask` and `cache` options, to allow more flexible renderer creation. [#24](https://github.com/LioQing/wgpu-3dgs-viewer/pull/24)
 
 ### Changed
 
 - ⚡ Upgrade `wgpu` to 30.0, `wesl` to 0.4, `glam` to 0.33, `bitflags` to 2.13, and a few other internal dependencies. [#23](https://github.com/LioQing/wgpu-3dgs-viewer/pull/23)
+- 🐛 Fix a bug in the `selection` example related to the selection inversion, where previously it was inverting the selection every time selection is applied, causing flashing in immediate mode and unwanted behavior. [#26](https://github.com/LioQing/wgpu-3dgs-viewer/pull/26)
 
 ## [0.7.0](https://crates.io/crates/wgpu-3dgs-viewer/0.7.0) - 2026-05-16
 
 ### Added
 
-- 🔧 Added `bind_group_layout`, `pre_bundle`, `bundle`, `post_bundle`, and `bind_group` getters in `Preprocessor`. Added `bind_group_layout`, `pipeline`, and `bind_group` getters in `Renderer`. [#19](https://github.com/LioQing/wgpu-3dgs-viewer/pull/19)
+- 🔧 Add `bind_group_layout`, `pre_bundle`, `bundle`, `post_bundle`, and `bind_group` getters in `Preprocessor`. Added `bind_group_layout`, `pipeline`, and `bind_group` getters in `Renderer`. [#19](https://github.com/LioQing/wgpu-3dgs-viewer/pull/19)
 
 ### Changed
 

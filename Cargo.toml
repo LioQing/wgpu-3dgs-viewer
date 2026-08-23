@@ -52,8 +52,8 @@ viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]
-wgpu-3dgs-core = { version = "0.7" }
-wgpu-3dgs-editor = { version = "0.7", optional = true }
+wgpu-3dgs-core = { version = "0.8" }
+wgpu-3dgs-editor = { version = "0.8", optional = true }
 
 bytemuck = { version = "1.25", features = [
     "derive",
@@ -78,10 +78,6 @@ pollster = { version = "1.0" }
 winit = { version = "0.30" }
 
 [patch.crates-io]
-# wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core", tag = "v0.8.0" }
-# wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true, tag = "v0.8.0" }
-
-# For development against latest master:
 wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core" }
 wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true }
 

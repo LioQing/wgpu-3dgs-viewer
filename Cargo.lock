@@ -542,9 +542,9 @@ dependencies = [
 
 [[package]]
 name = "crc32fast"
-version = "1.5.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
+checksum = "8498c871161e1742aaa9d52551b2d6ebdd4c3d45a3be423e3728f33b955be550"
 dependencies = [
  "cfg-if",
 ]
@@ -1313,7 +1313,7 @@ dependencies = [
  "bitflags 2.13.1",
  "libc",
  "plain",
- "redox_syscall 0.9.2",
+ "redox_syscall 0.9.3",
 ]
 
 [[package]]
@@ -1351,9 +1351,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.33"
+version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "logos"
@@ -2135,9 +2135,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1c93da5bb2c5d4e6c0ef7abeead62c89169a0a4882bfb83ac892f2423aea2fe"
+checksum = "d678d17679829e73d371e96880897e98fee2ded7acc0a50bdf8af2affa4b2fe5"
 dependencies = [
  "bitflags 2.13.1",
 ]
@@ -2947,8 +2947,8 @@ dependencies = [
 
 [[package]]
 name = "wgpu-3dgs-core"
-version = "0.7.0"
-source = "git+https://github.com/LioQing/wgpu-3dgs-core#3d4150ac4721916ecdd1f40639d06410b2426e94"
+version = "0.8.0"
+source = "git+https://github.com/LioQing/wgpu-3dgs-core#d98ccc8f033ac060cf41401ee01087d5afd81124"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -2967,8 +2967,8 @@ dependencies = [
 
 [[package]]
 name = "wgpu-3dgs-editor"
-version = "0.7.0"
-source = "git+https://github.com/LioQing/wgpu-3dgs-editor#9a5054c07866c8b6b1ce0d8fc332b4db84decbd8"
+version = "0.8.0"
+source = "git+https://github.com/LioQing/wgpu-3dgs-editor#4bc7e200509c7be4487bc8ff117de811d24d21bd"
 dependencies = [
  "bitflags 2.13.1",
  "bytemuck",

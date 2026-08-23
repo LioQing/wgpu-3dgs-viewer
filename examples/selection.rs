@@ -436,11 +436,22 @@ impl System {
                 )
                 .expect("apply selection modifier");
         } else {
-            if self.inverted {
-                self.viewport_selection_modifier
-                    .modifier
-                    .selection_expr
-                    .update_with(gs::editor::SelectionExpr::complement);
+            if !self.inverted {
+                if let gs::editor::SelectionExpr::Complement(inner) =
+                    &self.viewport_selection_modifier.modifier.selection_expr
+                {
+                    self.viewport_selection_modifier.modifier.selection_expr = *inner.clone();
+                }
+            } else {
+                if !matches!(
+                    self.viewport_selection_modifier.modifier.selection_expr,
+                    gs::editor::SelectionExpr::Complement(..)
+                ) {
+                    self.viewport_selection_modifier
+                        .modifier
+                        .selection_expr
+                        .update_with(gs::editor::SelectionExpr::complement);
+                }
             }
 
             self.viewport_selection_modifier.apply(
