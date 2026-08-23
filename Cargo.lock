@@ -2984,7 +2984,7 @@ dependencies = [
 
 [[package]]
 name = "wgpu-3dgs-viewer"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "bitflags 2.13.1",
  "bytemuck",
