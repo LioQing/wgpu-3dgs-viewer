@@ -17,6 +17,30 @@ pub struct Renderer<G: GaussianPod, B = wgpu::BindGroup> {
     gaussian_pod_marker: std::marker::PhantomData<G>,
 }
 
+/// Options for creating a [`Renderer`].
+#[derive(Debug)]
+pub struct RendererCreateOptions {
+    /// The texture format of the render target.
+    pub texture_format: wgpu::TextureFormat,
+    /// The depth stencil state.
+    pub depth_stencil: Option<wgpu::DepthStencilState>,
+    /// The color write mask for the fragment shader target.
+    pub color_write_mask: wgpu::ColorWrites,
+    /// The pipeline cache for accelerating pipeline creation.
+    pub cache: Option<wgpu::PipelineCache>,
+}
+
+impl RendererCreateOptions {
+    /// Create default options with the given texture format.
+    pub fn new(texture_format: wgpu::TextureFormat) -> Self {
+        Self {
+            texture_format,
+            depth_stencil: None,
+            color_write_mask: wgpu::ColorWrites::ALL,
+            cache: None,
+        }
+    }
+}
 impl<G: GaussianPod, B> Renderer<G, B> {
     /// Create the bind group.
     #[allow(clippy::too_many_arguments)]
@@ -119,8 +143,7 @@ impl<G: GaussianPod> Renderer<G> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &wgpu::Device,
-        texture_format: wgpu::TextureFormat,
-        depth_stencil: Option<wgpu::DepthStencilState>,
+        options: &RendererCreateOptions,
         camera: &CameraBuffer,
         model_transform: &ModelTransformBuffer,
         gaussian_transform: &GaussianTransformBuffer,
@@ -134,7 +157,7 @@ impl<G: GaussianPod> Renderer<G> {
             });
         }
 
-        let this = Renderer::new_without_bind_group(device, texture_format, depth_stencil)?;
+        let this = Renderer::new_without_bind_group(device, options)?;
 
         log::debug!("Creating renderer bind group");
         let bind_group = this.create_bind_group(
@@ -246,8 +269,7 @@ impl<G: GaussianPod> Renderer<G, ()> {
     /// [`Renderer::create_bind_group`] method.
     pub fn new_without_bind_group(
         device: &wgpu::Device,
-        texture_format: wgpu::TextureFormat,
-        depth_stencil: Option<wgpu::DepthStencilState>,
+        options: &RendererCreateOptions,
     ) -> Result<Self, RendererCreateError> {
         log::debug!("Creating renderer bind group layout");
         let bind_group_layout =
@@ -294,17 +316,17 @@ impl<G: GaussianPod> Renderer<G, ()> {
                 module: &shader,
                 entry_point: Some("frag_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: texture_format,
+                    format: options.texture_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
+                    write_mask: options.color_write_mask,
                 })],
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil,
+            depth_stencil: options.depth_stencil.clone(),
             multisample: wgpu::MultisampleState::default(),
             multiview_mask: None,
-            cache: None,
+            cache: options.cache.as_ref(),
         });
 
         log::info!("Renderer created");

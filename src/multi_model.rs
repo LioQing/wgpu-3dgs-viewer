@@ -333,8 +333,14 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         let radix_sorter = RadixSorter::new_without_bind_groups(device);
 
         log::debug!("Creating renderer");
+        let renderer_options = RendererCreateOptions {
+            texture_format,
+            depth_stencil: options.depth_stencil,
+            color_write_mask: options.color_write_mask,
+            cache: options.cache,
+        };
         let renderer =
-            Renderer::new_without_bind_group(device, texture_format, options.depth_stencil)?;
+            Renderer::new_without_bind_group(device, &renderer_options)?;
 
         log::info!("Viewer created");
 

@@ -165,10 +165,15 @@ impl<G: GaussianPod> Viewer<G> {
             RadixSorter::new(device, &gaussians_depth_buffer, &indirect_indices_buffer);
 
         log::debug!("Creating renderer");
+        let renderer_options = RendererCreateOptions {
+            texture_format,
+            depth_stencil: options.depth_stencil,
+            color_write_mask: options.color_write_mask,
+            cache: options.cache,
+        };
         let renderer = Renderer::new(
             device,
-            texture_format,
-            options.depth_stencil,
+            &renderer_options,
             &camera_buffer,
             &model_transform_buffer,
             &gaussian_transform_buffer,
@@ -281,6 +286,10 @@ pub struct ViewerCreateOptions {
     pub depth_stencil: Option<wgpu::DepthStencilState>,
     /// The usage for the gaussians buffer.
     pub gaussians_buffer_usage: wgpu::BufferUsages,
+    /// The color write mask for the fragment shader target.
+    pub color_write_mask: wgpu::ColorWrites,
+    /// The pipeline cache for accelerating pipeline creation.
+    pub cache: Option<wgpu::PipelineCache>,
 }
 
 impl Default for ViewerCreateOptions {
@@ -288,6 +297,8 @@ impl Default for ViewerCreateOptions {
         Self {
             depth_stencil: None,
             gaussians_buffer_usage: GaussiansBuffer::<DefaultGaussianPod>::DEFAULT_USAGES,
+            color_write_mask: wgpu::ColorWrites::ALL,
+            cache: None,
         }
     }
 }
