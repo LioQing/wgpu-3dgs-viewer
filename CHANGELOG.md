@@ -4,9 +4,13 @@ Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQ
 
 ## [0.8.0](https://crates.io/crates/wgpu-3dgs-viewer/0.8.0) - 2026-08-23
 
+### Added
+
+- 🖌️ Added `RendererCreateOptions`, containing the existing `texture_format` and `depth_stencil` from existing `Renderer::new` parameters plus the new `color_write_mask` and `cache` options, to allow more flexible renderer creation. [#24](https://github.com/LioQing/wgpu-3dgs-viewer/pull/24)
+
 ### Changed
 
-- ⚡ Upgrade `wgpu` to 30.0, `wesl` to 0.4, `glam` to 0.33, `bitflags` to 2.13, and a few other internal dependencies. [#23](https://github.com/LioQing/wgpu-3dgs-core/pull/23)
+- ⚡ Upgrade `wgpu` to 30.0, `wesl` to 0.4, `glam` to 0.33, `bitflags` to 2.13, and a few other internal dependencies. [#23](https://github.com/LioQing/wgpu-3dgs-viewer/pull/23)
 
 ## [0.7.0](https://crates.io/crates/wgpu-3dgs-viewer/0.7.0) - 2026-05-16
 
