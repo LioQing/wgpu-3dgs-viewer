@@ -161,6 +161,16 @@ impl<G: GaussianPod> Viewer<G> {
         )?;
 
         log::debug!("Creating radix sorter");
+        #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+        let radix_sorter = RadixSorter::new_for_viewer(
+            device,
+            &gaussians_depth_buffer,
+            &indirect_indices_buffer,
+            &indirect_args_buffer,
+            &radix_sort_indirect_args_buffer,
+            len,
+        );
+        #[cfg(not(all(feature = "lampshade-sort", not(target_arch = "wasm32"))))]
         let radix_sorter =
             RadixSorter::new(device, &gaussians_depth_buffer, &indirect_indices_buffer);
 
@@ -267,11 +277,32 @@ impl<G: GaussianPod> Viewer<G> {
         self.gaussian_transform_buffer.update_with_pod(queue, pod);
     }
 
+    /// Whether [`Self::render`] will use the prepared Lampshade depth sorter.
+    ///
+    /// This requires a native device created with Lampshade's advertised
+    /// features and limits. Replacing either indirect-argument buffer selects
+    /// the embedded sorter. The public low-level [`RadixSorter::sort`] API and
+    /// multi-model viewer continue to use the embedded sorter.
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    pub fn uses_lampshade_sorter(&self) -> bool {
+        self.radix_sorter.uses_lampshade(
+            &self.indirect_args_buffer,
+            &self.radix_sort_indirect_args_buffer,
+        )
+    }
+
     /// Render the viewer.
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder, texture_view: &wgpu::TextureView) {
         self.preprocessor
             .preprocess(encoder, self.gaussians_buffer.len() as u32);
 
+        #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+        self.radix_sorter.sort_for_viewer(
+            encoder,
+            &self.indirect_args_buffer,
+            &self.radix_sort_indirect_args_buffer,
+        );
+        #[cfg(not(all(feature = "lampshade-sort", not(target_arch = "wasm32"))))]
         self.radix_sorter
             .sort(encoder, &self.radix_sort_indirect_args_buffer);
 

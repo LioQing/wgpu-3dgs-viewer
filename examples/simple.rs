@@ -130,10 +130,21 @@ impl core::System for System {
             .expect("adapter");
 
         log::debug!("Requesting device");
+        let required_features = wgpu::Features::empty();
+        let required_limits = adapter.limits();
+        #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+        let (required_features, required_limits) = {
+            let requirements = lampshade::KeyValueSoaSorter::requirements(&adapter);
+            (
+                requirements.features(required_features),
+                requirements.limits(required_limits),
+            )
+        };
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("Device"),
-                required_limits: adapter.limits(),
+                required_features,
+                required_limits,
                 ..Default::default()
             })
             .await

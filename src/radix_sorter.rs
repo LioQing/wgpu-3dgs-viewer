@@ -1,3 +1,5 @@
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+use crate::IndirectArgsBuffer;
 use crate::{
     GaussiansDepthBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer, core::BufferWrapper,
 };
@@ -13,7 +15,32 @@ pub struct RadixSorter<B = RadixSorterBindGroups> {
     sorter: wgpu_sort::GPUSorter,
     /// The internal sort buffers.
     internal_sort_buffers: B,
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    lampshade: Option<LampshadePlan>,
 }
+
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+struct LampshadePlan {
+    sorter: lampshade::KeyValueSoaSorter,
+    keys: wgpu::Buffer,
+    values: wgpu::Buffer,
+    count: wgpu::Buffer,
+    dispatch: wgpu::Buffer,
+    capacity: u32,
+}
+
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+impl std::fmt::Debug for LampshadePlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LampshadePlan")
+            .field("capacity", &self.capacity)
+            .finish_non_exhaustive()
+    }
+}
+
+// DrawIndirectArgs contains vertex_count followed by instance_count.
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+const INSTANCE_COUNT_WORD: u32 = 1;
 
 impl<B> RadixSorter<B> {
     /// Create the bind groups.
@@ -49,6 +76,91 @@ impl RadixSorter {
         Self {
             sorter: this.sorter,
             internal_sort_buffers,
+            #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+            lampshade: None,
+        }
+    }
+
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    pub(crate) fn new_for_viewer(
+        device: &wgpu::Device,
+        gaussians_depth: &GaussiansDepthBuffer,
+        indirect_indices: &IndirectIndicesBuffer,
+        indirect_args: &IndirectArgsBuffer,
+        dispatch_args: &RadixSortIndirectArgsBuffer,
+        capacity: u32,
+    ) -> Self {
+        // Retain the embedded sorter for the public low-level API and fallback.
+        let mut this = Self::new(device, gaussians_depth, indirect_indices);
+        if let Some(mut sorter) =
+            lampshade::KeyValueSoaSorter::new_native_for_adapter(device, &device.adapter_info())
+        {
+            match sorter.prepare_counted_from_word(
+                gaussians_depth.buffer(),
+                indirect_indices.buffer(),
+                indirect_args.buffer(),
+                INSTANCE_COUNT_WORD,
+                capacity,
+            ) {
+                Ok(()) => {
+                    this.lampshade = Some(LampshadePlan {
+                        sorter,
+                        keys: gaussians_depth.buffer().clone(),
+                        values: indirect_indices.buffer().clone(),
+                        count: indirect_args.buffer().clone(),
+                        dispatch: dispatch_args.buffer().clone(),
+                        capacity,
+                    });
+                    log::debug!("Using Lampshade for Viewer depth sorting");
+                }
+                Err(error) => log::warn!("Could not prepare Lampshade sorter: {error}"),
+            }
+        }
+        this
+    }
+
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    fn plan_for_viewer(
+        &self,
+        indirect_args: &IndirectArgsBuffer,
+        dispatch_args: &RadixSortIndirectArgsBuffer,
+    ) -> Option<&LampshadePlan> {
+        // Viewer exposes these buffers publicly. A replacement must retain the
+        // original dispatch-driven behavior rather than use a stale count.
+        self.lampshade.as_ref().filter(|plan| {
+            plan.count == *indirect_args.buffer() && plan.dispatch == *dispatch_args.buffer()
+        })
+    }
+
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    pub(crate) fn uses_lampshade(
+        &self,
+        indirect_args: &IndirectArgsBuffer,
+        dispatch_args: &RadixSortIndirectArgsBuffer,
+    ) -> bool {
+        self.plan_for_viewer(indirect_args, dispatch_args).is_some()
+    }
+
+    #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+    pub(crate) fn sort_for_viewer(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        indirect_args: &IndirectArgsBuffer,
+        dispatch_args: &RadixSortIndirectArgsBuffer,
+    ) {
+        if let Some(plan) = self.plan_for_viewer(indirect_args, dispatch_args) {
+            plan.sorter
+                .record_reserved_sort_counted_from_word(
+                    encoder,
+                    &plan.keys,
+                    &plan.values,
+                    &plan.count,
+                    INSTANCE_COUNT_WORD,
+                    plan.capacity,
+                )
+                .expect("Viewer's prepared Lampshade buffers remain valid");
+        } else {
+            self.sort(encoder, dispatch_args);
         }
     }
 
@@ -77,6 +189,8 @@ impl RadixSorter<()> {
         Self {
             sorter,
             internal_sort_buffers: (),
+            #[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+            lampshade: None,
         }
     }
 
