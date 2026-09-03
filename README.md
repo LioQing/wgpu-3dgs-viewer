@@ -81,6 +81,35 @@ viewer.update_camera(
 viewer.render(&mut encoder, &texture_view);
 ```
 
+## Optional Lampshade depth sorting
+
+The `lampshade-sort` feature enables Lampshade's native counted sorter for
+`Viewer::render` on eligible NVIDIA/Vulkan devices. The embedded sorter remains
+the default and the fallback on unsupported devices, including WebAssembly.
+Low-level `RadixSorter` calls and `MultiModelViewer` are unchanged.
+
+Add the optional viewer feature and a direct dependency for configuring the device:
+
+```toml
+[dependencies]
+wgpu-3dgs-viewer = { version = "0.8", features = ["lampshade-sort"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+lampshade = "0.13"
+```
+
+Apply
+`lampshade::KeyValueSoaSorter::requirements(&adapter)` when creating the device
+(see `examples/simple.rs`). Enabling the Cargo feature alone does not enable
+the required device features and limits. On native targets,
+`viewer.uses_lampshade_sorter()` reports whether its render path will use
+Lampshade. Set `WGPU_BACKEND=vulkan` when running the example on Windows.
+
+The fast path consumes the GPU-written draw `instance_count` without CPU
+readback and prepares its workspace once at construction. It also retains the
+embedded sorter's resources for compatibility, so it uses additional memory.
+Replacing either public indirect-argument buffer restores the embedded path.
+
 ## Examples
 
 See the [examples](https://github.com/LioQing/wgpu-3dgs-viewer/tree/master/examples) directory for usage examples.
