@@ -35,7 +35,7 @@ You may read the documentation of the following types for more details:
 
 - [`Viewer`]: Manages buffers and renders a model.
   - [`Preprocessor`]: Culls Gaussians and fills indirect args and depths.
-  - [`RadixSorter`]: Sorts Gaussians by depth on the GPU.
+  - [`DepthSorter`]: Sorts Gaussians by depth on the GPU, defaults to [`RadixSorter`], can be customized.
   - [`Renderer`]: Draws Gaussians with the selected display mode.
 - [`MultiModelViewer`]: [`Viewer`] equivalent for multiple models. Requires `multi-model` feature.
 - [`selection`]: Select Gaussians based on viewport interactions, e.g. rectangle or brush. Requires `selection` feature.

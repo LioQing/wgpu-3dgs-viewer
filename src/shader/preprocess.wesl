@@ -29,13 +29,13 @@ struct IndirectArgs {
 @group(0) @binding(4)
 var<storage, read_write> indirect_args: IndirectArgs;
 
-struct RadixSortDispatchIndirectArgs {
+struct DepthSortDispatchIndirectArgs {
     x: u32,
     y: u32,
     z: u32,
 }
 @group(0) @binding(5)
-var<storage, read_write> radix_sort_indirect_args: RadixSortDispatchIndirectArgs;
+var<storage, read_write> depth_sort_indirect_args: DepthSortDispatchIndirectArgs;
 
 @group(0) @binding(6)
 var<storage, read_write> indirect_indices: array<u32>;
@@ -109,15 +109,15 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 fn post() {
     let instance_count = atomicLoad(&indirect_args.instance_count);
 
-    // Set radix sort indirect args
+    // Set depth sort indirect args
     const histo_block_kvs = 3840u; // wgpu_sort::HISTO_BLOCK_KVS
-    radix_sort_indirect_args.x = (instance_count + histo_block_kvs - 1) / histo_block_kvs;
-    radix_sort_indirect_args.y = 1u;
-    radix_sort_indirect_args.z = 1u;
+    depth_sort_indirect_args.x = (instance_count + histo_block_kvs - 1) / histo_block_kvs;
+    depth_sort_indirect_args.y = 1u;
+    depth_sort_indirect_args.z = 1u;
 
     // Set the padded depths
     let padded_count = min(
-        radix_sort_indirect_args.x * histo_block_kvs,
+        depth_sort_indirect_args.x * histo_block_kvs,
         arrayLength(&gaussians_depth),
     );
     for (var i = instance_count; i < padded_count; i += 1u) {

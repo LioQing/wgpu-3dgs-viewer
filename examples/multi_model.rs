@@ -70,7 +70,11 @@ struct System {
     camera: gs::Camera,
     gaussians: Vec<gs::core::Gaussians>,
     gaussian_centroids: Vec<Vec3>,
-    viewer: gs::MultiModelViewer<gs::DefaultGaussianPod, usize>,
+    viewer: gs::MultiModelViewer<
+        gs::DefaultGaussianPod,
+        gs::DefaultDepthSorterWithoutBindGroups,
+        usize,
+    >,
 }
 
 impl core::System for System {

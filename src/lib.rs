@@ -2,9 +2,9 @@
 
 mod buffer;
 mod camera;
+mod depth_sorter;
 mod error;
 mod preprocessor;
-mod radix_sorter;
 mod renderer;
 pub mod shader;
 mod wesl_utils;
@@ -27,9 +27,9 @@ use wgpu_3dgs_editor::SelectionBuffer;
 
 pub use buffer::*;
 pub use camera::*;
+pub use depth_sorter::*;
 pub use error::*;
 pub use preprocessor::*;
-pub use radix_sorter::*;
 pub use renderer::*;
 
 #[cfg(feature = "multi-model")]
@@ -43,6 +43,12 @@ pub use wgpu_3dgs_editor as editor;
 /// The default viewer [`GaussianPod`] type.
 pub type DefaultGaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
 
+/// The default viewer [`DepthSorter`] type.
+pub type DefaultDepthSorter = RadixSorter;
+
+/// The default viewer [`DepthSorterWithoutBindGroups`] type.
+pub type DefaultDepthSorterWithoutBindGroups = RadixSorter<()>;
+
 /// The 3D Gaussian splatting viewer.
 ///
 /// This provides all the necessary buffers and operations to render 3D Gaussians:
@@ -52,23 +58,23 @@ pub type DefaultGaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
 ///     - [`GaussianTransformBuffer`]
 ///     - [`GaussiansBuffer`]
 ///     - [`IndirectArgsBuffer`]
-///     - [`RadixSortIndirectArgsBuffer`]
+///     - [`DepthSortIndirectArgsBuffer`]
 ///     - [`IndirectIndicesBuffer`]
 ///     - [`GaussiansDepthBuffer`]
 /// - Operations
 ///     - [`Preprocessor`]
-///     - [`RadixSorter`]
+///     - [`DepthSorter`]
 ///     - [`Renderer`]
 ///
 /// If you wish to manage these buffers yourself, you do not need to use this struct.
 #[derive(Debug)]
-pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
+pub struct Viewer<G: GaussianPod = DefaultGaussianPod, S: DepthSorter = DefaultDepthSorter> {
     pub camera_buffer: CameraBuffer,
     pub model_transform_buffer: ModelTransformBuffer,
     pub gaussian_transform_buffer: GaussianTransformBuffer,
     pub gaussians_buffer: GaussiansBuffer<G>,
     pub indirect_args_buffer: IndirectArgsBuffer,
-    pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
+    pub depth_sort_indirect_args_buffer: DepthSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
     #[cfg(feature = "viewer-selection")]
@@ -77,11 +83,11 @@ pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
     pub invert_selection_buffer: selection::PreprocessorInvertSelectionBuffer,
 
     pub preprocessor: Preprocessor<G>,
-    pub radix_sorter: RadixSorter,
+    pub depth_sorter: S,
     pub renderer: Renderer<G>,
 }
 
-impl<G: GaussianPod> Viewer<G> {
+impl<G: GaussianPod> Viewer<G, DefaultDepthSorter> {
     /// Create a new viewer.
     pub fn new(
         device: &wgpu::Device,
@@ -95,13 +101,15 @@ impl<G: GaussianPod> Viewer<G> {
             ViewerCreateOptions::default(),
         )
     }
+}
 
+impl<G: GaussianPod, S: DepthSorter> Viewer<G, S> {
     /// Create a new viewer with extra [`ViewerCreateOptions`].
     pub fn new_with_options(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         gaussians: &impl IterGaussian,
-        options: ViewerCreateOptions,
+        options: ViewerCreateOptions<G, S>,
     ) -> Result<Self, ViewerCreateError> {
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
@@ -119,8 +127,8 @@ impl<G: GaussianPod> Viewer<G> {
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
 
-        log::debug!("Creating radix sort indirect args buffer");
-        let radix_sort_indirect_args_buffer = RadixSortIndirectArgsBuffer::new(device);
+        log::debug!("Creating depth sort indirect args buffer");
+        let depth_sort_indirect_args_buffer = DepthSortIndirectArgsBuffer::new(device);
 
         // Assuming it is cheap to call `iter_gaussian`.
         let len = gaussians.iter_gaussian().len() as u32;
@@ -151,7 +159,7 @@ impl<G: GaussianPod> Viewer<G> {
             &gaussian_transform_buffer,
             &gaussians_buffer,
             &indirect_args_buffer,
-            &radix_sort_indirect_args_buffer,
+            &depth_sort_indirect_args_buffer,
             &indirect_indices_buffer,
             &gaussians_depth_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -160,9 +168,27 @@ impl<G: GaussianPod> Viewer<G> {
             &invert_selection_buffer,
         )?;
 
-        log::debug!("Creating radix sorter");
-        let radix_sorter =
-            RadixSorter::new(device, &gaussians_depth_buffer, &indirect_indices_buffer);
+        log::debug!("Creating depth sorter");
+        let depth_sorter = {
+            let ctx = ViewerCreateDepthSorterFactoryContext {
+                device,
+                texture_format: &texture_format,
+                camera_buffer: &camera_buffer,
+                model_transform_buffer: &model_transform_buffer,
+                gaussian_transform_buffer: &gaussian_transform_buffer,
+                gaussians_buffer: &gaussians_buffer,
+                indirect_args_buffer: &indirect_args_buffer,
+                depth_sort_indirect_args_buffer: &depth_sort_indirect_args_buffer,
+                indirect_indices_buffer: &indirect_indices_buffer,
+                gaussians_depth_buffer: &gaussians_depth_buffer,
+                #[cfg(feature = "viewer-selection")]
+                selection_buffer: &selection_buffer,
+                #[cfg(feature = "viewer-selection")]
+                invert_selection_buffer: &invert_selection_buffer,
+            };
+
+            (options.depth_sorter_factory)(ctx)
+        };
 
         log::debug!("Creating renderer");
         let renderer_options = RendererCreateOptions {
@@ -189,7 +215,7 @@ impl<G: GaussianPod> Viewer<G> {
             gaussian_transform_buffer,
             gaussians_buffer,
             indirect_args_buffer,
-            radix_sort_indirect_args_buffer,
+            depth_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -198,7 +224,7 @@ impl<G: GaussianPod> Viewer<G> {
             invert_selection_buffer,
 
             preprocessor,
-            radix_sorter,
+            depth_sorter,
             renderer,
         })
     }
@@ -272,16 +298,46 @@ impl<G: GaussianPod> Viewer<G> {
         self.preprocessor
             .preprocess(encoder, self.gaussians_buffer.len() as u32);
 
-        self.radix_sorter
-            .sort(encoder, &self.radix_sort_indirect_args_buffer);
+        self.depth_sorter
+            .sort(encoder, &self.depth_sort_indirect_args_buffer);
 
         self.renderer
             .render(encoder, texture_view, &self.indirect_args_buffer);
     }
 }
 
+/// The context for [`DepthSorter`] factory used in [`ViewerCreateOptions`].
+///
+/// This contains [`wgpu::Device`], [`wgpu::TextureFormat`], and all the buffers [`Viewer`] created
+/// before creating the pipelines.
+///
+/// It is passed into [`ViewerCreateOptions::depth_sorter_factory`] to construct [`DepthSorter`].
+pub struct ViewerCreateDepthSorterFactoryContext<'a, G: GaussianPod> {
+    pub device: &'a wgpu::Device,
+    pub texture_format: &'a wgpu::TextureFormat,
+
+    pub camera_buffer: &'a CameraBuffer,
+    pub model_transform_buffer: &'a ModelTransformBuffer,
+    pub gaussian_transform_buffer: &'a GaussianTransformBuffer,
+    pub gaussians_buffer: &'a GaussiansBuffer<G>,
+    pub indirect_args_buffer: &'a IndirectArgsBuffer,
+    pub depth_sort_indirect_args_buffer: &'a DepthSortIndirectArgsBuffer,
+    pub indirect_indices_buffer: &'a IndirectIndicesBuffer,
+    pub gaussians_depth_buffer: &'a GaussiansDepthBuffer,
+    #[cfg(feature = "viewer-selection")]
+    pub selection_buffer: &'a SelectionBuffer,
+    #[cfg(feature = "viewer-selection")]
+    pub invert_selection_buffer: &'a selection::PreprocessorInvertSelectionBuffer,
+}
+
 /// The options for creating a [`Viewer`] using [`Viewer::new_with_options`].
-pub struct ViewerCreateOptions {
+pub struct ViewerCreateOptions<
+    G: GaussianPod = DefaultGaussianPod,
+    S: DepthSorter = DefaultDepthSorter,
+    SF: FnOnce(ViewerCreateDepthSorterFactoryContext<G>) -> S = fn(
+        ViewerCreateDepthSorterFactoryContext<G>,
+    ) -> S,
+> {
     /// The optional depth stencil state for the renderer.
     pub depth_stencil: Option<wgpu::DepthStencilState>,
     /// The usage for the gaussians buffer.
@@ -290,15 +346,27 @@ pub struct ViewerCreateOptions {
     pub color_write_mask: wgpu::ColorWrites,
     /// The pipeline cache for accelerating pipeline creation.
     pub cache: Option<wgpu::PipelineCache>,
+    /// The factory for the depth sorter.
+    pub depth_sorter_factory: SF,
+
+    pub phantom_data: std::marker::PhantomData<(G, S)>,
 }
 
-impl Default for ViewerCreateOptions {
+impl<G: GaussianPod> Default for ViewerCreateOptions<G> {
     fn default() -> Self {
         Self {
             depth_stencil: None,
-            gaussians_buffer_usage: GaussiansBuffer::<DefaultGaussianPod>::DEFAULT_USAGES,
+            gaussians_buffer_usage: GaussiansBuffer::<G>::DEFAULT_USAGES,
             color_write_mask: wgpu::ColorWrites::ALL,
             cache: None,
+            depth_sorter_factory: |ctx| {
+                DefaultDepthSorter::new(
+                    ctx.device,
+                    ctx.gaussians_depth_buffer,
+                    ctx.indirect_indices_buffer,
+                )
+            },
+            phantom_data: Default::default(),
         }
     }
 }

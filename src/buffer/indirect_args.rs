@@ -54,15 +54,15 @@ impl FixedSizeBufferWrapper for IndirectArgsBuffer {
     type Pod = wgpu::util::DrawIndirectArgs;
 }
 
-/// The dispatch indirect args storage buffer for [`RadixSorter`](crate::RadixSorter).
+/// The dispatch indirect args storage buffer for [`DepthSorter`](crate::DepthSorter).
 #[derive(Debug, Clone)]
-pub struct RadixSortIndirectArgsBuffer(wgpu::Buffer);
+pub struct DepthSortIndirectArgsBuffer(wgpu::Buffer);
 
-impl RadixSortIndirectArgsBuffer {
+impl DepthSortIndirectArgsBuffer {
     /// Create a new dispatch indirect args buffer.
     pub fn new(device: &wgpu::Device) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Radix Sort Indirect Args Buffer"),
+            label: Some("Depth Sort Indirect Args Buffer"),
             contents: wgpu::util::DispatchIndirectArgs { x: 1, y: 1, z: 1 }.as_bytes(),
             usage: Self::DEFAULT_USAGES,
         });
@@ -71,7 +71,7 @@ impl RadixSortIndirectArgsBuffer {
     }
 }
 
-impl BufferWrapper for RadixSortIndirectArgsBuffer {
+impl BufferWrapper for DepthSortIndirectArgsBuffer {
     const DEFAULT_USAGES: wgpu::BufferUsages = wgpu::BufferUsages::from_bits_retain(
         wgpu::BufferUsages::STORAGE.bits() | wgpu::BufferUsages::INDIRECT.bits(),
     );
@@ -81,13 +81,13 @@ impl BufferWrapper for RadixSortIndirectArgsBuffer {
     }
 }
 
-impl From<RadixSortIndirectArgsBuffer> for wgpu::Buffer {
-    fn from(wrapper: RadixSortIndirectArgsBuffer) -> Self {
+impl From<DepthSortIndirectArgsBuffer> for wgpu::Buffer {
+    fn from(wrapper: DepthSortIndirectArgsBuffer) -> Self {
         wrapper.0
     }
 }
 
-impl TryFrom<wgpu::Buffer> for RadixSortIndirectArgsBuffer {
+impl TryFrom<wgpu::Buffer> for DepthSortIndirectArgsBuffer {
     type Error = core::FixedSizeBufferWrapperError;
 
     fn try_from(buffer: wgpu::Buffer) -> Result<Self, Self::Error> {
@@ -95,7 +95,7 @@ impl TryFrom<wgpu::Buffer> for RadixSortIndirectArgsBuffer {
     }
 }
 
-impl FixedSizeBufferWrapper for RadixSortIndirectArgsBuffer {
+impl FixedSizeBufferWrapper for DepthSortIndirectArgsBuffer {
     type Pod = wgpu::util::DispatchIndirectArgs;
 }
 

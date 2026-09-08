@@ -1,20 +1,21 @@
 use glam::*;
 use wgpu_3dgs_core::{BufferWrapper, GaussianMaxStdDev};
 use wgpu_3dgs_viewer::{
-    CameraPod, MultiModelViewer, MultiModelViewerGaussianBuffers,
+    CameraPod, DefaultDepthSorterWithoutBindGroups, DefaultGaussianPod, MultiModelViewer,
+    MultiModelViewerGaussianBuffers,
     core::{
-        Gaussian, GaussianDisplayMode, GaussianPodWithShSingleCov3dSingleConfigs, GaussianShDegree,
-        GaussianTransformPod, ModelTransformPod,
+        Gaussian, GaussianDisplayMode, GaussianShDegree, GaussianTransformPod, ModelTransformPod,
     },
 };
 
 use crate::common::{TestContext, assert_render_target, given};
 
-type G = GaussianPodWithShSingleCov3dSingleConfigs;
+type G = DefaultGaussianPod;
+type S = DefaultDepthSorterWithoutBindGroups;
 
 fn render_and_assert(
     ctx: &TestContext,
-    viewer: &MultiModelViewer<G, &str>,
+    viewer: &MultiModelViewer<G, S, &str>,
     render_target: &wgpu::Texture,
     keys: &[&&str],
     assertion: impl Fn(&[UVec4]),
@@ -78,10 +79,10 @@ fn test_multi_model_viewer_update_camera_when_with_or_without_pod_should_be_equa
     let camera_pod = CameraPod::new(&camera, size);
 
     let mut viewer1 =
-        MultiModelViewer::<G, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
+        MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
             .expect("viewer");
     let mut viewer2 =
-        MultiModelViewer::<G, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
+        MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
             .expect("viewer");
 
     viewer1.insert_model(&ctx.device, "red", &red_gaussians);
@@ -132,8 +133,9 @@ fn test_multi_model_viewer_render_should_render_correctly() {
 
     let render_target = given::render_target_texture(&ctx);
 
-    let mut viewer = MultiModelViewer::<G, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
-        .expect("viewer");
+    let mut viewer =
+        MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
+            .expect("viewer");
 
     viewer.insert_model(&ctx.device, "red", &red_gaussians);
     viewer.insert_model(&ctx.device, "green", &green_gaussians);
@@ -156,7 +158,7 @@ fn test_multi_model_viewer_render_should_render_correctly() {
 }
 
 fn test_multi_model_viewer_when_no_sh0_is_set_should_render_as_grayscale(
-    update_gaussian_transform: impl FnOnce(&mut MultiModelViewer<G, &str>, &wgpu::Queue),
+    update_gaussian_transform: impl FnOnce(&mut MultiModelViewer<G, S, &str>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
     let red_gaussians = vec![Gaussian {
@@ -177,8 +179,9 @@ fn test_multi_model_viewer_when_no_sh0_is_set_should_render_as_grayscale(
 
     let render_target = given::render_target_texture(&ctx);
 
-    let mut viewer = MultiModelViewer::<G, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
-        .expect("viewer");
+    let mut viewer =
+        MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
+            .expect("viewer");
 
     viewer.insert_model(&ctx.device, "red", &red_gaussians);
     viewer.insert_model(&ctx.device, "green", &green_gaussians);
@@ -234,7 +237,7 @@ fn test_multi_model_viewer_update_gaussian_transform_with_pod_when_no_sh0_is_set
 }
 
 fn test_multi_model_viewer_when_model_pos_is_behind_camera_should_not_render_gaussian(
-    update_model_transform: impl FnOnce(&mut MultiModelViewer<G, &str>, &wgpu::Queue),
+    update_model_transform: impl FnOnce(&mut MultiModelViewer<G, S, &str>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
     let red_gaussians = vec![Gaussian {
@@ -255,8 +258,9 @@ fn test_multi_model_viewer_when_model_pos_is_behind_camera_should_not_render_gau
 
     let render_target = given::render_target_texture(&ctx);
 
-    let mut viewer = MultiModelViewer::<G, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
-        .expect("viewer");
+    let mut viewer =
+        MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
+            .expect("viewer");
 
     viewer.insert_model(&ctx.device, "red", &red_gaussians);
     viewer.insert_model(&ctx.device, "green", &green_gaussians);
@@ -349,8 +353,9 @@ fn test_multi_model_viewer_remove_model_should_not_render_removed_model() {
 
     let render_target = given::render_target_texture(&ctx);
 
-    let mut viewer = MultiModelViewer::<G, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
-        .expect("viewer");
+    let mut viewer =
+        MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
+            .expect("viewer");
 
     viewer.insert_model(&ctx.device, "red", &red_gaussians);
     viewer.insert_model(&ctx.device, "green", &green_gaussians);

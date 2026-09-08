@@ -1,6 +1,6 @@
 use crate::{
-    CameraBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
-    PreprocessorCreateError, RadixSortIndirectArgsBuffer,
+    CameraBuffer, DepthSortIndirectArgsBuffer, GaussiansDepthBuffer, IndirectArgsBuffer,
+    IndirectIndicesBuffer, PreprocessorCreateError,
     core::{
         BufferWrapper, ComputeBundle, ComputeBundleBuilder, GaussianPod, GaussianTransformBuffer,
         GaussiansBuffer, ModelTransformBuffer,
@@ -13,7 +13,7 @@ use crate::{editor::SelectionBuffer, selection};
 
 /// Preprocessor to preprocess the Gaussians.
 ///
-/// It computes the depth for [`RadixSorter`](crate::RadixSorter) and do frustum culling.
+/// It computes the depth for [`DepthSorter`](crate::DepthSorter) and do frustum culling.
 #[derive(Debug)]
 pub struct Preprocessor<G: GaussianPod, B = wgpu::BindGroup> {
     /// The bind group layout.
@@ -42,7 +42,7 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_args: &IndirectArgsBuffer,
-        radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
+        depth_sort_indirect_args: &DepthSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
         #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
@@ -57,7 +57,7 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
             gaussian_transform,
             gaussians,
             indirect_args,
-            radix_sort_indirect_args,
+            depth_sort_indirect_args,
             indirect_indices,
             gaussians_depth,
             #[cfg(feature = "viewer-selection")]
@@ -160,7 +160,7 @@ impl<G: GaussianPod> Preprocessor<G> {
                     },
                     count: None,
                 },
-                // Radix sort indirect args storage buffer
+                // Depth sort indirect args storage buffer
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -229,7 +229,7 @@ impl<G: GaussianPod> Preprocessor<G> {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_args: &IndirectArgsBuffer,
-        radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
+        depth_sort_indirect_args: &DepthSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
         #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
@@ -255,7 +255,7 @@ impl<G: GaussianPod> Preprocessor<G> {
             gaussian_transform,
             gaussians,
             indirect_args,
-            radix_sort_indirect_args,
+            depth_sort_indirect_args,
             indirect_indices,
             gaussians_depth,
             #[cfg(feature = "viewer-selection")]
@@ -299,7 +299,7 @@ impl<G: GaussianPod> Preprocessor<G> {
         gaussian_transform: &GaussianTransformBuffer,
         gaussians: &GaussiansBuffer<G>,
         indirect_args: &IndirectArgsBuffer,
-        radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
+        depth_sort_indirect_args: &DepthSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
         #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
@@ -335,10 +335,10 @@ impl<G: GaussianPod> Preprocessor<G> {
                     binding: 4,
                     resource: indirect_args.buffer().as_entire_binding(),
                 },
-                // Radix sort indirect args storage buffer
+                // Depth sort indirect args storage buffer
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: radix_sort_indirect_args.buffer().as_entire_binding(),
+                    resource: depth_sort_indirect_args.buffer().as_entire_binding(),
                 },
                 // Indirect indices storage buffer
                 wgpu::BindGroupEntry {

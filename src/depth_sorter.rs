@@ -1,7 +1,49 @@
 use crate::{
-    GaussiansDepthBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer, core::BufferWrapper,
+    DepthSortIndirectArgsBuffer, GaussiansDepthBuffer, IndirectIndicesBuffer, core::BufferWrapper,
 };
 
+/// A trait for sorting Gaussians based on their depth (i.e. clipped z value).
+///
+/// This is used by [`Viewer`](crate::Viewer) to sort the Gaussians before rendering, allowing the
+/// sorting algorithm to be customized.
+pub trait DepthSorter: std::fmt::Debug {
+    /// Sort the Gaussians based on their depth.
+    fn sort(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        indirect_args_buffer: &DepthSortIndirectArgsBuffer,
+    );
+}
+
+/// A trait for sorting Gaussians based on their depth (i.e. clipped z value).
+///
+/// This is the version of [`DepthSorter`] without a bind group.
+pub trait DepthSorterWithoutBindGroups: std::fmt::Debug {
+    /// The type of the bind groups that will be passed into [`DepthSorterWithoutBindGroups::sort`]
+    /// for sorting.
+    type BindGroups: std::fmt::Debug;
+
+    /// Create the bind groups.
+    fn create_bind_groups(
+        &self,
+        device: &wgpu::Device,
+        gaussians_depth: &GaussiansDepthBuffer,
+        indirect_indices: &IndirectIndicesBuffer,
+    ) -> Self::BindGroups;
+
+    /// Sort the Gaussians based on their depth with the given bind groups.
+    ///
+    /// To create the bind groups with layout matched to this sorter, use the
+    /// [`DepthSorterWithoutBindGroups::create_bind_groups`] method.
+    fn sort(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        bind_groups: &Self::BindGroups,
+        indirect_args_buffer: &DepthSortIndirectArgsBuffer,
+    );
+}
+
+/// Bind groups + buffers used by the [`RadixSorter`].
 pub type RadixSorterBindGroups = wgpu_sort::InternalSortBuffers;
 
 /// Radix sorter for sorting Gaussians based on their depth (i.e. clipped z value).
@@ -56,7 +98,7 @@ impl RadixSorter {
     pub fn sort(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        indirect_args_buffer: &RadixSortIndirectArgsBuffer,
+        indirect_args_buffer: &DepthSortIndirectArgsBuffer,
     ) {
         self.sorter.sort_indirect(
             encoder,
@@ -88,10 +130,42 @@ impl RadixSorter<()> {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         bind_groups: &RadixSorterBindGroups,
-        indirect_args_buffer: &RadixSortIndirectArgsBuffer,
+        indirect_args_buffer: &DepthSortIndirectArgsBuffer,
     ) {
         self.sorter
             .sort_indirect(encoder, bind_groups, indirect_args_buffer.buffer());
+    }
+}
+
+impl DepthSorter for RadixSorter {
+    fn sort(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        indirect_args_buffer: &DepthSortIndirectArgsBuffer,
+    ) {
+        self.sort(encoder, indirect_args_buffer)
+    }
+}
+
+impl DepthSorterWithoutBindGroups for RadixSorter<()> {
+    type BindGroups = RadixSorterBindGroups;
+
+    fn create_bind_groups(
+        &self,
+        device: &wgpu::Device,
+        gaussians_depth: &GaussiansDepthBuffer,
+        indirect_indices: &IndirectIndicesBuffer,
+    ) -> Self::BindGroups {
+        self.create_bind_groups(device, gaussians_depth, indirect_indices)
+    }
+
+    fn sort(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        bind_groups: &Self::BindGroups,
+        indirect_args_buffer: &DepthSortIndirectArgsBuffer,
+    ) {
+        self.sort(encoder, bind_groups, indirect_args_buffer);
     }
 }
 

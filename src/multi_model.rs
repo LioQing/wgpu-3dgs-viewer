@@ -75,7 +75,7 @@ pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = DefaultGaussianPod> 
     pub model_transform_buffer: ModelTransformBuffer,
     pub gaussians_buffer: GaussiansBuffer<G>,
     pub indirect_args_buffer: IndirectArgsBuffer,
-    pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
+    pub depth_sort_indirect_args_buffer: DepthSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
     #[cfg(feature = "viewer-selection")]
@@ -106,8 +106,8 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
 
-        log::debug!("Creating radix sort indirect args buffer");
-        let radix_sort_indirect_args_buffer = RadixSortIndirectArgsBuffer::new(device);
+        log::debug!("Creating depth sort indirect args buffer");
+        let depth_sort_indirect_args_buffer = DepthSortIndirectArgsBuffer::new(device);
 
         // Assume it is cheap to call `iter_gaussian`.
         let len = gaussians.iter_gaussian().len() as u32;
@@ -134,7 +134,7 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             model_transform_buffer,
             gaussians_buffer,
             indirect_args_buffer,
-            radix_sort_indirect_args_buffer,
+            depth_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -165,8 +165,8 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
 
-        log::debug!("Creating radix sort indirect args buffer");
-        let radix_sort_indirect_args_buffer = RadixSortIndirectArgsBuffer::new(device);
+        log::debug!("Creating depth sort indirect args buffer");
+        let depth_sort_indirect_args_buffer = DepthSortIndirectArgsBuffer::new(device);
 
         log::debug!("Creating indirect indices buffer");
         let indirect_indices_buffer = IndirectIndicesBuffer::new(device, count as u32);
@@ -190,7 +190,7 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             model_transform_buffer,
             gaussians_buffer,
             indirect_args_buffer,
-            radix_sort_indirect_args_buffer,
+            depth_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -223,18 +223,20 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
 
 /// The bind groups for [`MultiModelViewer`].
 #[derive(Debug)]
-pub struct MultiModelViewerBindGroups {
+pub struct MultiModelViewerBindGroups<
+    S: DepthSorterWithoutBindGroups = DefaultDepthSorterWithoutBindGroups,
+> {
     pub preprocessor: wgpu::BindGroup,
-    pub radix_sorter: RadixSorterBindGroups,
+    pub depth_sorter: S::BindGroups,
     pub renderer: wgpu::BindGroup,
 }
 
-impl MultiModelViewerBindGroups {
+impl<S: DepthSorterWithoutBindGroups> MultiModelViewerBindGroups<S> {
     /// Create a new viewer bind groups.
     pub fn new<G: GaussianPod>(
         device: &wgpu::Device,
         preprocessor: &Preprocessor<G, ()>,
-        radix_sorter: &RadixSorter<()>,
+        depth_sorter: &S,
         renderer: &Renderer<G, ()>,
         gaussian_buffers: &MultiModelViewerGaussianBuffers<G>,
         world_buffers: &MultiModelViewerWorldBuffers,
@@ -246,7 +248,7 @@ impl MultiModelViewerBindGroups {
             &world_buffers.gaussian_transform_buffer,
             &gaussian_buffers.gaussians_buffer,
             &gaussian_buffers.indirect_args_buffer,
-            &gaussian_buffers.radix_sort_indirect_args_buffer,
+            &gaussian_buffers.depth_sort_indirect_args_buffer,
             &gaussian_buffers.indirect_indices_buffer,
             &gaussian_buffers.gaussians_depth_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -254,7 +256,7 @@ impl MultiModelViewerBindGroups {
             #[cfg(feature = "viewer-selection")]
             &gaussian_buffers.invert_selection_buffer,
         );
-        let radix_sorter = radix_sorter.create_bind_groups(
+        let depth_sorter = depth_sorter.create_bind_groups(
             device,
             &gaussian_buffers.gaussians_depth_buffer,
             &gaussian_buffers.indirect_indices_buffer,
@@ -270,7 +272,7 @@ impl MultiModelViewerBindGroups {
 
         Self {
             preprocessor,
-            radix_sorter,
+            depth_sorter,
             renderer,
         }
     }
@@ -278,21 +280,28 @@ impl MultiModelViewerBindGroups {
 
 /// The model of the [`MultiModelViewer`].
 #[derive(Debug)]
-pub struct MultiModelViewerModel<G: GaussianPod = DefaultGaussianPod> {
+pub struct MultiModelViewerModel<
+    G: GaussianPod = DefaultGaussianPod,
+    S: DepthSorterWithoutBindGroups = DefaultDepthSorterWithoutBindGroups,
+> {
     /// Buffers for the model.
     pub gaussian_buffers: MultiModelViewerGaussianBuffers<G>,
 
     /// Bind groups for the model.
-    pub bind_groups: MultiModelViewerBindGroups,
+    pub bind_groups: MultiModelViewerBindGroups<S>,
 }
 
 /// The 3D Gaussian splatting viewer for multiple models.
 #[derive(Debug)]
-pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::cmp::Eq = String> {
-    pub models: HashMap<K, MultiModelViewerModel<G>>,
+pub struct MultiModelViewer<
+    G: GaussianPod = DefaultGaussianPod,
+    S: DepthSorterWithoutBindGroups = DefaultDepthSorterWithoutBindGroups,
+    K: Hash + std::cmp::Eq = String,
+> {
+    pub models: HashMap<K, MultiModelViewerModel<G, S>>,
     pub world_buffers: MultiModelViewerWorldBuffers,
     pub preprocessor: Preprocessor<G, ()>,
-    pub radix_sorter: RadixSorter<()>,
+    pub depth_sorter: S,
     pub renderer: Renderer<G, ()>,
 
     /// The usage for the gaussians buffer when [`MultiModelViewer::insert_model`] is called.
@@ -302,15 +311,25 @@ pub struct MultiModelViewer<G: GaussianPod = DefaultGaussianPod, K: Hash + std::
     pub gaussians_buffer_usage: wgpu::BufferUsages,
 }
 
-impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
+impl<G: GaussianPod, K: Hash + std::cmp::Eq>
+    MultiModelViewer<G, DefaultDepthSorterWithoutBindGroups, K>
+{
     /// Create a new viewer.
     pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
     ) -> Result<Self, ViewerCreateError> {
-        Self::new_with_options(device, texture_format, ViewerCreateOptions::default())
+        Self::new_with_options(
+            device,
+            texture_format,
+            MultiModelViewerCreateOptions::default(),
+        )
     }
+}
 
+impl<G: GaussianPod, S: DepthSorterWithoutBindGroups, K: Hash + std::cmp::Eq>
+    MultiModelViewer<G, S, K>
+{
     /// Create a new viewer with extra [`ViewerCreateOptions`].
     ///
     /// Note that only [`ViewerCreateOptions::gaussians_buffer_usage`] is used when inserting models
@@ -319,7 +338,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
     pub fn new_with_options(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
-        options: ViewerCreateOptions,
+        options: MultiModelViewerCreateOptions<G, S>,
     ) -> Result<Self, ViewerCreateError> {
         let models = HashMap::new();
 
@@ -329,8 +348,15 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         log::debug!("Creating preprocessor");
         let preprocessor = Preprocessor::new_without_bind_group(device)?;
 
-        log::debug!("Creating radix sorter");
-        let radix_sorter = RadixSorter::new_without_bind_groups(device);
+        log::debug!("Creating depth sorter");
+        let depth_sorter = {
+            let ctx = MultiModelViewerCreateDepthSorterFactoryContext {
+                device,
+                texture_format: &texture_format,
+            };
+
+            (options.depth_sorter_factory)(ctx)
+        };
 
         log::debug!("Creating renderer");
         let renderer_options = RendererCreateOptions {
@@ -347,7 +373,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             models,
             world_buffers,
             preprocessor,
-            radix_sorter,
+            depth_sorter,
             renderer,
 
             gaussians_buffer_usage: options.gaussians_buffer_usage,
@@ -360,7 +386,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         device: &wgpu::Device,
         key: K,
         gaussians: &impl IterGaussian,
-    ) -> Option<MultiModelViewerModel<G>> {
+    ) -> Option<MultiModelViewerModel<G, S>> {
         self.insert_model_with(device, key, self.gaussians_buffer_usage, gaussians)
     }
 
@@ -374,13 +400,13 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         key: K,
         gaussians_buffer_usage: wgpu::BufferUsages,
         gaussians: &impl IterGaussian,
-    ) -> Option<MultiModelViewerModel<G>> {
+    ) -> Option<MultiModelViewerModel<G, S>> {
         let gaussian_buffers =
             MultiModelViewerGaussianBuffers::new_with(device, gaussians_buffer_usage, gaussians);
         let bind_groups = MultiModelViewerBindGroups::new(
             device,
             &self.preprocessor,
-            &self.radix_sorter,
+            &self.depth_sorter,
             &self.renderer,
             &gaussian_buffers,
             &self.world_buffers,
@@ -395,7 +421,7 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
     }
 
     /// Remove a model from the viewer.
-    pub fn remove_model(&mut self, key: &K) -> Option<MultiModelViewerModel<G>> {
+    pub fn remove_model(&mut self, key: &K) -> Option<MultiModelViewerModel<G, S>> {
         self.models.remove(key)
     }
 
@@ -500,10 +526,10 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
                 model.gaussian_buffers.gaussians_buffer.len() as u32,
             );
 
-            self.radix_sorter.sort(
+            self.depth_sorter.sort(
                 encoder,
-                &model.bind_groups.radix_sorter,
-                &model.gaussian_buffers.radix_sort_indirect_args_buffer,
+                &model.bind_groups.depth_sorter,
+                &model.gaussian_buffers.depth_sort_indirect_args_buffer,
             );
         }
 
@@ -532,5 +558,55 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
         }
 
         Ok(())
+    }
+}
+
+/// The context for [`DepthSorterWithoutBindGroups`] factory used in
+/// [`MultiModelViewerCreateOptions`].
+///
+/// This contains [`wgpu::Device`] and [`wgpu::TextureFormat`].
+///
+/// It is passed into [`MultiModelViewerCreateOptions::depth_sorter_factory`] to
+/// construct [`DepthSorterWithoutBindGroups`].
+#[derive(Debug, Clone)]
+pub struct MultiModelViewerCreateDepthSorterFactoryContext<'a> {
+    pub device: &'a wgpu::Device,
+    pub texture_format: &'a wgpu::TextureFormat,
+}
+
+/// The options for creating a [`MultiModelViewer`] using [`MultiModelViewer::new_with_options`].
+pub struct MultiModelViewerCreateOptions<
+    G: GaussianPod = DefaultGaussianPod,
+    S: DepthSorterWithoutBindGroups = DefaultDepthSorterWithoutBindGroups,
+    SF: FnOnce(MultiModelViewerCreateDepthSorterFactoryContext) -> S = fn(
+        MultiModelViewerCreateDepthSorterFactoryContext,
+    ) -> S,
+> {
+    /// The optional depth stencil state for the renderer.
+    pub depth_stencil: Option<wgpu::DepthStencilState>,
+    /// The usage for the gaussians buffer.
+    pub gaussians_buffer_usage: wgpu::BufferUsages,
+    /// The color write mask for the fragment shader target.
+    pub color_write_mask: wgpu::ColorWrites,
+    /// The pipeline cache for accelerating pipeline creation.
+    pub cache: Option<wgpu::PipelineCache>,
+    /// The factory for the depth sorter.
+    pub depth_sorter_factory: SF,
+
+    pub phantom_data: std::marker::PhantomData<(G, S)>,
+}
+
+impl<G: GaussianPod> Default for MultiModelViewerCreateOptions<G> {
+    fn default() -> Self {
+        Self {
+            depth_stencil: None,
+            gaussians_buffer_usage: GaussiansBuffer::<G>::DEFAULT_USAGES,
+            color_write_mask: wgpu::ColorWrites::ALL,
+            cache: None,
+            depth_sorter_factory: |ctx| {
+                DefaultDepthSorterWithoutBindGroups::new_without_bind_groups(ctx.device)
+            },
+            phantom_data: Default::default(),
+        }
     }
 }
