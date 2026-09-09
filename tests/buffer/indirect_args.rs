@@ -1,6 +1,6 @@
 use wgpu::util::DeviceExt;
 use wgpu_3dgs_viewer::{
-    IndirectArgsBuffer, IndirectIndicesBuffer, RadixSortIndirectArgsBuffer, core::BufferWrapper,
+    DepthSortIndirectArgsBuffer, IndirectArgsBuffer, IndirectIndicesBuffer, core::BufferWrapper,
 };
 
 use crate::common::TestContext;
@@ -84,9 +84,9 @@ fn test_indirect_args_buffer_try_from_and_into_wgpu_buffer_should_be_equal() {
 }
 
 #[test]
-fn test_radix_sort_indirect_args_buffer_new_should_return_correct_buffer() {
+fn test_depth_sort_indirect_args_buffer_new_should_return_correct_buffer() {
     let ctx = TestContext::new();
-    let buffer = RadixSortIndirectArgsBuffer::new(&ctx.device);
+    let buffer = DepthSortIndirectArgsBuffer::new(&ctx.device);
 
     assert_eq!(
         buffer.buffer().size(),
@@ -95,19 +95,19 @@ fn test_radix_sort_indirect_args_buffer_new_should_return_correct_buffer() {
 }
 
 #[test]
-fn test_radix_sort_indirect_args_buffer_try_from_and_into_wgpu_buffer_should_be_equal() {
+fn test_depth_sort_indirect_args_buffer_try_from_and_into_wgpu_buffer_should_be_equal() {
     let ctx = TestContext::new();
     let dispatch_args = wgpu::util::DispatchIndirectArgs { x: 8, y: 4, z: 2 };
     let wgpu_buffer = ctx
         .device
         .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Test Radix Sort Indirect Args Buffer"),
+            label: Some("Test Depth Sort Indirect Args Buffer"),
             contents: dispatch_args.as_bytes(),
-            usage: RadixSortIndirectArgsBuffer::DEFAULT_USAGES | wgpu::BufferUsages::COPY_SRC,
+            usage: DepthSortIndirectArgsBuffer::DEFAULT_USAGES | wgpu::BufferUsages::COPY_SRC,
         });
 
     let converted_buffer =
-        RadixSortIndirectArgsBuffer::try_from(wgpu_buffer.clone()).expect("try_from");
+        DepthSortIndirectArgsBuffer::try_from(wgpu_buffer.clone()).expect("try_from");
     let wgpu_converted_buffer = wgpu::Buffer::from(converted_buffer.clone());
 
     let wgpu_downloaded = pollster::block_on(

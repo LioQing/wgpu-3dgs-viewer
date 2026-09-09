@@ -7,7 +7,7 @@ pub struct GaussiansDepthBuffer(wgpu::Buffer);
 impl GaussiansDepthBuffer {
     /// Create a new Gaussians depth buffer.
     pub fn new(device: &wgpu::Device, gaussian_count: u32) -> Self {
-        // Must correspond to [`crate::radix_sorter::wgpu_sort::GPUSorter::create_keyval_buffers`].
+        // Must correspond to [`crate::depth_sorter::wgpu_sort::GPUSorter::create_keyval_buffers`].
         let size = wgpu_sort::keys_buffer_size_bytes(gaussian_count);
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {

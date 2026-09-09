@@ -1,10 +1,13 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use glam::*;
 use wgpu_3dgs_core::GaussianMaxStdDev;
 use wgpu_3dgs_viewer::{
-    CameraPod, Viewer,
+    CameraPod, DepthSortIndirectArgsBuffer, DepthSorter, Viewer,
+    ViewerCreateDepthSorterFactoryContext, ViewerCreateOptions,
     core::{
-        Gaussian, GaussianDisplayMode, GaussianPodWithShSingleCov3dSingleConfigs, GaussianShDegree,
-        GaussianTransformPod, ModelTransformPod,
+        BufferWrapper, Gaussian, GaussianDisplayMode, GaussianPodWithShSingleCov3dSingleConfigs,
+        GaussianShDegree, GaussianTransformPod, GaussiansBuffer, ModelTransformPod,
     },
 };
 
@@ -198,4 +201,74 @@ fn test_viewer_update_model_transform_with_pod_when_model_pos_is_behind_camera_s
             &ModelTransformPod::new(Vec3::ZERO - Vec3::Z, Quat::IDENTITY, Vec3::ONE),
         );
     });
+}
+
+#[test]
+fn test_viewer_uses_custom_depth_sorter_factory() {
+    #[derive(Debug)]
+    struct CountingSorter {
+        sort_calls: AtomicUsize,
+    }
+
+    impl CountingSorter {
+        fn new(_ctx: ViewerCreateDepthSorterFactoryContext<G>) -> Self {
+            Self {
+                sort_calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl DepthSorter for CountingSorter {
+        fn sort(
+            &self,
+            _encoder: &mut wgpu::CommandEncoder,
+            _indirect_args_buffer: &DepthSortIndirectArgsBuffer,
+        ) {
+            self.sort_calls.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    let ctx = TestContext::new();
+    let gaussians = vec![Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::ZERO + Vec3::Z,
+        color: U8Vec4::new(255, 0, 0, 255),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::splat(1.0),
+    }];
+
+    let viewer = Viewer::<G, CountingSorter>::new_with_options(
+        &ctx.device,
+        wgpu::TextureFormat::Rgba8Unorm,
+        &gaussians,
+        ViewerCreateOptions {
+            depth_stencil: None,
+            gaussians_buffer_usage: GaussiansBuffer::<G>::DEFAULT_USAGES,
+            color_write_mask: wgpu::ColorWrites::ALL,
+            cache: None,
+            depth_sorter_factory: CountingSorter::new,
+            phantom_data: Default::default(),
+        },
+    )
+    .expect("viewer");
+
+    assert_eq!(viewer.depth_sorter.sort_calls.load(Ordering::SeqCst), 0);
+
+    let render_target = given::render_target_texture(&ctx);
+    let render_target_view = render_target.create_view(&wgpu::TextureViewDescriptor::default());
+
+    let mut encoder = ctx
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Command Encoder"),
+        });
+
+    viewer.render(&mut encoder, &render_target_view);
+
+    ctx.queue.submit(Some(encoder.finish()));
+    ctx.device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .expect("device poll");
+
+    assert_eq!(viewer.depth_sorter.sort_calls.load(Ordering::SeqCst), 1);
 }
