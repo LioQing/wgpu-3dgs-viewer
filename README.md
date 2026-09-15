@@ -26,6 +26,7 @@ This library displays 3D Gaussian Splatting models with wgpu. It includes a read
 - Optional features
   - Multi-model: render many models with custom draw orders.
   - Selection: viewport selection (e.g. rectangle, brush) that marks Gaussians for editing.
+  - Lampshade sorting: an alternative depth sorter for eligible NVIDIA/Vulkan devices, requires the `lampshade-sort` feature.
 - Shaders
   - WGSL shaders packaged with WESL, you can extend or replace them.
 
@@ -80,6 +81,46 @@ viewer.update_camera(
 // Render the model
 viewer.render(&mut encoder, &texture_view);
 ```
+
+### Optional Lampshade depth sorting
+
+The `lampshade-sort` feature provides [`LampshadeSorter`], a [`DepthSorter`] backed by
+[Lampshade](https://crates.io/crates/lampshade)'s native counted sorter for eligible
+NVIDIA/Vulkan devices on native targets. [`RadixSorter`] remains the default, and
+[`LampshadeSorter`] falls back to it on unsupported devices, including WebAssembly.
+
+Since the sorter is dependency injected, add the optional feature and inject it when creating the
+viewer:
+
+```rust ignore
+use wgpu_3dgs_viewer::{
+    DefaultGaussianPod, LampshadeSorter, Viewer, ViewerCreateOptions,
+    core::{BufferWrapper, GaussiansBuffer},
+};
+
+let viewer = Viewer::<DefaultGaussianPod, LampshadeSorter>::new_with_options(
+    &device,
+    config.view_formats[0],
+    &gaussians,
+    ViewerCreateOptions {
+        depth_stencil: None,
+        gaussians_buffer_usage: GaussiansBuffer::<DefaultGaussianPod>::DEFAULT_USAGES,
+        color_write_mask: wgpu::ColorWrites::ALL,
+        cache: None,
+        depth_sorter_factory: |ctx| LampshadeSorter::new(ctx),
+        phantom_data: Default::default(),
+    },
+)
+.expect("viewer");
+```
+
+Apply `lampshade::KeyValueSoaSorter::requirements(&adapter)` when creating the device; enabling
+the Cargo feature alone does not enable the required device features and limits.
+`LampshadeSorter::is_accelerated` reports whether the accelerated path is active.
+
+The fast path consumes the GPU-written draw `instance_count` without CPU readback and prepares its
+workspace once. It also retains the embedded sorter's resources for compatibility, so it uses
+additional memory.
 
 ## Examples
 

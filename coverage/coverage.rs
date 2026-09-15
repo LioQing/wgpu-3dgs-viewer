@@ -40,6 +40,11 @@ fn main() {
     println!("Running 'simple' example");
     cargo!("llvm-cov run --example simple --all-features -- -m {model_path_str}");
 
+    println!("Running 'simple-with-lampshade' example");
+    cargo!(
+        "llvm-cov run --example simple-with-lampshade --features lampshade-sort -- -m {model_path_str}"
+    );
+
     println!("Running 'multi-model' example");
     cargo!(
         "llvm-cov run --example multi-model --all-features -- -m {model_path_str} -m {model_path_str}"

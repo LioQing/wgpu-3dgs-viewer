@@ -4,6 +4,8 @@ mod buffer;
 mod camera;
 mod depth_sorter;
 mod error;
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+mod lampshade_sorter;
 mod preprocessor;
 mod renderer;
 pub mod shader;
@@ -29,6 +31,8 @@ pub use buffer::*;
 pub use camera::*;
 pub use depth_sorter::*;
 pub use error::*;
+#[cfg(all(feature = "lampshade-sort", not(target_arch = "wasm32")))]
+pub use lampshade_sorter::*;
 pub use preprocessor::*;
 pub use renderer::*;
 
