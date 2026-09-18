@@ -87,7 +87,7 @@ viewer.render(&mut encoder, &texture_view);
 The `lampshade-sort` feature provides [`LampshadeSorter`], a [`DepthSorter`] backed by
 [Lampshade](https://crates.io/crates/lampshade)'s native counted sorter for eligible
 NVIDIA/Vulkan devices on native targets. [`RadixSorter`] remains the default, and
-[`LampshadeSorter`] falls back to it on unsupported devices, including WebAssembly.
+[`LampshadeSorter`] falls back to it on unsupported native devices.
 
 Since the sorter is dependency injected, add the optional feature and inject it when creating the
 viewer:

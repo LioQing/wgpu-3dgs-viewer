@@ -21,11 +21,11 @@ const INSTANCE_COUNT_WORD: u32 = 1;
 /// `instance_count` of the draw indirect args buffer without CPU readback. Devices that do not
 /// support Lampshade's accelerated backend transparently fall back to [`RadixSorter`].
 ///
-/// To use it, inject it through [`ViewerCreateOptions::depth_sorter_factory`]:
+/// To use it, inject it through [`ViewerCreateOptions::depth_sorter_factory`](crate::ViewerCreateOptions::depth_sorter_factory):
 ///
 /// ```no_run
 /// use wgpu_3dgs_viewer::{
-///     LampshadeSorter, BufferWrapper, DefaultGaussianPod, Viewer, ViewerCreateOptions,
+///     LampshadeSorter, DefaultGaussianPod, Viewer, ViewerCreateOptions,
 ///     core::{BufferWrapper, GaussiansBuffer, IterGaussian},
 /// };
 ///
@@ -156,16 +156,17 @@ impl DepthSorter for LampshadeSorter {
         indirect_args_buffer: &DepthSortIndirectArgsBuffer,
     ) {
         if let Some(plan) = &self.plan {
-            plan.sorter
-                .record_reserved_sort_counted_from_word(
-                    encoder,
-                    &plan.keys,
-                    &plan.values,
-                    &plan.count,
-                    INSTANCE_COUNT_WORD,
-                    plan.capacity,
-                )
-                .expect("Viewer's prepared Lampshade buffers remain valid");
+            if let Err(error) = plan.sorter.record_reserved_sort_counted_from_word(
+                encoder,
+                &plan.keys,
+                &plan.values,
+                &plan.count,
+                INSTANCE_COUNT_WORD,
+                plan.capacity,
+            ) {
+                log::warn!("Failed to sort using Lampshade sorter: {error}, using fallback sorter");
+                self.fallback.sort(encoder, indirect_args_buffer);
+            }
         } else {
             self.fallback.sort(encoder, indirect_args_buffer);
         }
