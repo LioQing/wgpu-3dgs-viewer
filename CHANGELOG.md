@@ -4,6 +4,14 @@ Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQ
 
 ## [Unreleased]
 
+### Added
+
+- 🔦 Add `MultiModelViewer` support for `LampshadeSorter` via `LampshadeSorter::new_without_bind_groups`, which prepares one Lampshade plan per model and falls back to `RadixSorter` on unsupported devices.
+
+### Changed
+
+- 🧩 Add the draw indirect args buffer to `DepthSorterWithoutBindGroups::create_bind_groups` so sorters can consume the GPU-written `instance_count`.
+
 ## [0.8.0](https://crates.io/crates/wgpu-3dgs-viewer/0.8.0) - 2026-08-23
 
 ### Added

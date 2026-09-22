@@ -47,6 +47,12 @@ path = "examples/simple_with_lampshade.rs"
 required-features = ["lampshade-sort"]
 doc-scrape-examples = true
 
+[[example]]
+name = "multi-model-with-lampshade"
+path = "examples/multi_model_with_lampshade.rs"
+required-features = ["multi-model", "lampshade-sort"]
+doc-scrape-examples = true
+
 [package.metadata.docs.rs]
 all-features = true
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

@@ -122,6 +122,30 @@ The fast path consumes the GPU-written draw `instance_count` without CPU readbac
 workspace once. It also retains the embedded sorter's resources for compatibility, so it uses
 additional memory.
 
+[`LampshadeSorter`] also supports [`MultiModelViewer`]. Inject
+`LampshadeSorter::new_without_bind_groups` instead, which prepares one Lampshade plan per model:
+
+```rust ignore
+use wgpu_3dgs_viewer::{
+    DefaultGaussianPod, LampshadeSorter, MultiModelViewer, MultiModelViewerCreateOptions,
+    core::{BufferWrapper, GaussiansBuffer},
+};
+
+let viewer = MultiModelViewer::<DefaultGaussianPod, LampshadeSorter<()>>::new_with_options(
+    &device,
+    config.view_formats[0],
+    MultiModelViewerCreateOptions {
+        depth_stencil: None,
+        gaussians_buffer_usage: GaussiansBuffer::<DefaultGaussianPod>::DEFAULT_USAGES,
+        color_write_mask: wgpu::ColorWrites::ALL,
+        cache: None,
+        depth_sorter_factory: |ctx| LampshadeSorter::new_without_bind_groups(ctx.device),
+        phantom_data: Default::default(),
+    },
+)
+.expect("viewer");
+```
+
 ## Examples
 
 See the [examples](https://github.com/LioQing/wgpu-3dgs-viewer/tree/master/examples) directory for usage examples.

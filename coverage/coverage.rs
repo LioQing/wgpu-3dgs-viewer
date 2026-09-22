@@ -50,6 +50,11 @@ fn main() {
         "llvm-cov run --example multi-model --all-features -- -m {model_path_str} -m {model_path_str}"
     );
 
+    println!("Running 'multi-model-with-lampshade' example");
+    cargo!(
+        "llvm-cov run --example multi-model-with-lampshade --features multi-model,lampshade-sort -- -m {model_path_str}"
+    );
+
     println!("Running 'selection' example");
     cargo!("llvm-cov run --example selection --all-features -- -m {model_path_str}");
 
