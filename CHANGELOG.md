@@ -6,7 +6,7 @@ Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQ
 
 ### Added
 
-- 🔦 Add support for `LampshadeSorter`, which replaces the default `RadixSorter` with Lampshade(https://crates.io/crates/lampshade) crate's implementation.
+- 🔦 Add support for `LampshadeSorter`, which replaces the default `RadixSorter` with [Lampshade](https://crates.io/crates/lampshade) crate's implementation.
 
 ### Changed
 
