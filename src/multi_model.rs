@@ -260,6 +260,7 @@ impl<S: DepthSorterWithoutBindGroups> MultiModelViewerBindGroups<S> {
             device,
             &gaussian_buffers.gaussians_depth_buffer,
             &gaussian_buffers.indirect_indices_buffer,
+            &gaussian_buffers.indirect_args_buffer,
         );
         let renderer = renderer.create_bind_group(
             device,

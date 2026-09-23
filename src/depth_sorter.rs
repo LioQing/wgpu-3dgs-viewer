@@ -1,5 +1,6 @@
 use crate::{
-    DepthSortIndirectArgsBuffer, GaussiansDepthBuffer, IndirectIndicesBuffer, core::BufferWrapper,
+    DepthSortIndirectArgsBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
+    core::BufferWrapper,
 };
 
 /// A trait for sorting Gaussians based on their depth (i.e. clipped z value).
@@ -24,11 +25,16 @@ pub trait DepthSorterWithoutBindGroups: std::fmt::Debug {
     type BindGroups: std::fmt::Debug;
 
     /// Create the bind groups.
+    ///
+    /// `gaussians_depth` and `indirect_indices` are the keys and values to sort, while
+    /// `indirect_args` holds the draw `instance_count` written by the preprocessor, which some
+    /// sorters (e.g. [`LampshadeSorter`](crate::LampshadeSorter)) use as the sort count.
     fn create_bind_groups(
         &self,
         device: &wgpu::Device,
         gaussians_depth: &GaussiansDepthBuffer,
         indirect_indices: &IndirectIndicesBuffer,
+        indirect_args: &IndirectArgsBuffer,
     ) -> Self::BindGroups;
 
     /// Sort the Gaussians based on their depth with the given bind groups.
@@ -155,6 +161,7 @@ impl DepthSorterWithoutBindGroups for RadixSorter<()> {
         device: &wgpu::Device,
         gaussians_depth: &GaussiansDepthBuffer,
         indirect_indices: &IndirectIndicesBuffer,
+        _indirect_args: &IndirectArgsBuffer,
     ) -> Self::BindGroups {
         self.create_bind_groups(device, gaussians_depth, indirect_indices)
     }

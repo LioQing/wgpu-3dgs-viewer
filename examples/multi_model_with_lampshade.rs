@@ -1,0 +1,344 @@
+//! This example renders multiple models in the order of their centroids' distance to the camera using
+//! the `multi-model` feature, and uses the optional [Lampshade](https://crates.io/crates/lampshade)
+//! depth sorter.
+//!
+//! It is the same as the `multi-model` example, except that it enables the `lampshade-sort` feature,
+//! requests the device features and limits that Lampshade requires, and injects
+//! [`LampshadeSorter`] into the viewer. On devices that are not eligible, the sorter transparently
+//! falls back to the default [`RadixSorter`].
+//!
+//! For example, to use an offset of (10, 0, 0) between each model, run:
+//!
+//! ```sh
+//! cargo run --example multi-model-with-lampshade --features="multi-model,lampshade-sort" -- -m "path/to/model1.ply" -m "path/to/model2.ply" --offset 10.0,0.0,0.0
+//! ```
+//!
+//! To view more options and the controls, run with `--help`:
+//!
+//! ```sh
+//! cargo run --example multi-model-with-lampshade --features="multi-model,lampshade-sort" -- --help
+//! ```
+
+use std::sync::Arc;
+
+use clap::Parser;
+use glam::*;
+use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
+
+use wgpu_3dgs_viewer as gs;
+use wgpu_3dgs_viewer::core::{BufferWrapper, GaussiansBuffer, GaussiansSource, IterGaussian};
+
+mod utils;
+use utils::core;
+
+/// The command line arguments.
+#[derive(Parser, Debug)]
+#[command(
+    version,
+    about,
+    long_about = "\
+    A 3D Gaussian splatting viewer written in Rust using wgpu.\n\
+    \n\
+    Use W, A, S, D, Space, Shift to move, use mouse to rotate.\n\
+    "
+)]
+struct Args {
+    /// Path to the .ply file.
+    #[arg(short, long, num_args = 1..)]
+    models: Vec<String>,
+
+    /// The offset of each model.
+    #[arg(
+        short,
+        long,
+        num_args = 3,
+        value_delimiter = ',',
+        default_value = "10.0,0.0,0.0"
+    )]
+    offset: Vec<f32>,
+}
+
+fn main() -> Result<(), EventLoopError> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    let event_loop = EventLoop::new()?;
+    event_loop.run_app(&mut core::App::<System>::new(Args::parse()))?;
+    Ok(())
+}
+
+/// The application system.
+#[allow(dead_code)]
+struct System {
+    surface: wgpu::Surface<'static>,
+    queue: wgpu::Queue,
+    device: wgpu::Device,
+    config: wgpu::SurfaceConfiguration,
+
+    camera: gs::Camera,
+    gaussians: Vec<gs::core::Gaussians>,
+    gaussian_centroids: Vec<Vec3>,
+    viewer: gs::MultiModelViewer<gs::DefaultGaussianPod, gs::LampshadeSorter<()>, usize>,
+}
+
+impl core::System for System {
+    type Args = Args;
+
+    async fn init(window: Arc<Window>, args: &Args) -> Self {
+        let model_paths = &args.models;
+        let model_offset = Vec3::from_slice(&args.offset);
+        let size = window.inner_size();
+
+        log::debug!("Creating wgpu instance");
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+
+        log::debug!("Creating window surface");
+        let surface = instance.create_surface(window.clone()).expect("surface");
+
+        log::debug!("Requesting adapter");
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+                apply_limit_buckets: false,
+            })
+            .await
+            .expect("adapter");
+
+        // Request the features and limits that Lampshade needs. Enabling the Cargo feature alone
+        // does not enable the required device features and limits.
+        log::debug!("Querying Lampshade requirements");
+        let requirements = lampshade::KeyValueSoaSorter::requirements(&adapter);
+        let required_features = requirements.features(wgpu::Features::empty());
+        let required_limits = requirements.limits(adapter.limits());
+
+        log::debug!("Requesting device");
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("Device"),
+                required_features,
+                required_limits,
+                ..Default::default()
+            })
+            .await
+            .expect("device");
+
+        let surface_caps = surface.get_capabilities(&adapter);
+        let surface_format = surface_caps.formats[0];
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            color_space: wgpu::SurfaceColorSpace::Auto,
+            width: size.width.max(1),
+            height: size.height.max(1),
+            present_mode: surface_caps.present_modes[0],
+            alpha_mode: surface_caps.alpha_modes[0],
+            view_formats: vec![surface_format.remove_srgb_suffix()],
+            desired_maximum_frame_latency: 2,
+        };
+
+        log::debug!("Configuring surface");
+        surface.configure(&device, &config);
+
+        log::debug!("Creating gaussians");
+        let gaussians = model_paths
+            .iter()
+            .map(|model_path| {
+                log::debug!("Reading model from {model_path}");
+                [GaussiansSource::Ply, GaussiansSource::Spz]
+                    .into_iter()
+                    .find_map(|source| gs::core::Gaussians::read_from_file(model_path, source).ok())
+                    .expect("gaussians")
+            })
+            .collect::<Vec<_>>();
+
+        log::debug!("Computing gaussian centroids");
+        let mut gaussian_centroids = gaussians
+            .iter()
+            .map(|g| {
+                let mut centroid = Vec3::ZERO;
+                for gaussian in g.iter_gaussian() {
+                    centroid += gaussian.pos;
+                }
+                centroid / g.len() as f32
+            })
+            .collect::<Vec<_>>();
+
+        log::debug!("Creating camera");
+        let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
+
+        log::debug!("Creating viewer with Lampshade depth sorter");
+        let mut viewer = gs::MultiModelViewer::<
+            gs::DefaultGaussianPod,
+            gs::LampshadeSorter<()>,
+            usize,
+        >::new_with_options(
+            &device,
+            config.view_formats[0],
+            gs::MultiModelViewerCreateOptions {
+                depth_stencil: None,
+                gaussians_buffer_usage: GaussiansBuffer::<gs::DefaultGaussianPod>::DEFAULT_USAGES,
+                color_write_mask: wgpu::ColorWrites::ALL,
+                cache: None,
+                depth_sorter_factory: |ctx| {
+                    gs::LampshadeSorter::new_without_bind_groups(ctx.device)
+                },
+                phantom_data: Default::default(),
+            },
+        )
+        .expect("viewer");
+
+        let quat = Quat::from_axis_angle(Vec3::Z, 180f32.to_radians());
+        for (i, gaussians) in gaussians.iter().enumerate() {
+            let offset = model_offset * i as f32;
+
+            log::debug!("Pushing model {i}");
+
+            viewer.insert_model(&device, i, gaussians);
+            viewer
+                .update_model_transform(&queue, &i, offset, quat, Vec3::ONE)
+                .expect("update model");
+
+            gaussian_centroids[i] = quat.mul_vec3(gaussian_centroids[i]) + offset;
+        }
+
+        if viewer
+            .models
+            .get(&0)
+            .is_some_and(|model| model.bind_groups.depth_sorter.is_accelerated())
+        {
+            log::info!("Using the accelerated Lampshade depth sorter");
+        } else {
+            log::warn!(
+                "The device is not eligible for the accelerated Lampshade depth sorter, \
+                 falling back to the default sorter"
+            );
+        }
+
+        log::info!("System initialized");
+
+        Self {
+            surface,
+            device,
+            queue,
+            config,
+
+            camera,
+            gaussians,
+            gaussian_centroids,
+            viewer,
+        }
+    }
+
+    fn update(&mut self, input: &core::Input, delta_time: f32) {
+        const SPEED: f32 = 1.0;
+
+        let mut forward = 0.0;
+        if input.held_keys.contains(&KeyCode::KeyW) {
+            forward += SPEED * delta_time;
+        }
+        if input.held_keys.contains(&KeyCode::KeyS) {
+            forward -= SPEED * delta_time;
+        }
+
+        let mut right = 0.0;
+        if input.held_keys.contains(&KeyCode::KeyD) {
+            right += SPEED * delta_time;
+        }
+        if input.held_keys.contains(&KeyCode::KeyA) {
+            right -= SPEED * delta_time;
+        }
+
+        self.camera.move_by(forward, right);
+
+        let mut up = 0.0;
+        if input.held_keys.contains(&KeyCode::Space) {
+            up += SPEED * delta_time;
+        }
+        if input.held_keys.contains(&KeyCode::ShiftLeft) {
+            up -= SPEED * delta_time;
+        }
+
+        self.camera.move_up(up);
+
+        // Camera rotation
+        const SENSITIVITY: f32 = 0.15;
+
+        let yaw = input.mouse_diff.x * SENSITIVITY * delta_time;
+        let pitch = input.mouse_diff.y * SENSITIVITY * delta_time;
+
+        self.camera.pitch_by(-pitch);
+        self.camera.yaw_by(-yaw);
+
+        // Update the viewer
+        self.viewer.update_camera(
+            &self.queue,
+            &self.camera,
+            uvec2(self.config.width, self.config.height),
+        );
+    }
+
+    fn render(&mut self) {
+        let texture = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
+            e => {
+                log::error!("Failed to get current texture: {e:?}");
+                return;
+            }
+        };
+        let texture_view = texture.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Texture View"),
+            format: Some(self.config.view_formats[0]),
+            ..Default::default()
+        });
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+
+        let mut render_keys = self
+            .gaussian_centroids
+            .iter()
+            .enumerate()
+            .map(|(i, centroid)| (i, centroid - self.camera.pos))
+            .collect::<Vec<_>>();
+
+        render_keys.sort_by(|(_, a), (_, b)| {
+            a.length()
+                .partial_cmp(&b.length())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let render_keys = render_keys
+            .into_iter()
+            .rev()
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+
+        self.viewer
+            .render(
+                &mut encoder,
+                &texture_view,
+                render_keys.iter().collect::<Vec<_>>().as_slice(),
+            )
+            .expect("render");
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        if let Err(e) = self.device.poll(wgpu::PollType::wait_indefinitely()) {
+            log::error!("Failed to poll device: {e:?}");
+        }
+        self.queue.present(texture);
+    }
+
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        if size.width > 0 && size.height > 0 {
+            self.config.width = size.width;
+            self.config.height = size.height;
+            self.surface.configure(&self.device, &self.config);
+        }
+    }
+}
