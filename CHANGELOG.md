@@ -6,7 +6,7 @@ Please also check out the [`wgpu-3dgs-editor` changelog](https://github.com/LioQ
 
 ### Added
 
-- 🔦 Add `MultiModelViewer` support for `LampshadeSorter` via `LampshadeSorter::new_without_bind_groups`, which prepares one Lampshade plan per model and falls back to `RadixSorter` on unsupported devices.
+- 🔦 Add support for `LampshadeSorter`, which replaces the default `RadixSorter` with Lampshade(https://crates.io/crates/lampshade) crate's implementation.
 
 ### Changed
 
