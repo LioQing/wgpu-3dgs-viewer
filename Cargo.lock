@@ -3036,6 +3036,7 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-core"
 version = "0.8.0"
+source = "git+https://github.com/LioQing/wgpu-3dgs-core#958526ded7dbbd5919f050151c0c16405324f871"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -3055,6 +3056,7 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-editor"
 version = "0.8.0"
+source = "git+https://github.com/LioQing/wgpu-3dgs-editor#62cc03e030e03a13de751c0c86c2a1e964423da3"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
