@@ -36,6 +36,8 @@ pub enum PreprocessorCreateError {
 #[derive(Debug, Error)]
 pub enum ViewerCreateError {
     #[error("{0}")]
+    ShDegreeMismatch(#[from] core::ShDegreeMismatchError),
+    #[error("{0}")]
     RendererCreate(#[from] RendererCreateError),
     #[error("{0}")]
     PreprocessorCreate(#[from] PreprocessorCreateError),

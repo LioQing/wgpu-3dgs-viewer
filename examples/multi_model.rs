@@ -1,5 +1,8 @@
 //! This example renders multiple models in the order of their centroids' distance to the camera using the `multi-model` feature.
 //!
+//! Input SH coefficients are converted to degree 3 before use, zero-padding lower degrees and
+//! truncating higher degrees.
+//!
 //! For example, to use an offset of (10, 0, 0) between each model, run:
 //!
 //! ```sh
@@ -135,10 +138,15 @@ impl core::System for System {
             .iter()
             .map(|model_path| {
                 log::debug!("Reading model from {model_path}");
-                [GaussiansSource::Ply, GaussiansSource::Spz]
+                let gaussians = [GaussiansSource::Ply, GaussiansSource::Spz]
                     .into_iter()
                     .find_map(|source| gs::core::Gaussians::read_from_file(model_path, source).ok())
-                    .expect("gaussians")
+                    .expect("gaussians");
+
+                gaussians
+                    .iter_gaussian()
+                    .map(|g| g.convert_sh_degree::<gs::core::ShDegree3>())
+                    .collect::<gs::core::Gaussians>()
             })
             .collect::<Vec<_>>();
 
@@ -148,7 +156,10 @@ impl core::System for System {
             .map(|g| {
                 let mut centroid = Vec3::ZERO;
                 for gaussian in g.iter_gaussian() {
-                    centroid += gaussian.pos;
+                    centroid += gaussian
+                        .try_typed::<gs::core::ShDegree3>()
+                        .expect("SH storage degree")
+                        .pos;
                 }
                 centroid / g.len() as f32
             })
@@ -167,7 +178,7 @@ impl core::System for System {
 
             log::debug!("Pushing model {i}");
 
-            viewer.insert_model(&device, i, gaussians);
+            viewer.insert_model(&device, i, gaussians).expect("model");
             viewer
                 .update_model_transform(&queue, &i, offset, quat, Vec3::ONE)
                 .expect("update model");

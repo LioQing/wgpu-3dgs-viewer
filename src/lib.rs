@@ -45,7 +45,7 @@ pub use wgpu_3dgs_core as core;
 pub use wgpu_3dgs_editor as editor;
 
 /// The default viewer [`GaussianPod`] type.
-pub type DefaultGaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
+pub type DefaultGaussianPod = core::PackedGaussian<core::ShSingle, core::CovSingle>;
 
 /// The default viewer [`DepthSorter`] type.
 pub type DefaultDepthSorter = RadixSorter;
@@ -93,6 +93,8 @@ pub struct Viewer<G: GaussianPod = DefaultGaussianPod, S: DepthSorter = DefaultD
 
 impl<G: GaussianPod> Viewer<G, DefaultDepthSorter> {
     /// Create a new viewer.
+    ///
+    /// The source SH storage degree must match [`GaussianPod::ShDegree`].
     pub fn new(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
@@ -109,12 +111,18 @@ impl<G: GaussianPod> Viewer<G, DefaultDepthSorter> {
 
 impl<G: GaussianPod, S: DepthSorter> Viewer<G, S> {
     /// Create a new viewer with extra [`ViewerCreateOptions`].
+    ///
+    /// The source SH storage degree must match [`GaussianPod::ShDegree`].
     pub fn new_with_options(
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         gaussians: &impl IterGaussian,
         options: ViewerCreateOptions<G, S>,
     ) -> Result<Self, ViewerCreateError> {
+        log::debug!("Creating gaussians buffer");
+        let gaussians_buffer =
+            GaussiansBuffer::try_new_with_usage(device, gaussians, options.gaussians_buffer_usage)?;
+
         log::debug!("Creating camera buffer");
         let camera_buffer = CameraBuffer::new(device);
 
@@ -123,10 +131,6 @@ impl<G: GaussianPod, S: DepthSorter> Viewer<G, S> {
 
         log::debug!("Creating gaussian transform buffer");
         let gaussian_transform_buffer = GaussianTransformBuffer::new(device);
-
-        log::debug!("Creating gaussians buffer");
-        let gaussians_buffer =
-            GaussiansBuffer::new_with_usage(device, gaussians, options.gaussians_buffer_usage);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);

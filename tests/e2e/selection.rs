@@ -2,8 +2,7 @@ use wgpu_3dgs_editor::{BasicColorRgbOverrideOrHsvModifiersPod, Modifier};
 use wgpu_3dgs_viewer::{
     Viewer,
     core::{
-        BufferWrapper, Gaussian, GaussianPodWithShSingleCov3dSingleConfigs, GaussiansBuffer,
-        glam::*,
+        BufferWrapper, CovSingle, Gaussian, GaussiansBuffer, PackedGaussian, ShSingle, glam::*,
     },
     editor::{BasicSelectionModifier, NonDestructiveModifier, SelectionExpr},
     selection::{ViewportSelector, ViewportSelectorType, create_viewport_bundle},
@@ -11,17 +10,17 @@ use wgpu_3dgs_viewer::{
 
 use crate::common::{TestContext, assert_render_target, given};
 
-type G = GaussianPodWithShSingleCov3dSingleConfigs;
+type G = PackedGaussian<ShSingle, CovSingle>;
 
 fn test_select_modify_render_and_assert(
     render: impl FnOnce(&TestContext, &mut wgpu::CommandEncoder, &mut ViewportSelector),
     assertion: impl FnOnce(&[UVec4]),
 ) {
     let ctx = TestContext::new();
-    let gaussians = vec![Gaussian {
+    let gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::ZERO + Vec3::Z,
-        color: U8Vec4::new(255, 0, 0, 255),
+        color: Vec4::new(1.0, 0.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
