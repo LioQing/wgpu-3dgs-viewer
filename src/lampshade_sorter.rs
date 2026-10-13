@@ -42,10 +42,10 @@ const INSTANCE_COUNT_WORD: u32 = 1;
 /// #     })
 /// #     .await
 /// #     .expect("device");
-/// # let gaussians = vec![core::Gaussian {
+/// # let gaussians: Vec<core::Gaussian> = vec![core::Gaussian {
 /// #         rot: Quat::IDENTITY,
 /// #         pos: Vec3::ZERO,
-/// #         color: U8Vec4::ZERO,
+/// #         color: Vec4::ZERO,
 /// #         sh: [Vec3::ZERO; 15],
 /// #         scale: Vec3::ONE,
 /// # }];

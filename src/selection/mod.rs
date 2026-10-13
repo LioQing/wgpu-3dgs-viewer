@@ -23,7 +23,7 @@
 //! #     editor, selection,
 //! # };
 //! #
-//! # type GaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
+//! # type GaussianPod = core::PackedGaussian<core::ShSingle, core::CovSingle>;
 //! #
 //! # let instance = wgpu::Instance::new(
 //! #     wgpu::InstanceDescriptor::new_without_display_handle_from_env()
@@ -46,15 +46,13 @@
 //! # let viewer = Viewer::<GaussianPod>::new(
 //! #     &device,
 //! #     wgpu::TextureFormat::Rgba8UnormSrgb,
-//! #     &core::Gaussians {
-//! #         gaussians: vec![core::Gaussian {
-//! #             rot: Quat::IDENTITY,
-//! #             pos: Vec3::ZERO,
-//! #             color: U8Vec4::ZERO,
-//! #             sh: [Vec3::ZERO; 15],
-//! #             scale: Vec3::ONE,
-//! #         }],
-//! #     },
+//! #     &vec![core::Gaussian::<core::ShDegree3> {
+//! #         rot: Quat::IDENTITY,
+//! #         pos: Vec3::ZERO,
+//! #         color: Vec4::ZERO,
+//! #         sh: [Vec3::ZERO; 15],
+//! #         scale: Vec3::ONE,
+//! #     }],
 //! # )
 //! # .unwrap();
 //! #

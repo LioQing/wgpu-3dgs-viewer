@@ -159,7 +159,10 @@ impl core::System for System {
             .map(|g| {
                 let mut centroid = Vec3::ZERO;
                 for gaussian in g.iter_gaussian() {
-                    centroid += gaussian.pos;
+                    centroid += gaussian
+                        .try_typed::<gs::core::ShDegree3>()
+                        .expect("SH storage degree")
+                        .pos;
                 }
                 centroid / g.len() as f32
             })
@@ -195,7 +198,7 @@ impl core::System for System {
 
             log::debug!("Pushing model {i}");
 
-            viewer.insert_model(&device, i, gaussians);
+            viewer.insert_model(&device, i, gaussians).expect("model");
             viewer
                 .update_model_transform(&queue, &i, offset, quat, Vec3::ONE)
                 .expect("update model");

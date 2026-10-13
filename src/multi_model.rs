@@ -86,22 +86,29 @@ pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = DefaultGaussianPod> 
 
 impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
     /// Create a new viewer Gaussian buffers.
-    pub fn new(device: &wgpu::Device, gaussians: &impl IterGaussian) -> Self {
+    ///
+    /// The source SH storage degree must match [`GaussianPod::ShDegree`].
+    pub fn new(
+        device: &wgpu::Device,
+        gaussians: &impl IterGaussian,
+    ) -> Result<Self, core::ShDegreeMismatchError> {
         Self::new_with(device, GaussiansBuffer::<G>::DEFAULT_USAGES, gaussians)
     }
 
     /// Create a new viewer Gaussian buffers with custom gaussians buffer usage.
+    ///
+    /// The source SH storage degree must match [`GaussianPod::ShDegree`].
     pub fn new_with(
         device: &wgpu::Device,
         gaussians_buffer_usage: wgpu::BufferUsages,
         gaussians: &impl IterGaussian,
-    ) -> Self {
-        log::debug!("Creating model transform buffer");
-        let model_transform_buffer = ModelTransformBuffer::new(device);
-
+    ) -> Result<Self, core::ShDegreeMismatchError> {
         log::debug!("Creating gaussians buffer");
         let gaussians_buffer =
-            GaussiansBuffer::new_with_usage(device, gaussians, gaussians_buffer_usage);
+            GaussiansBuffer::try_new_with_usage(device, gaussians, gaussians_buffer_usage)?;
+
+        log::debug!("Creating model transform buffer");
+        let model_transform_buffer = ModelTransformBuffer::new(device);
 
         log::debug!("Creating indirect args buffer");
         let indirect_args_buffer = IndirectArgsBuffer::new(device);
@@ -130,7 +137,7 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             selection::PreprocessorInvertSelectionBuffer::new(device)
         };
 
-        Self {
+        Ok(Self {
             model_transform_buffer,
             gaussians_buffer,
             indirect_args_buffer,
@@ -141,7 +148,7 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             selection_buffer,
             #[cfg(feature = "viewer-selection")]
             invert_selection_buffer,
-        }
+        })
     }
 
     /// Create a new viewer Gaussian buffers with only the count.
@@ -382,12 +389,15 @@ impl<G: GaussianPod, S: DepthSorterWithoutBindGroups, K: Hash + std::cmp::Eq>
     }
 
     /// Insert a new model to the viewer.
+    ///
+    /// Returns an error without replacing an existing model if the source SH storage
+    /// degree does not match [`GaussianPod::ShDegree`].
     pub fn insert_model(
         &mut self,
         device: &wgpu::Device,
         key: K,
         gaussians: &impl IterGaussian,
-    ) -> Option<MultiModelViewerModel<G, S>> {
+    ) -> Result<Option<MultiModelViewerModel<G, S>>, core::ShDegreeMismatchError> {
         self.insert_model_with(device, key, self.gaussians_buffer_usage, gaussians)
     }
 
@@ -395,15 +405,18 @@ impl<G: GaussianPod, S: DepthSorterWithoutBindGroups, K: Hash + std::cmp::Eq>
     ///
     /// This ignores [`MultiModelViewer::gaussians_buffer_usage`], and instead uses the provided
     /// usage in the argument.
+    ///
+    /// Returns an error without replacing an existing model if the source SH storage
+    /// degree does not match [`GaussianPod::ShDegree`].
     pub fn insert_model_with(
         &mut self,
         device: &wgpu::Device,
         key: K,
         gaussians_buffer_usage: wgpu::BufferUsages,
         gaussians: &impl IterGaussian,
-    ) -> Option<MultiModelViewerModel<G, S>> {
+    ) -> Result<Option<MultiModelViewerModel<G, S>>, core::ShDegreeMismatchError> {
         let gaussian_buffers =
-            MultiModelViewerGaussianBuffers::new_with(device, gaussians_buffer_usage, gaussians);
+            MultiModelViewerGaussianBuffers::new_with(device, gaussians_buffer_usage, gaussians)?;
         let bind_groups = MultiModelViewerBindGroups::new(
             device,
             &self.preprocessor,
@@ -412,13 +425,13 @@ impl<G: GaussianPod, S: DepthSorterWithoutBindGroups, K: Hash + std::cmp::Eq>
             &gaussian_buffers,
             &self.world_buffers,
         );
-        self.models.insert(
+        Ok(self.models.insert(
             key,
             MultiModelViewerModel {
                 gaussian_buffers,
                 bind_groups,
             },
-        )
+        ))
     }
 
     /// Remove a model from the viewer.

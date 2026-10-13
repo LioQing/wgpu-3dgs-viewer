@@ -94,12 +94,12 @@ pollster = { version = "1.0" }
 winit = { version = "0.30" }
 
 [patch.crates-io]
-wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core" }
-wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true }
+# wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core" }
+# wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true }
 
 # For local development:
-# wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
-# wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", optional = true }
+wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
+wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", optional = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

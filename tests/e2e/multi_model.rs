@@ -4,7 +4,8 @@ use wgpu_3dgs_viewer::{
     CameraPod, DefaultDepthSorterWithoutBindGroups, DefaultGaussianPod, MultiModelViewer,
     MultiModelViewerGaussianBuffers,
     core::{
-        Gaussian, GaussianDisplayMode, GaussianShDegree, GaussianTransformPod, ModelTransformPod,
+        Gaussian, GaussianDisplayMode, GaussianShDegree, GaussianTransformPod, Gaussians,
+        GaussiansBuffer, ModelTransformPod, ShDegree0,
     },
 };
 
@@ -12,6 +13,85 @@ use crate::common::{TestContext, assert_render_target, given};
 
 type G = DefaultGaussianPod;
 type S = DefaultDepthSorterWithoutBindGroups;
+
+#[test]
+fn test_multi_model_when_storage_degree_mismatches_should_preserve_existing_model() {
+    let ctx = TestContext::new();
+    let gaussian: Gaussian = Gaussian {
+        rot: Quat::IDENTITY,
+        pos: Vec3::Z,
+        color: Vec4::new(1.0, 0.0, 0.0, 1.0),
+        sh: [Vec3::ZERO; 15],
+        scale: Vec3::ONE,
+    };
+    let gaussians = Gaussians::from(vec![gaussian]);
+    let mut viewer =
+        MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
+            .expect("viewer");
+
+    assert!(
+        viewer
+            .insert_model(&ctx.device, "model", &gaussians)
+            .expect("model")
+            .is_none()
+    );
+    assert!(
+        viewer
+            .insert_model(&ctx.device, "model", &gaussians)
+            .expect("model")
+            .is_some()
+    );
+    assert_eq!(
+        MultiModelViewerGaussianBuffers::<G>::new(&ctx.device, &gaussians)
+            .expect("buffers")
+            .gaussians_buffer
+            .len(),
+        1,
+    );
+
+    for count in [0, 2] {
+        let mismatched = Gaussians::from(vec![gaussian.convert_sh_degree::<ShDegree0>(); count]);
+        let error = MultiModelViewerGaussianBuffers::<G>::new(&ctx.device, &mismatched)
+            .expect_err("SH degree mismatch");
+        assert_eq!(error.actual_degree, 0);
+        assert_eq!(error.expected_degree, 3);
+
+        let error = MultiModelViewerGaussianBuffers::<G>::new_with(
+            &ctx.device,
+            GaussiansBuffer::<G>::DEFAULT_USAGES,
+            &mismatched,
+        )
+        .expect_err("SH degree mismatch");
+        assert_eq!(error.actual_degree, 0);
+        assert_eq!(error.expected_degree, 3);
+
+        let error = viewer
+            .insert_model(&ctx.device, "new", &mismatched)
+            .expect_err("SH degree mismatch");
+        assert_eq!(error.actual_degree, 0);
+        assert_eq!(error.expected_degree, 3);
+        assert!(!viewer.models.contains_key("new"));
+
+        let error = viewer
+            .insert_model_with(
+                &ctx.device,
+                "model",
+                GaussiansBuffer::<G>::DEFAULT_USAGES,
+                &mismatched,
+            )
+            .expect_err("SH degree mismatch");
+        assert_eq!(error.actual_degree, 0);
+        assert_eq!(error.expected_degree, 3);
+        assert_eq!(viewer.models.len(), 1);
+        assert_eq!(
+            viewer.models["model"]
+                .gaussian_buffers
+                .gaussians_buffer
+                .len(),
+            1
+        );
+    }
+}
 
 fn render_and_assert(
     ctx: &TestContext,
@@ -56,18 +136,18 @@ fn test_multi_model_viewer_gaussian_buffers_new_empty_should_create_buffer_with_
 #[test]
 fn test_multi_model_viewer_update_camera_when_with_or_without_pod_should_be_equal() {
     let ctx = TestContext::new();
-    let red_gaussians = vec![Gaussian {
+    let red_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::ZERO + Vec3::Z,
-        color: U8Vec4::new(255, 0, 0, 255),
+        color: Vec4::new(1.0, 0.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
 
-    let green_gaussians = vec![Gaussian {
+    let green_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::new(1.0, 0.0, 1.0),
-        color: U8Vec4::new(0, 255, 0, 255),
+        color: Vec4::new(0.0, 1.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
@@ -85,10 +165,18 @@ fn test_multi_model_viewer_update_camera_when_with_or_without_pod_should_be_equa
         MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
             .expect("viewer");
 
-    viewer1.insert_model(&ctx.device, "red", &red_gaussians);
-    viewer1.insert_model(&ctx.device, "green", &green_gaussians);
-    viewer2.insert_model(&ctx.device, "red", &red_gaussians);
-    viewer2.insert_model(&ctx.device, "green", &green_gaussians);
+    viewer1
+        .insert_model(&ctx.device, "red", &red_gaussians)
+        .expect("model");
+    viewer1
+        .insert_model(&ctx.device, "green", &green_gaussians)
+        .expect("model");
+    viewer2
+        .insert_model(&ctx.device, "red", &red_gaussians)
+        .expect("model");
+    viewer2
+        .insert_model(&ctx.device, "green", &green_gaussians)
+        .expect("model");
 
     viewer1.update_camera_with_pod(&ctx.queue, &camera_pod);
     viewer2.update_camera(&ctx.queue, &camera, size);
@@ -115,18 +203,18 @@ fn test_multi_model_viewer_update_camera_when_with_or_without_pod_should_be_equa
 #[test]
 fn test_multi_model_viewer_render_should_render_correctly() {
     let ctx = TestContext::new();
-    let red_gaussians = vec![Gaussian {
+    let red_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::ZERO + Vec3::Z,
-        color: U8Vec4::new(255, 0, 0, 255),
+        color: Vec4::new(1.0, 0.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
 
-    let green_gaussians = vec![Gaussian {
+    let green_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::new(1.0, 0.0, 1.0),
-        color: U8Vec4::new(0, 255, 0, 255),
+        color: Vec4::new(0.0, 1.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
@@ -137,8 +225,12 @@ fn test_multi_model_viewer_render_should_render_correctly() {
         MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
             .expect("viewer");
 
-    viewer.insert_model(&ctx.device, "red", &red_gaussians);
-    viewer.insert_model(&ctx.device, "green", &green_gaussians);
+    viewer
+        .insert_model(&ctx.device, "red", &red_gaussians)
+        .expect("model");
+    viewer
+        .insert_model(&ctx.device, "green", &green_gaussians)
+        .expect("model");
 
     viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
 
@@ -161,18 +253,18 @@ fn test_multi_model_viewer_when_no_sh0_is_set_should_render_as_grayscale(
     update_gaussian_transform: impl FnOnce(&mut MultiModelViewer<G, S, &str>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
-    let red_gaussians = vec![Gaussian {
+    let red_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::ZERO + Vec3::Z,
-        color: U8Vec4::new(255, 0, 0, 255),
+        color: Vec4::new(1.0, 0.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
 
-    let green_gaussians = vec![Gaussian {
+    let green_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::new(1.0, 0.0, 1.0),
-        color: U8Vec4::new(0, 255, 0, 255),
+        color: Vec4::new(0.0, 1.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
@@ -183,8 +275,12 @@ fn test_multi_model_viewer_when_no_sh0_is_set_should_render_as_grayscale(
         MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
             .expect("viewer");
 
-    viewer.insert_model(&ctx.device, "red", &red_gaussians);
-    viewer.insert_model(&ctx.device, "green", &green_gaussians);
+    viewer
+        .insert_model(&ctx.device, "red", &red_gaussians)
+        .expect("model");
+    viewer
+        .insert_model(&ctx.device, "green", &green_gaussians)
+        .expect("model");
 
     viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
     update_gaussian_transform(&mut viewer, &ctx.queue);
@@ -240,18 +336,18 @@ fn test_multi_model_viewer_when_model_pos_is_behind_camera_should_not_render_gau
     update_model_transform: impl FnOnce(&mut MultiModelViewer<G, S, &str>, &wgpu::Queue),
 ) {
     let ctx = TestContext::new();
-    let red_gaussians = vec![Gaussian {
+    let red_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::ZERO + Vec3::Z,
-        color: U8Vec4::new(255, 0, 0, 255),
+        color: Vec4::new(1.0, 0.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
 
-    let green_gaussians = vec![Gaussian {
+    let green_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::new(1.0, 0.0, 1.0),
-        color: U8Vec4::new(0, 255, 0, 255),
+        color: Vec4::new(0.0, 1.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
@@ -262,8 +358,12 @@ fn test_multi_model_viewer_when_model_pos_is_behind_camera_should_not_render_gau
         MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
             .expect("viewer");
 
-    viewer.insert_model(&ctx.device, "red", &red_gaussians);
-    viewer.insert_model(&ctx.device, "green", &green_gaussians);
+    viewer
+        .insert_model(&ctx.device, "red", &red_gaussians)
+        .expect("model");
+    viewer
+        .insert_model(&ctx.device, "green", &green_gaussians)
+        .expect("model");
 
     viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
     update_model_transform(&mut viewer, &ctx.queue);
@@ -335,18 +435,18 @@ fn test_multi_model_viewer_update_model_transform_with_pod_when_model_pos_is_beh
 #[test]
 fn test_multi_model_viewer_remove_model_should_not_render_removed_model() {
     let ctx = TestContext::new();
-    let red_gaussians = vec![Gaussian {
+    let red_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::ZERO + Vec3::Z,
-        color: U8Vec4::new(255, 0, 0, 255),
+        color: Vec4::new(1.0, 0.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
 
-    let green_gaussians = vec![Gaussian {
+    let green_gaussians: Vec<Gaussian> = vec![Gaussian {
         rot: Quat::IDENTITY,
         pos: Vec3::new(1.0, 0.0, 1.0),
-        color: U8Vec4::new(0, 255, 0, 255),
+        color: Vec4::new(0.0, 1.0, 0.0, 1.0),
         sh: [Vec3::ZERO; 15],
         scale: Vec3::splat(1.0),
     }];
@@ -357,8 +457,12 @@ fn test_multi_model_viewer_remove_model_should_not_render_removed_model() {
         MultiModelViewer::<G, S, &str>::new(&ctx.device, wgpu::TextureFormat::Rgba8Unorm)
             .expect("viewer");
 
-    viewer.insert_model(&ctx.device, "red", &red_gaussians);
-    viewer.insert_model(&ctx.device, "green", &green_gaussians);
+    viewer
+        .insert_model(&ctx.device, "red", &red_gaussians)
+        .expect("model");
+    viewer
+        .insert_model(&ctx.device, "green", &green_gaussians)
+        .expect("model");
 
     viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
 

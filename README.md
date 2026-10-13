@@ -51,6 +51,14 @@ You may read the documentation of the following types for more details:
 
 You can use [`Viewer`] to render a single 3D Gaussian Splatting model:
 
+The model's SH storage degree must match the viewer's [`core::GaussianPod`] layout.
+[`DefaultGaussianPod`] uses `core::PackedGaussian<core::ShSingle, core::CovSingle>` with
+degree 3. Choose a matching layout for other storage degrees. Viewer creation returns
+[`ViewerCreateError::ShDegreeMismatch`] on a mismatch, without implicitly truncating or
+zero-extending SH coefficients. [`MultiModelViewer::insert_model`] and
+[`MultiModelViewer::insert_model_with`] also return `Result` and leave existing models
+unchanged on a degree mismatch.
+
 ```rust ignore
 use wgpu_3dgs_viewer as gs;
 use wgpu_3dgs_viewer::core::glam::UVec2;

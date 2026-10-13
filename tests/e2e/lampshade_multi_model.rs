@@ -2,12 +2,12 @@ use glam::{Quat, U8Vec4, UVec2, Vec3};
 use wgpu_3dgs_viewer::{
     CameraPod, DefaultDepthSorterWithoutBindGroups, DepthSorterWithoutBindGroups, LampshadeSorter,
     MultiModelViewer, MultiModelViewerCreateOptions,
-    core::{BufferWrapper, Gaussian, GaussianPodWithShSingleCov3dSingleConfigs, GaussiansBuffer},
+    core::{BufferWrapper, CovSingle, Gaussian, GaussiansBuffer, PackedGaussian, ShSingle},
 };
 
 use crate::common::{TestContext, given};
 
-type G = GaussianPodWithShSingleCov3dSingleConfigs;
+type G = PackedGaussian<ShSingle, CovSingle>;
 const WIDTH: u32 = 64;
 
 fn scene(count: u32) -> Vec<Gaussian> {
@@ -19,7 +19,7 @@ fn scene(count: u32) -> Vec<Gaussian> {
                 ((i / 8) % 8) as f32 * 0.025 - 0.1,
                 1.0 + i as f32 * 0.001,
             ),
-            color: U8Vec4::new((i * 17) as u8, (i * 31) as u8, 200, 40),
+            color: U8Vec4::new((i * 17) as u8, (i * 31) as u8, 200, 40).as_vec4() / 255.0,
             sh: [Vec3::ZERO; 15],
             scale: Vec3::splat(0.02),
         })
@@ -45,7 +45,9 @@ fn accelerated_viewer(
     .expect("viewer");
 
     for (key, gaussians) in models {
-        viewer.insert_model(&ctx.device, *key, gaussians);
+        viewer
+            .insert_model(&ctx.device, *key, gaussians)
+            .expect("model");
     }
 
     viewer.update_camera_with_pod(
@@ -66,7 +68,9 @@ fn embedded_viewer(
     .expect("viewer");
 
     for (key, gaussians) in models {
-        viewer.insert_model(&ctx.device, *key, gaussians);
+        viewer
+            .insert_model(&ctx.device, *key, gaussians)
+            .expect("model");
     }
 
     viewer.update_camera_with_pod(
