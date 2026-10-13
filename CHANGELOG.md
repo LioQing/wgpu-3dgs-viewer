@@ -14,7 +14,7 @@ This version introduced a lot of breaking changes to `wgpu-3dgs-core`, you can a
 ### Changed
 
 - 🧩 Migrate `DefaultGaussianPod`, examples, tests, and documentation to the updated core and editor APIs, including `PackedGaussian` layouts, floating-point colors, and runtime-degree iteration. [#32](https://github.com/LioQing/wgpu-3dgs-viewer/pull/32)
-- 🧩 Add the draw indirect args buffer to `DepthSorterWithoutBindGroups::create_bind_groups` so sorters can consume the GPU-written `instance_count`. [#31](https://github.com/LioQing/wgpu-3dgs-viewer/pull/31)
+- 🚚 Add the draw indirect args buffer to `DepthSorterWithoutBindGroups::create_bind_groups` so sorters can consume the GPU-written `instance_count`. [#31](https://github.com/LioQing/wgpu-3dgs-viewer/pull/31)
 
 ### Breaking Changes
 
