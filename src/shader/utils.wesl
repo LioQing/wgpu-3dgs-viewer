@@ -85,6 +85,10 @@ fn view_color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> 
     const sh_c3 = array<f32, 7>(
         -0.5900436, 2.8906114, -0.4570458, 0.3731763, -0.4570458, 1.4453057, -0.5900436
     );
+    const sh_c4 = array<f32, 9>(
+        2.5033429, -1.7701308, 0.9461747, -0.6690465, 0.1057855,
+        -0.6690465, 0.4730873, -1.7701308, 0.6258357
+    );
 
     let x = dir.x;
     let y = dir.y;
@@ -128,6 +132,19 @@ fn view_color(gaussian: Gaussian, dir: vec3<f32>, sh_deg: u32, no_sh0: bool) -> 
                     sh_c3[4] * x * (4.0 * zz - xx - yy) * gaussian_unpack_sh(gaussian, 12u) +
                     sh_c3[5] * z * (xx - yy) * gaussian_unpack_sh(gaussian, 13u) +
                     sh_c3[6] * x * (xx - 3.0 * yy) * gaussian_unpack_sh(gaussian, 14u);
+
+                if sh_deg >= 4u {
+                    result +=
+                        sh_c4[0] * xy * (xx - yy) * gaussian_unpack_sh(gaussian, 15u) +
+                        sh_c4[1] * yz * (3.0 * xx - yy) * gaussian_unpack_sh(gaussian, 16u) +
+                        sh_c4[2] * xy * (7.0 * zz - 1.0) * gaussian_unpack_sh(gaussian, 17u) +
+                        sh_c4[3] * yz * (7.0 * zz - 3.0) * gaussian_unpack_sh(gaussian, 18u) +
+                        sh_c4[4] * (zz * (35.0 * zz - 30.0) + 3.0) * gaussian_unpack_sh(gaussian, 19u) +
+                        sh_c4[5] * xz * (7.0 * zz - 3.0) * gaussian_unpack_sh(gaussian, 20u) +
+                        sh_c4[6] * (xx - yy) * (7.0 * zz - 1.0) * gaussian_unpack_sh(gaussian, 21u) +
+                        sh_c4[7] * xz * (xx - 3.0 * yy) * gaussian_unpack_sh(gaussian, 22u) +
+                        sh_c4[8] * (xx * (xx - 3.0 * yy) - yy * (3.0 * xx - yy)) * gaussian_unpack_sh(gaussian, 23u);
+                }
             }
         }
     }
