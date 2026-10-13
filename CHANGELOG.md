@@ -13,12 +13,12 @@ This version introduced a lot of breaking changes to `wgpu-3dgs-core`, you can a
 
 ### Changed
 
-- 🧩 Migrate `DefaultGaussianPod`, examples, tests, and documentation to the updated core and editor APIs, including `PackedGaussian` layouts, floating-point colors, and runtime-degree iteration.
+- 🧩 Migrate `DefaultGaussianPod`, examples, tests, and documentation to the updated core and editor APIs, including `PackedGaussian` layouts, floating-point colors, and runtime-degree iteration. [#32](https://github.com/LioQing/wgpu-3dgs-viewer/pull/32)
 - 🧩 Add the draw indirect args buffer to `DepthSorterWithoutBindGroups::create_bind_groups` so sorters can consume the GPU-written `instance_count`. [#31](https://github.com/LioQing/wgpu-3dgs-viewer/pull/31)
 
 ### Breaking Changes
 
-- Require the source SH storage degree to match the viewer's Gaussian POD layout. Viewer creation returns `ViewerCreateError::ShDegreeMismatch` on a mismatch. `MultiModelViewerGaussianBuffers::new` and `new_with`, and `MultiModelViewer::insert_model` and `insert_model_with`, now return `Result` with `core::ShDegreeMismatchError` instead of silently converting coefficients.
+- Require the source SH storage degree to match the viewer's Gaussian POD layout. Viewer creation returns `ViewerCreateError::ShDegreeMismatch` on a mismatch. `MultiModelViewerGaussianBuffers::new` and `new_with`, and `MultiModelViewer::insert_model` and `insert_model_with`, now return `Result` with `core::ShDegreeMismatchError` instead of silently converting coefficients. [#32](https://github.com/LioQing/wgpu-3dgs-viewer/pull/32)
 - Rename `RadixSortIndirectArgsBuffer` to `DepthSortIndirectArgsBuffer`, `radix_sort_indirect_args_buffer` fields to `depth_sort_indirect_args_buffer`, and `radix_sorter` fields to `depth_sorter`. [#30](https://github.com/LioQing/wgpu-3dgs-viewer/pull/30)
 - Add a depth sorter generic parameter before the model key type in `MultiModelViewer`, and change `MultiModelViewer::new_with_options` to take `MultiModelViewerCreateOptions` instead of `ViewerCreateOptions`. [#30](https://github.com/LioQing/wgpu-3dgs-viewer/pull/30)
 
