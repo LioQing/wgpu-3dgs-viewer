@@ -96,6 +96,54 @@ fn test_viewer_when_storage_degree_matches_should_render_packed_layouts() {
 }
 
 #[test]
+fn test_viewer_when_fourth_sh_band_is_nonzero_should_render_it_only_at_degree_four() {
+    let ctx = TestContext::new();
+    let mut gaussian = gaussian().convert_sh_degree::<ShDegree4>();
+    // Index 19 is the degree-4, m=0 coefficient (SH0 is stored in color).
+    // Its basis is positive along the Z axis, so it adds green to the red fixture.
+    gaussian.sh[19] = Vec3::Y;
+    let gaussians = vec![gaussian];
+    let mut viewer = Viewer::<PackedGaussian<ShSingle<ShDegree4>, CovSingle>>::new(
+        &ctx.device,
+        wgpu::TextureFormat::Rgba8Unorm,
+        &gaussians,
+    )
+    .expect("viewer");
+    viewer.update_camera_with_pod(&ctx.queue, &given::camera_pod());
+
+    let render_target = given::render_target_texture(&ctx);
+    let render_target_view = render_target.create_view(&wgpu::TextureViewDescriptor::default());
+    for degree in [3, 4] {
+        viewer.update_gaussian_transform(
+            &ctx.queue,
+            1.0,
+            GaussianDisplayMode::Splat,
+            GaussianShDegree::new(degree).expect("sh deg"),
+            false,
+            GaussianMaxStdDev::new(3.0).expect("max std dev"),
+        );
+
+        let mut encoder = ctx.device.create_command_encoder(&Default::default());
+        viewer.render(&mut encoder, &render_target_view);
+        ctx.queue.submit(Some(encoder.finish()));
+        ctx.device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("device poll");
+
+        assert_render_target(&ctx, &render_target_view, |pixels| {
+            let sum = pixels.iter().sum::<UVec4>();
+            assert!(sum.x > 1, "the base red color must remain visible");
+            assert_eq!(sum.z, 0);
+            if degree == 3 {
+                assert_eq!(sum.y, 0, "degree 3 must ignore the fourth SH band");
+            } else {
+                assert!(sum.y > 1, "degree 4 must evaluate the fourth SH band");
+            }
+        });
+    }
+}
+
+#[test]
 fn test_viewer_when_runtime_storage_degree_matches_should_create_viewer() {
     let ctx = TestContext::new();
     let gaussians = Gaussians::from(vec![gaussian()]);
