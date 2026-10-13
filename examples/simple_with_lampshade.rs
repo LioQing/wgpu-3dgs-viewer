@@ -1,6 +1,9 @@
 //! This example renders a simple 3D Gaussian splatting model using the optional
 //! [Lampshade](https://crates.io/crates/lampshade) depth sorter.
 //!
+//! Input SH coefficients are converted to degree 3 before use, zero-padding lower degrees and
+//! truncating higher degrees.
+//!
 //! It is the same as the `simple` example, except that it enables the `lampshade-sort` feature,
 //! requests the device features and limits that Lampshade requires, and injects
 //! [`LampshadeSorter`] into the viewer. On devices that are not eligible, the sorter transparently
@@ -26,7 +29,9 @@ use glam::*;
 use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, window::Window};
 
 use wgpu_3dgs_viewer as gs;
-use wgpu_3dgs_viewer::core::{BufferWrapper, GaussianMaxStdDev, GaussiansBuffer, GaussiansSource};
+use wgpu_3dgs_viewer::core::{
+    BufferWrapper, GaussianMaxStdDev, GaussiansBuffer, GaussiansSource, IterGaussian,
+};
 
 mod utils;
 use utils::core;
@@ -175,6 +180,11 @@ impl core::System for System {
             .into_iter()
             .find_map(|source| gs::core::Gaussians::read_from_file(model_path, source).ok())
             .expect("gaussians");
+
+        let gaussians = gaussians
+            .iter_gaussian()
+            .map(|g| g.convert_sh_degree::<gs::core::ShDegree3>())
+            .collect::<gs::core::Gaussians>();
 
         log::debug!("Creating camera");
         let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());

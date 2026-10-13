@@ -1,5 +1,8 @@
 //! This example enables viewport-based selsection of Gaussians using the `viewer-selection` feature.
 //!
+//! Input SH coefficients are converted to degree 3 before use, zero-padding lower degrees and
+//! truncating higher degrees.
+//!
 //! For example, to filter the selected Gaussians:
 //!
 //! ```sh
@@ -20,7 +23,7 @@ use winit::{error::EventLoopError, event_loop::EventLoop, keyboard::KeyCode, win
 
 use wgpu_3dgs_viewer::{
     self as gs,
-    core::{BufferWrapper, GaussiansSource},
+    core::{BufferWrapper, GaussiansSource, IterGaussian},
     editor::{BasicColorRgbOverrideOrHsvModifiersPod, Modifier},
 };
 
@@ -149,6 +152,11 @@ impl core::System for System {
             .into_iter()
             .find_map(|source| gs::core::Gaussians::read_from_file(model_path, source).ok())
             .expect("gaussians");
+
+        let gaussians = gaussians
+            .iter_gaussian()
+            .map(|g| g.convert_sh_degree::<gs::core::ShDegree3>())
+            .collect::<gs::core::Gaussians>();
 
         log::debug!("Creating camera");
         let camera = gs::Camera::new(0.1..1e4, 60f32.to_radians());
