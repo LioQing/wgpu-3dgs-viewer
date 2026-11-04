@@ -51,6 +51,10 @@ var<uniform> invert_selection: u32;
 
 @compute @workgroup_size(1)
 fn pre() {
+    // WebKit fails to create a compute pipeline whose `constants` name an override the entry
+    // point does not use, and the bundle always passes `workgroup_size`.
+    _ = workgroup_size;
+
     // Reset instance count
     atomicStore(&indirect_args.instance_count, 0u);
 }
@@ -107,6 +111,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 @compute @workgroup_size(1)
 fn post() {
+    // See `pre`.
+    _ = workgroup_size;
+
     let instance_count = atomicLoad(&indirect_args.instance_count);
 
     // Set depth sort indirect args

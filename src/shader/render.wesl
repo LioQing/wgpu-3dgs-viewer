@@ -86,18 +86,19 @@ fn vert_main(
     let view_pos = camera.view * world_pos;
     let proj_pos = camera.proj * view_pos;
 
-    let color = color(gaussian, world_pos.xyz);
+    // Locals are not named after the function they call, which WebKit fails to resolve.
+    let gaussian_color = color(gaussian, world_pos.xyz);
     let display_mode = gaussian_transform_display_mode(gaussian_transform.flags);
 
     if display_mode == gaussian_display_mode_point {
-        let quad_offset = quad_offset(vert_index) * point_size * gaussian_transform.size;
+        let offset = quad_offset(vert_index) * point_size * gaussian_transform.size;
         let aspect_ratio = camera_aspect_ratio(camera.size);
         let clip_pos = proj_pos.xy
-            + quad_offset * proj_pos.w * vec2<f32>(aspect_ratio, 1.0) / length(view_pos.xyz);
+            + offset * proj_pos.w * vec2<f32>(aspect_ratio, 1.0) / length(view_pos.xyz);
 
         out.clip_pos = vec4<f32>(clip_pos, proj_pos.zw);
-        out.quad_offset = quad_offset;
-        out.color = color;
+        out.quad_offset = offset;
+        out.color = gaussian_color;
         out.display_mode = display_mode;
         
         return out;
@@ -113,16 +114,16 @@ fn vert_main(
     let major_axis = axes.xy;
     let minor_axis = axes.zw;
 
-    let quad_offset = quad_offset(vert_index) * std_dev;
+    let offset = quad_offset(vert_index) * std_dev;
     let clip_pos = (
         proj_pos.xy
-        + quad_offset.x * proj_pos.w * major_axis / camera.size
-        + quad_offset.y * proj_pos.w * minor_axis / camera.size
+        + offset.x * proj_pos.w * major_axis / camera.size
+        + offset.y * proj_pos.w * minor_axis / camera.size
     );
 
     out.clip_pos = vec4<f32>(clip_pos, proj_pos.zw);
-    out.quad_offset = quad_offset;
-    out.color = color;
+    out.quad_offset = offset;
+    out.color = gaussian_color;
     out.display_mode = display_mode;
     out.std_dev = std_dev;
 
