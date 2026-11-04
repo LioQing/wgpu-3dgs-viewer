@@ -57,9 +57,10 @@ fn cov2d_axes(
     camera: Camera,
     std_dev: f32,
 ) -> vec4<f32> {
-    let cov2d = cov2d(gaussian, model_transform, camera);
-    let mid = 0.5 * (cov2d.x + cov2d.z);
-    let radius = length(vec2<f32>(0.5 * (cov2d.x - cov2d.z), cov2d.y));
+    // Not named `cov2d`, see `vert_main` in `render.wesl`.
+    let cov = cov2d(gaussian, model_transform, camera);
+    let mid = 0.5 * (cov.x + cov.z);
+    let radius = length(vec2<f32>(0.5 * (cov.x - cov.z), cov.y));
     let major_lambda = mid + radius;
     let minor_lambda = mid - radius;
 
@@ -67,7 +68,7 @@ fn cov2d_axes(
         return vec4<f32>(0.0);
     }
 
-    let diag = vec2<f32>(cov2d.y, major_lambda - cov2d.x);
+    let diag = vec2<f32>(cov.y, major_lambda - cov.x);
     let diag_dir = select(normalize(diag), vec2<f32>(0.0, 1.0), all(diag == vec2<f32>(0.0)));
     let ortho_diag_dir = vec2<f32>(diag_dir.y, -diag_dir.x);
     let major_len = min(std_dev * sqrt(major_lambda), 1024.0);
